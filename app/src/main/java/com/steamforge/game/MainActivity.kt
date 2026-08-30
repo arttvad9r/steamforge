@@ -19,13 +19,11 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private var sessionStartMs: Long = 0L
-    private var appOpenLogged = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as SteamforgeApp).container
 
-        // Сначала восстанавливаем consent и только затем отправляем первый app_open.
         lifecycleScope.launch {
             container.repo.progress
                 .map { it.analyticsConsent }
@@ -33,10 +31,7 @@ class MainActivity : ComponentActivity() {
                 .collectLatest { consent ->
                     if (consent != null) {
                         container.onConsentUpdated(consent)
-                        if (consent && !appOpenLogged) {
-                            appOpenLogged = true
-                            container.analytics.logEvent("app_open")
-                        }
+                        if (consent) container.logAppOpenOnce()
                     }
                 }
         }
