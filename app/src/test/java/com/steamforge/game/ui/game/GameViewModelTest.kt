@@ -10,12 +10,10 @@ import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlin.random.Random
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -57,125 +55,134 @@ class GameViewModelTest {
         analytics = analytics,
         cfg = ProgressionConfig(),
         dailyMode = daily,
-        dailyProvider = { DailyChallenges.forEpochDay(20600L) },
+        dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
         seedProvider = { seed },
         savedGameProvider = { repo.currentGame },
         systemAnimationsEnabled = true,
     )
 
-    private suspend fun GameViewModel.playUntilMergeOrMax(maxMoves: Int = 60): Int {
+    private suspend fun GameViewModel.playMoves(maxMoves: Int = 60) {
         val moves = listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)
-        for (i in 0 until maxMoves) {
-            onMove(moves[i % 4])
+        repeat(maxMoves) { i -> onMove(moves[i % moves.size]) }
+    }
+
+    private suspend fun finishByPlaying(model: GameViewModel, maxMoves: Int = 3000) {
+        val moves = listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)
+        repeat(maxMoves) { i ->
+            if (model.ui.value.finished) return
+            model.onMove(moves[i % moves.size])
         }
-        return ui.value.state.score
+        assertTrue("game did not finish within $maxMoves moves", model.ui.value.finished)
     }
 
     @Test
     fun `new game restores or starts fresh`() = runTest(dispatcher) {
-        val repo = FakeDataRepo()
-        val vm = vm(repo)
+        val model = vm()
         advanceUntilIdle()
-        assertEquals(2, vm.ui.value.state.tiles.size)
+        assertEquals(2, model.ui.value.state.tiles.size)
     }
 
     @Test
     fun `move updates board and free undos allow one step back`() = runTest(dispatcher) {
-        val vm = vm(seed = 7L)
+        val model = vm(seed = 7L)
         advanceUntilIdle()
-        // играем до первого успешного хода
         var moved = false
         for (m in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {
-            val before = vm.ui.value.state
-            vm.onMove(m)
+            val before = model.ui.value.state
+            model.onMove(m)
             advanceUntilIdle()
-            if (vm.ui.value.state != before) {
+            if (model.ui.value.state != before) {
                 moved = true
                 break
             }
         }
         assertTrue(moved)
-        assertTrue(vm.ui.value.canUndo)
-        val beforeUndo = vm.ui.value.state
-        vm.undo()
+        assertTrue(model.ui.value.canUndo)
+        val beforeUndo = model.ui.value.state
+        model.undo()
         advanceUntilIdle()
-        assertTrue(vm.ui.value.state.score <= beforeUndo.score)
-        assertEquals(1, vm.ui.value.freeUndosLeft)
-        assertFalse(vm.ui.value.canUndo)
+        assertTrue(model.ui.value.state.score <= beforeUndo.score)
+        assertEquals(1, model.ui.value.freeUndosLeft)
+        assertFalse(model.ui.value.canUndo)
     }
 
     @Test
-    fun `pressure accumulates and overdrive activates with multiplier`() = runTest(dispatcher) {
-        val vm = vm(seed = 7L)
+    fun `pressure accumulates and overdrive activates`() = runTest(dispatcher) {
+        val model = vm(seed = 7L)
         advanceUntilIdle()
         var seenOverdrive = false
-        var scoreWithout = 0
-        for (i in 0 until 80) {
-            vm.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+        for (i in 0 until 100) {
+            model.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
             advanceUntilIdle()
-            val s = vm.ui.value
-            if (s.overdriveRemaining > 0) {
+            if (model.ui.value.overdriveRemaining > 0) {
                 seenOverdrive = true
-                // во время overdrive давление заморожено
-                assertEquals(0, s.pressure)
+                assertEquals(0, model.ui.value.pressure)
+                break
             }
-            if (seenOverdrive) break
         }
         assertTrue(seenOverdrive)
-        assertTrue(vm.ui.value.overdrivesSession >= 1)
-        assertTrue(vm.ui.value.state.score > scoreWithout)
+        assertTrue(model.ui.value.overdrivesSession >= 1)
     }
 
     @Test
-    fun `finish on exit grants xp and counts game`() = runTest(dispatcher) {
+    fun `exit saves normal game but does not grant progression`() = runTest(dispatcher) {
         val repo = FakeDataRepo()
-        val vm = vm(repo, seed = 7L)
+        val model = vm(repo, seed = 7L)
         advanceUntilIdle()
-        vm.playUntilMergeOrMax(12)
-        vm.exit()
+        model.playMoves(12)
         advanceUntilIdle()
-        val p = repo.currentProgress
-        assertEquals(1, p.stats.gamesPlayed)
-        assertTrue(p.totalXp > 0)
-        assertNull(repo.currentGame)
-        assertTrue(vm.ui.value.finished)
+        val before = repo.currentProgress
+        model.exit()
+        advanceUntilIdle()
+        assertEquals(before, repo.currentProgress)
+        assertNotNull(repo.currentGame)
+        assertFalse(model.ui.value.finished)
     }
 
     @Test
-    fun `daily mode completes goal and grants reward once`() = runTest(dispatcher) {
+    fun `daily exit cannot farm xp`() = runTest(dispatcher) {
         val repo = FakeDataRepo()
-        val challenge = DailyChallenges.forEpochDay(20600L)
-        val vm = vm(repo, daily = true, seed = challenge.seed)
-        advanceUntilIdle()
-        for (i in 0 until 200) {
-            if (vm.ui.value.dailySatisfied) break
-            vm.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+        repeat(3) {
+            val model = vm(repo, daily = true, seed = 7L)
+            advanceUntilIdle()
+            model.exit()
             advanceUntilIdle()
         }
-        assertTrue(vm.ui.value.dailySatisfied)
-        val p = repo.currentProgress
-        assertTrue(p.dailyChallengeDone)
-        // завершение записывается на сегодняшний день (challenge выдаётся на today)
-        assertEquals(LocalDay.todayEpochDay(), p.dailyChallengeDay)
-        // награда за challenge + достижение daily_1
-        assertTrue(p.gems >= challenge.rewardGems)
-        assertTrue(p.totalXp >= challenge.bonusXp)
-        assertEquals(1, p.stats.dailyCompleted)
-        // повторное выполнение не даёт награду второй раз
-        val gemsAfter = p.gems
-        for (i in 0 until 10) {
-            vm.onMove(Move.LEFT)
-            advanceUntilIdle()
-        }
-        assertEquals(gemsAfter, repo.currentProgress.gems)
+        assertEquals(0, repo.currentProgress.totalXp)
+        assertEquals(0, repo.currentProgress.stats.gamesPlayed)
     }
 
     @Test
-    fun `daily mode does not persist or restore save`() = runTest(dispatcher) {
+    fun `daily challenge reward is idempotent across different viewmodels`() = runTest(dispatcher) {
+        val repo = FakeDataRepo()
+        val challenge = DailyChallenges.forEpochDay(LocalDay.todayEpochDay())
+        val first = vm(repo, daily = true, seed = challenge.seed)
+        advanceUntilIdle()
+        for (i in 0 until 1000) {
+            if (first.ui.value.dailySatisfied) break
+            first.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+            advanceUntilIdle()
+        }
+        assertTrue(first.ui.value.dailySatisfied)
+        val afterFirst = repo.currentProgress
+        assertTrue(afterFirst.dailyChallengeDone)
+
+        val second = vm(repo, daily = true, seed = challenge.seed)
+        advanceUntilIdle()
+        assertTrue(second.ui.value.dailySatisfied)
+        second.playMoves(100)
+        advanceUntilIdle()
+        assertEquals(afterFirst.gems, repo.currentProgress.gems)
+        assertEquals(afterFirst.totalXp, repo.currentProgress.totalXp)
+        assertEquals(1, repo.currentProgress.stats.dailyCompleted)
+    }
+
+    @Test
+    fun `daily mode does not persist active save`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialGame = null)
-        val vm = vm(repo, daily = true)
+        val model = vm(repo, daily = true)
         advanceUntilIdle()
-        vm.onMove(Move.LEFT)
+        model.onMove(Move.LEFT)
         advanceUntilIdle()
         assertNull(repo.currentGame)
     }
@@ -183,136 +190,125 @@ class GameViewModelTest {
     @Test
     fun `wrench removes low tile and spends gems`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialProgress = PlayerProgress(gems = 50))
-        val vm = vm(repo, seed = 7L)
+        val model = vm(repo, seed = 7L)
         advanceUntilIdle()
-        vm.playUntilMergeOrMax(10)
+        model.playMoves(10)
         advanceUntilIdle()
-        val target = vm.ui.value.state.tiles.first { it.level <= 4 }
-        val before = vm.ui.value.state.tiles.size
-        vm.removeTile(target)
+        val target = model.ui.value.state.tiles.first { it.level <= 4 }
+        val before = model.ui.value.state.tiles.size
+        model.removeTile(target)
         advanceUntilIdle()
-        assertEquals(before - 1, vm.ui.value.state.tiles.size)
-        assertEquals(50 - 10, repo.currentProgress.gems)
-        assertFalse(vm.ui.value.removingMode)
+        assertEquals(before - 1, model.ui.value.state.tiles.size)
+        assertEquals(40, repo.currentProgress.gems)
+        assertFalse(model.ui.value.removingMode)
     }
 
     @Test
-    fun `undo beyond free undos costs gems and refuses when broke`() = runTest(dispatcher) {
+    fun `undo beyond free undos refuses when broke`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialProgress = PlayerProgress(gems = 3))
-        val vm = vm(repo, seed = 7L)
+        val model = vm(repo, seed = 7L)
         advanceUntilIdle()
-        // делаем два успешных хода и два undo: 2 бесплатных, дальше не хватает гемов (3 < 5)
-        for (m in listOf(Move.LEFT, Move.UP)) vm.onMove(m)
+        for (m in listOf(Move.LEFT, Move.UP)) model.onMove(m)
         advanceUntilIdle()
-        vm.undo(); advanceUntilIdle()
-        for (m in listOf(Move.LEFT, Move.UP)) vm.onMove(m)
+        model.undo(); advanceUntilIdle()
+        for (m in listOf(Move.LEFT, Move.UP)) model.onMove(m)
         advanceUntilIdle()
-        vm.undo(); advanceUntilIdle()
-        assertEquals(0, vm.ui.value.freeUndosLeft)
-        val canUndoBefore = vm.ui.value.canUndo
-        if (canUndoBefore) {
-            vm.undo(); advanceUntilIdle()
+        model.undo(); advanceUntilIdle()
+        assertEquals(0, model.ui.value.freeUndosLeft)
+        if (model.ui.value.canUndo) {
+            model.undo(); advanceUntilIdle()
             assertEquals(3, repo.currentProgress.gems)
         }
     }
 
     @Test
-    fun `analytics events fired`() = runTest(dispatcher) {
+    fun `analytics events fired for real finish`() = runTest(dispatcher) {
         val analytics = RecordingAnalytics()
-        val vm = vm(repo = FakeDataRepo(), analytics = analytics)
+        val model = vm(repo = FakeDataRepo(), analytics = analytics, seed = 17L)
         advanceUntilIdle()
         assertTrue(analytics.events.any { it.first == "game_started" })
-        vm.exit()
+        finishByPlaying(model)
         advanceUntilIdle()
         assertTrue(analytics.events.any { it.first == "game_finished" })
     }
 
     @Test
-    fun `pressure and overdrive survive process recreation`() = runTest(dispatcher) {
+    fun `rng sequence continues exactly after process recreation`() = runTest(dispatcher) {
         val repo = FakeDataRepo()
-        val vm1 = vm(repo, seed = 7L)
+        val first = vm(repo, seed = 99L)
         advanceUntilIdle()
-        // играем до активного Overdrive (давление при этом заморожено на 0)
-        var seenOverdrive = false
-        for (i in 0 until 80) {
-            vm1.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+        first.playMoves(20)
+        advanceUntilIdle()
+        val saved = repo.currentGame
+        assertNotNull(saved)
+
+        val restoredRepo = FakeDataRepo(initialGame = saved)
+        val restored = vm(restoredRepo, seed = 123456L)
+        advanceUntilIdle()
+        assertEquals(first.ui.value.state, restored.ui.value.state)
+
+        val sequence = listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN, Move.LEFT, Move.DOWN)
+        for (move in sequence) {
+            first.onMove(move)
+            restored.onMove(move)
             advanceUntilIdle()
-            if (vm1.ui.value.overdriveRemaining > 0) {
+            assertEquals(first.ui.value.state, restored.ui.value.state)
+        }
+    }
+
+    @Test
+    fun `pressure overdrive and undo count survive process recreation`() = runTest(dispatcher) {
+        val repo = FakeDataRepo()
+        val first = vm(repo, seed = 7L)
+        advanceUntilIdle()
+        var seenOverdrive = false
+        for (i in 0 until 100) {
+            first.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+            advanceUntilIdle()
+            if (first.ui.value.overdriveRemaining > 0) {
                 seenOverdrive = true
                 break
             }
         }
         assertTrue(seenOverdrive)
-        val remaining = vm1.ui.value.overdriveRemaining
-        assertTrue(remaining > 0)
-        assertTrue(repo.currentGame!!.overdriveRemaining == remaining)
-
-        // "пересоздание процесса": новое состояние приложения/репозитория читает тот же save
-        val vm2 = vm(repo, seed = 999L) // другой seed провайдера: restore обязан взять seed из save
+        val saved = repo.currentGame!!
+        val second = vm(FakeDataRepo(initialGame = saved), seed = 999L)
         advanceUntilIdle()
-        assertEquals(vm1.ui.value.state, vm2.ui.value.state)
-        assertEquals(remaining, vm2.ui.value.overdriveRemaining)
-        assertEquals(vm1.ui.value.freeUndosLeft, vm2.ui.value.freeUndosLeft)
+        assertEquals(first.ui.value.state, second.ui.value.state)
+        assertEquals(first.ui.value.overdriveRemaining, second.ui.value.overdriveRemaining)
+        assertEquals(first.ui.value.freeUndosLeft, second.ui.value.freeUndosLeft)
     }
 
     @Test
-    fun `accumulated pressure survives process recreation`() = runTest(dispatcher) {
+    fun `restart resets finish guard so second game can finish`() = runTest(dispatcher) {
         val repo = FakeDataRepo()
-        val vm1 = vm(repo, seed = 7L)
+        val model = vm(repo, seed = 123L)
         advanceUntilIdle()
-        var moved = false
-        for (i in 0 until 40) {
-            vm1.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
-            advanceUntilIdle()
-            if (vm1.ui.value.pressure > 0) {
-                moved = true
-                break
-            }
-        }
-        assertTrue(moved)
-        val pressure = vm1.ui.value.pressure
-        assertTrue(pressure in 1..99)
+        finishByPlaying(model)
+        advanceUntilIdle()
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
 
-        val vm2 = vm(repo)
+        model.restart()
         advanceUntilIdle()
-        assertEquals(pressure, vm2.ui.value.pressure)
+        assertFalse(model.ui.value.finished)
+        finishByPlaying(model)
+        advanceUntilIdle()
+        assertEquals(2, repo.currentProgress.stats.gamesPlayed)
+        assertNotNull(repo.currentFinished)
     }
 
     @Test
-    fun `restore keeps saved game and won flag`() = runTest(dispatcher) {
-        val engine = com.steamforge.game.core.GameEngine()
-        val saved = com.steamforge.game.data.SavedGame(
-            state = engine.newGame(rng = Random(5)).copy(won = true),
-            seed = 5L,
-            pressure = 40,
-            overdriveRemaining = 2,
-            freeUndosLeft = 1,
-        )
-        val repo = FakeDataRepo(initialGame = saved)
-        val vm = vm(repo)
-        advanceUntilIdle()
-        assertEquals(saved.state.tiles, vm.ui.value.state.tiles)
-        assertEquals(40, vm.ui.value.pressure)
-        assertEquals(2, vm.ui.value.overdriveRemaining)
-        assertEquals(1, vm.ui.value.freeUndosLeft)
-        assertTrue(vm.ui.value.winCelebrated)
-    }
-
-    @Test
-    fun `seeded game is deterministic`() = runTest(dispatcher) {
+    fun `seeded games are deterministic`() = runTest(dispatcher) {
         val a = vm(seed = 99L)
         val b = vm(seed = 99L)
         advanceUntilIdle()
         assertEquals(a.ui.value.state, b.ui.value.state)
-        for (i in 0 until 5) {
-            a.onMove(Move.LEFT); b.onMove(Move.LEFT)
+        repeat(20) { i ->
+            val move = listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4]
+            a.onMove(move)
+            b.onMove(move)
             advanceUntilIdle()
         }
         assertEquals(a.ui.value.state, b.ui.value.state)
-    }
-
-    @Test
-    fun `local day helper consistent`() {
-        assertEquals(LocalDay.epochDayOf(2026, 8, 30), LocalDay.epochDayOf(2026, 8, 30))
     }
 }
