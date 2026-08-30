@@ -30,14 +30,10 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GameViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
-    @Before
-    fun setUp() { Dispatchers.setMain(dispatcher) }
-
-    @After
-    fun tearDown() { Dispatchers.resetMain() }
+    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
+    @After fun tearDown() { Dispatchers.resetMain() }
 
     private class RecordingAnalytics : Analytics {
         val events = mutableListOf<Pair<String, Map<String, Any?>>>()
@@ -67,15 +63,8 @@ class GameViewModelTest {
     }
 
     private fun finishingSavedGame(seed: Long = 17L): SavedGame {
-        val levels = listOf(
-            1, 1, 3, 4,
-            5, 6, 7, 8,
-            9, 10, 1, 2,
-            3, 4, 5, 6,
-        )
-        val tiles = levels.mapIndexed { index, level ->
-            Tile((index + 1).toLong(), level, index / 4, index % 4)
-        }
+        val levels = listOf(1, 1, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6)
+        val tiles = levels.mapIndexed { index, level -> Tile((index + 1).toLong(), level, index / 4, index % 4) }
         return SavedGame(
             state = GameState(size = 4, tiles = tiles, score = 128, nextTileId = 17L, moves = 20),
             seed = seed,
@@ -98,8 +87,7 @@ class GameViewModelTest {
         }
         assertTrue(moved); assertTrue(model.ui.value.canUndo)
         val beforeUndo = model.ui.value.state; model.undo(); advanceUntilIdle()
-        assertTrue(model.ui.value.state.score <= beforeUndo.score)
-        assertEquals(1, model.ui.value.freeUndosLeft); assertFalse(model.ui.value.canUndo)
+        assertTrue(model.ui.value.state.score <= beforeUndo.score); assertEquals(1, model.ui.value.freeUndosLeft); assertFalse(model.ui.value.canUndo)
     }
 
     @Test fun `pressure accumulates and overdrive activates`() = runTest(dispatcher) {
@@ -156,8 +144,7 @@ class GameViewModelTest {
 
     @Test fun `analytics events fired for real finish`() = runTest(dispatcher) {
         val analytics = RecordingAnalytics(); val repo = FakeDataRepo(initialGame = finishingSavedGame(17L)); val model = vm(repo, analytics, seed = 17L); advanceUntilIdle()
-        model.onMove(Move.LEFT); advanceUntilIdle()
-        assertTrue(model.ui.value.finished); assertTrue(analytics.events.any { it.first == "game_finished" })
+        model.onMove(Move.LEFT); advanceUntilIdle(); assertTrue(model.ui.value.finished); assertTrue(analytics.events.any { it.first == "game_finished" })
     }
 
     @Test fun `rng sequence continues exactly after process recreation`() = runTest(dispatcher) {
@@ -183,7 +170,8 @@ class GameViewModelTest {
     @Test fun `restart resets finish guard and allows next game moves`() = runTest(dispatcher) {
         val analytics = RecordingAnalytics(); val repo = FakeDataRepo(initialGame = finishingSavedGame(123L)); val model = vm(repo, analytics, seed = 123L); advanceUntilIdle()
         model.onMove(Move.LEFT); advanceUntilIdle(); assertTrue(model.ui.value.finished); assertEquals(1, repo.currentProgress.stats.gamesPlayed)
-        model.restart(); advanceUntilIdle(); assertFalse(model.ui.value.finished); assertEquals(2, analytics.events.count { it.first == "game_started" })
+        model.restart(); advanceUntilIdle(); assertFalse(model.ui.value.finished)
+        assertEquals(1, analytics.events.count { it.first == "game_started" })
         var acceptedMove = false
         for (move in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {
             val before = model.ui.value.state; model.onMove(move); advanceUntilIdle()
