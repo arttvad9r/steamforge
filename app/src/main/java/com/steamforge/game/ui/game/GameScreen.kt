@@ -1,1 +1,3 @@
-TEMPORARY_PLACEHOLDER_TO_FORCE_FETCH
+package com.steamforge.game.ui.game
+
+// This file is intentionally restored and patched in the next commit.
