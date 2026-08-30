@@ -9,8 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,22 +32,21 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.steamforge.game.sound.Sfx
+import com.steamforge.game.sound.SfxPlayer
 import com.steamforge.game.theme.Background
 import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
@@ -62,11 +59,10 @@ import com.steamforge.game.theme.TextWarm
 
 private val OutlineDim = Color(0xFF5A4632)
 
-/** Главный экран — мастерская. Состояние мастерской растёт вместе с уровнем. */
 @Composable
 fun WorkshopScreen(
     vm: WorkshopViewModel,
-    sfx: com.steamforge.game.sound.SfxPlayer,
+    sfx: SfxPlayer,
     onPlay: () -> Unit,
     onDaily: () -> Unit,
     onAchievements: () -> Unit,
@@ -90,15 +86,8 @@ fun WorkshopScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "STEAMFORGE",
-                style = MaterialTheme.typography.displaySmall,
-                color = accent,
-            )
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("STEAMFORGE", style = MaterialTheme.typography.displaySmall, color = accent)
             Spacer(Modifier.weight(1f))
             GemChip(ui.gems)
         }
@@ -117,9 +106,7 @@ fun WorkshopScreen(
 
         Button(
             onClick = onPlay,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Color(0xFF241708)),
         ) {
             Text("НАЧАТЬ СМЕНУ", style = MaterialTheme.typography.labelLarge)
@@ -129,8 +116,10 @@ fun WorkshopScreen(
         if (ui.dailyRewardAvailable) {
             OutlinedButton(
                 onClick = {
-                    sfx.play(com.steamforge.game.sound.Sfx.COIN)
-                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    sfx.play(Sfx.COIN)
+                    if (ui.hapticsEnabled) {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    }
                     vm.claimDailyReward()
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -143,7 +132,11 @@ fun WorkshopScreen(
             Spacer(Modifier.height(10.dp))
         }
 
-        OutlinedButton(onClick = onDaily, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onDaily,
+            enabled = !ui.dailyDone,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Text(if (ui.dailyDone) "Испытание дня — выполнено" else "Испытание дня")
         }
         Spacer(Modifier.height(10.dp))
@@ -174,11 +167,10 @@ private fun GemChip(gems: Int) {
     }
 }
 
-/** Иконка гема: ромб, нарисований Canvas — без эмодзи и шрифтовых глифов. */
 @Composable
 fun GemIcon(sizeDp: Int = 12) {
     Canvas(Modifier.size(sizeDp.dp)) {
-        val s = this.size.minDimension
+        val s = size.minDimension
         val path = androidx.compose.ui.graphics.Path().apply {
             moveTo(s / 2f, 0f)
             lineTo(s, s * 0.32f)
@@ -200,7 +192,7 @@ private fun WorkshopPanel(
     animationsEnabled: Boolean,
     accent: Color,
 ) {
-    Box(
+    androidx.compose.foundation.layout.Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
@@ -210,11 +202,7 @@ private fun WorkshopPanel(
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Цех $level",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = TextWarm,
-                )
+                Text("Цех $level", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
                 Spacer(Modifier.weight(1f))
                 Text(
                     "${levelInfo.xpIntoLevel}/${levelInfo.xpToNext} XP",
@@ -223,7 +211,6 @@ private fun WorkshopPanel(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            // прогресс-бар уровня в виде манометра
             GaugeBar(levelInfo.fraction, accent)
             Spacer(Modifier.height(12.dp))
             WorkshopScene(animationsEnabled, accent)
@@ -239,7 +226,7 @@ private fun WorkshopPanel(
 
 @Composable
 private fun GaugeBar(fraction: Float, accent: Color) {
-    Box(
+    androidx.compose.foundation.layout.Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(12.dp)
@@ -247,7 +234,7 @@ private fun GaugeBar(fraction: Float, accent: Color) {
             .background(Recess)
             .semantics { contentDescription = "Прогресс уровня: ${(fraction * 100).toInt()} процентов" },
     ) {
-        Box(
+        androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .height(12.dp)
@@ -257,17 +244,20 @@ private fun GaugeBar(fraction: Float, accent: Color) {
     }
 }
 
-/** Декоративная сцена мастерской: две шестерни и лампа. */
 @Composable
 private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
     val transition = rememberInfiniteTransition(label = "gears")
-    val speed = if (animationsEnabled) 14_000 else 0
     val angle by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(speed, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = if (animationsEnabled) {
+            infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart)
+        } else {
+            infiniteRepeatable(tween(1, easing = LinearEasing), RepeatMode.Restart)
+        },
         label = "angle",
     )
+    val visibleAngle = if (animationsEnabled) angle else 0f
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -276,14 +266,12 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
     ) {
         val w = size.width
         val h = size.height
-        // лампа
         drawCircle(
             color = accent.copy(alpha = 0.10f),
             radius = 26.dp.toPx(),
             center = Offset(w * 0.87f, h * 0.22f),
         )
         drawCircle(color = BrassBright.copy(alpha = 0.9f), radius = 6.dp.toPx(), center = Offset(w * 0.87f, h * 0.22f))
-        // труба
         drawLine(
             color = Steel,
             start = Offset(w * 0.06f, h * 0.15f),
@@ -298,9 +286,8 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
             strokeWidth = 10.dp.toPx(),
             cap = StrokeCap.Round,
         )
-        // шестерни
-        drawGear(Offset(w * 0.40f, h * 0.55f), 30.dp.toPx(), angle, accent.copy(alpha = 0.75f))
-        drawGear(Offset(w * 0.62f, h * 0.62f), 20.dp.toPx(), -angle * 1.6f, Copper.copy(alpha = 0.8f))
+        drawGear(Offset(w * 0.40f, h * 0.55f), 30.dp.toPx(), visibleAngle, accent.copy(alpha = 0.75f))
+        drawGear(Offset(w * 0.62f, h * 0.62f), 20.dp.toPx(), -visibleAngle * 1.6f, Copper.copy(alpha = 0.8f))
     }
 }
 
