@@ -46,6 +46,7 @@ class AdsManager(
 
     private var rewardedLoader: RewardedAdLoader? = null
     private var rewardedAd: RewardedAd? = null
+    private var rewardedLoading = false
     private var onRewarded: (() -> Unit)? = null
     private val _rewardedReady = MutableStateFlow(false)
     val rewardedReady: StateFlow<Boolean> = _rewardedReady.asStateFlow()
@@ -56,6 +57,7 @@ class AdsManager(
 
     private var interstitialLoader: InterstitialAdLoader? = null
     private var interstitialAd: InterstitialAd? = null
+    private var interstitialLoading = false
     private var interstitialPending = false
     private var interstitialRetryAttempt = 0
     private var interstitialRetryScheduled = false
@@ -77,6 +79,8 @@ class AdsManager(
             }
         }.onFailure {
             initialized = false
+            rewardedLoading = false
+            interstitialLoading = false
             _rewardedReady.value = false
         }
     }
@@ -178,15 +182,17 @@ class AdsManager(
     }
 
     private fun loadRewarded() {
-        if (!initialized || rewardedAd != null) return
+        if (!initialized || rewardedAd != null || rewardedLoading) return
         val loader = rewardedLoader ?: return
         val id = rewardedId()
         if (id.isBlank()) return
+        rewardedLoading = true
         runCatching {
             loader.loadAd(
                 AdRequest.Builder(id).build(),
                 object : RewardedAdLoadListener {
                     override fun onAdLoaded(ad: RewardedAd) {
+                        rewardedLoading = false
                         rewardedRetryAttempt = 0
                         rewardedRetryScheduled = false
                         rewardedAd = ad
@@ -194,6 +200,7 @@ class AdsManager(
                     }
 
                     override fun onAdFailedToLoad(error: AdRequestError) {
+                        rewardedLoading = false
                         _rewardedReady.value = false
                         analytics.logEvent(
                             "ad_load_failed",
@@ -203,25 +210,31 @@ class AdsManager(
                     }
                 },
             )
-        }.onFailure { scheduleRewardedRetry() }
+        }.onFailure {
+            rewardedLoading = false
+            scheduleRewardedRetry()
+        }
     }
 
     private fun loadInterstitial() {
-        if (!initialized || interstitialAd != null) return
+        if (!initialized || interstitialAd != null || interstitialLoading) return
         val loader = interstitialLoader ?: return
         val id = interstitialId()
         if (id.isBlank()) return
+        interstitialLoading = true
         runCatching {
             loader.loadAd(
                 AdRequest.Builder(id).build(),
                 object : InterstitialAdLoadListener {
                     override fun onAdLoaded(ad: InterstitialAd) {
+                        interstitialLoading = false
                         interstitialRetryAttempt = 0
                         interstitialRetryScheduled = false
                         interstitialAd = ad
                     }
 
                     override fun onAdFailedToLoad(error: AdRequestError) {
+                        interstitialLoading = false
                         analytics.logEvent(
                             "ad_load_failed",
                             mapOf("format" to "interstitial", "code" to error.code, "desc" to error.description),
@@ -230,7 +243,10 @@ class AdsManager(
                     }
                 },
             )
-        }.onFailure { scheduleInterstitialRetry() }
+        }.onFailure {
+            interstitialLoading = false
+            scheduleInterstitialRetry()
+        }
     }
 
     private fun scheduleRewardedRetry() {
