@@ -47,7 +47,7 @@ class AdsManager(
     private var rewardedLoader: RewardedAdLoader? = null
     private var rewardedAd: RewardedAd? = null
     private var rewardedLoading = false
-    private var onRewarded: (() -> Unit)? = null
+    private var rewardedShowing = false
     private val _rewardedReady = MutableStateFlow(false)
     val rewardedReady: StateFlow<Boolean> = _rewardedReady.asStateFlow()
     private var rewardedRetryAttempt = 0
@@ -58,6 +58,7 @@ class AdsManager(
     private var interstitialLoader: InterstitialAdLoader? = null
     private var interstitialAd: InterstitialAd? = null
     private var interstitialLoading = false
+    private var interstitialShowing = false
     private var interstitialPending = false
     private var interstitialRetryAttempt = 0
     private var interstitialRetryScheduled = false
@@ -80,14 +81,18 @@ class AdsManager(
         }.onFailure {
             initialized = false
             rewardedLoading = false
+            rewardedShowing = false
             interstitialLoading = false
+            interstitialShowing = false
             _rewardedReady.value = false
         }
     }
 
     fun showRewarded(activity: Activity, onReward: () -> Unit) {
+        if (rewardedShowing) return
         val ad = rewardedAd ?: return
-        onRewarded = onReward
+        rewardedShowing = true
+        _rewardedReady.value = false
         analytics.logEvent("rewarded_started")
         ad.setAdEventListener(object : RewardedAdEventListener {
             override fun onAdShown() {
@@ -109,7 +114,7 @@ class AdsManager(
 
             override fun onRewarded(reward: Reward) {
                 analytics.logEvent("rewarded_completed", mapOf("amount" to reward.amount))
-                onRewarded?.invoke()
+                onReward()
             }
         })
         runCatching { ad.show(activity) }.onFailure { cleanupRewarded() }
@@ -129,6 +134,7 @@ class AdsManager(
     }
 
     fun maybeShowInterstitial(activity: Activity) {
+        if (interstitialShowing) return
         // Никогда не ставим interstitial сразу после rewarded на одном и том же result screen.
         if (rewardedShownSincePause) {
             rewardedShownSincePause = false
@@ -140,6 +146,7 @@ class AdsManager(
             return
         }
         interstitialPending = false
+        interstitialShowing = true
         ad.setAdEventListener(object : InterstitialAdEventListener {
             override fun onAdShown() {
                 analytics.logEvent("interstitial_shown")
@@ -170,19 +177,20 @@ class AdsManager(
     private fun cleanupRewarded() {
         rewardedAd?.setAdEventListener(null)
         rewardedAd = null
+        rewardedShowing = false
         _rewardedReady.value = false
-        onRewarded = null
         loadRewarded()
     }
 
     private fun cleanupInterstitial() {
         interstitialAd?.setAdEventListener(null)
         interstitialAd = null
+        interstitialShowing = false
         loadInterstitial()
     }
 
     private fun loadRewarded() {
-        if (!initialized || rewardedAd != null || rewardedLoading) return
+        if (!initialized || rewardedAd != null || rewardedLoading || rewardedShowing) return
         val loader = rewardedLoader ?: return
         val id = rewardedId()
         if (id.isBlank()) return
@@ -217,7 +225,7 @@ class AdsManager(
     }
 
     private fun loadInterstitial() {
-        if (!initialized || interstitialAd != null || interstitialLoading) return
+        if (!initialized || interstitialAd != null || interstitialLoading || interstitialShowing) return
         val loader = interstitialLoader ?: return
         val id = interstitialId()
         if (id.isBlank()) return
