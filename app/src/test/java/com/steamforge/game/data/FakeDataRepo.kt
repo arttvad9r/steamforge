@@ -1,19 +1,23 @@
 package com.steamforge.game.data
 
+import com.steamforge.game.progression.Achievements
+import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.PlayerProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
-/** In-memory фейк для тестов ViewModel. */
 class FakeDataRepo(
     initialProgress: PlayerProgress = PlayerProgress(),
     initialGame: SavedGame? = null,
     initialFinished: FinishedGameRecord? = null,
 ) : DataRepo {
-
     private val progressFlow = MutableStateFlow(initialProgress)
     private val gameFlow = MutableStateFlow(initialGame)
     private val finishedFlow = MutableStateFlow(initialFinished)
+
+    override val progress: Flow<PlayerProgress> = progressFlow
+    override val savedGame: Flow<SavedGame?> = gameFlow
+    override val finishedGame: Flow<FinishedGameRecord?> = finishedFlow
 
     var currentProgress: PlayerProgress
         get() = progressFlow.value
@@ -27,49 +31,71 @@ class FakeDataRepo(
         get() = finishedFlow.value
         set(value) { finishedFlow.value = value }
 
-    override val progress: Flow<PlayerProgress> = progressFlow
-    override val savedGame: Flow<SavedGame?> = gameFlow
-    override val finishedGame: Flow<FinishedGameRecord?> = finishedFlow
-
     override suspend fun saveGame(state: SavedGame) {
-        gameFlow.value = state
+        currentGame = state
     }
 
     override suspend fun clearGame() {
-        gameFlow.value = null
+        currentGame = null
     }
 
     override suspend fun updateProgress(block: (PlayerProgress) -> PlayerProgress) {
-        progressFlow.value = block(progressFlow.value)
+        currentProgress = block(currentProgress)
     }
 
     override suspend fun applyGameFinish(
         record: FinishedGameRecord,
-        finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
+        finisher: (PlayerProgress) -> Pair<PlayerProgress, FinishEffects>,
     ) {
-        val (updated, effects) = finisher(progressFlow.value)
-        finishedFlow.value = record.withEffects(effects)
-        gameFlow.value = null
-        progressFlow.value = updated
+        val (updated, effects) = finisher(currentProgress)
+        currentProgress = updated
+        currentFinished = record.withEffects(effects)
+        currentGame = null
     }
 
     override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
-        val record = finishedFlow.value ?: return false
-        if (record.id != gameResultId || record.rewardedClaimed || gems <= 0) return false
-        finishedFlow.value = record.copy(rewardedClaimed = true)
-        progressFlow.value = progressFlow.value.let { p ->
-            p.copy(gems = p.gems + gems, stats = p.stats.copy(gemsEarned = p.stats.gemsEarned + gems))
-        }
+        val record = currentFinished ?: return false
+        if (gems <= 0 || record.id != gameResultId || record.rewardedClaimed) return false
+        currentFinished = record.copy(rewardedClaimed = true)
+        currentProgress = currentProgress.copy(
+            gems = currentProgress.gems + gems,
+            stats = currentProgress.stats.copy(gemsEarned = currentProgress.stats.gemsEarned + gems),
+        )
+        return true
+    }
+
+    override suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean {
+        val p = currentProgress
+        if (p.dailyChallengeDay == day && p.dailyChallengeDone) return false
+        val baseStats = p.stats.copy(dailyCompleted = p.stats.dailyCompleted + 1)
+        val unlocked = Achievements.newlyUnlocked(baseStats, p.unlockedAchievements)
+        val unlockedGems = unlocked.sumOf { it.gemReward }
+        val totalGems = rewardGems + unlockedGems
+        currentProgress = p.copy(
+            dailyChallengeDay = day,
+            dailyChallengeDone = true,
+            gems = p.gems + totalGems,
+            totalXp = p.totalXp + bonusXp,
+            stats = baseStats.copy(gemsEarned = baseStats.gemsEarned + totalGems),
+            unlockedAchievements = p.unlockedAchievements + unlocked.map { it.id }.toSet(),
+            achievementDays = p.achievementDays + unlocked.associate { it.id to day },
+        )
         return true
     }
 
     override suspend fun clearFinishedGame() {
-        finishedFlow.value = null
+        currentFinished = null
     }
 
-    override suspend fun resetAll() {
-        progressFlow.value = PlayerProgress()
-        gameFlow.value = null
-        finishedFlow.value = null
+    override suspend fun resetGameProgress() {
+        val p = currentProgress
+        currentProgress = PlayerProgress(
+            soundEnabled = p.soundEnabled,
+            hapticsEnabled = p.hapticsEnabled,
+            animationsEnabled = p.animationsEnabled,
+            analyticsConsent = p.analyticsConsent,
+        )
+        currentGame = null
+        currentFinished = null
     }
 }
