@@ -2,8 +2,11 @@ package com.steamforge.game.ui.workshop
 
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -26,11 +29,14 @@ class DailyRewardTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
+    private fun CoroutineScope.subscribe(ui: StateFlow<*>) = launch { ui.collect {} }
+
     @Test
     fun `daily reward can be claimed only once per day`() = runTest(dispatcher) {
         val day = 1000L
         val repo = FakeDataRepo()
         val vm = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(vm.ui)
         advanceUntilIdle()
         assertTrue(vm.ui.value.dailyRewardAvailable)
         val reward = vm.ui.value.dailyRewardGems
@@ -52,6 +58,7 @@ class DailyRewardTest {
             initialProgress = PlayerProgress(dailyRewardDay = day - 1, dailyRewardStreak = 3),
         )
         val continuing = WorkshopViewModel(continuingRepo, today = { day })
+        backgroundScope.subscribe(continuing.ui)
         advanceUntilIdle()
         assertEquals(4, continuing.ui.value.dailyRewardDay)
 
@@ -59,8 +66,29 @@ class DailyRewardTest {
             initialProgress = PlayerProgress(dailyRewardDay = day - 2, dailyRewardStreak = 5),
         )
         val gap = WorkshopViewModel(gapRepo, today = { day })
+        backgroundScope.subscribe(gap.ui)
         advanceUntilIdle()
         assertEquals(1, gap.ui.value.dailyRewardDay)
+    }
+
+    @Test
+    fun `recreated viewmodel cannot claim same daily reward twice`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo()
+        val first = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(first.ui)
+        advanceUntilIdle()
+        first.claimDailyReward()
+        advanceUntilIdle()
+        val gemsAfterFirst = repo.currentProgress.gems
+
+        val second = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(second.ui)
+        advanceUntilIdle()
+        assertFalse(second.ui.value.dailyRewardAvailable)
+        second.claimDailyReward()
+        advanceUntilIdle()
+        assertEquals(gemsAfterFirst, repo.currentProgress.gems)
     }
 
     @Test
