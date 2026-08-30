@@ -12,6 +12,7 @@ import com.steamforge.game.sound.SfxPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -29,6 +30,7 @@ class AppContainer(context: Context) {
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false
+    private var appOpenLogged = false
 
     init {
         appScope.launch {
@@ -56,6 +58,12 @@ class AppContainer(context: Context) {
         if (isDebug && BuildConfig.APPMETRICA_API_KEY.isBlank()) {
             println("Steamforge: APPMETRICA_API_KEY не задан (steamforge.appmetricaApiKey) — аналитика отключена")
         }
+    }
+
+    fun logAppOpenOnce() {
+        if (appOpenLogged) return
+        appOpenLogged = true
+        analytics.logEvent("app_open")
     }
 }
 
