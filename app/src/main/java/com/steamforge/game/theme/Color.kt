@@ -3,39 +3,42 @@ package com.steamforge.game.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// Палитра: тёмная сталь, латунь, медь, тёплый свет
-val Background = Color(0xFF16100B)
-val SurfaceDark = Color(0xFF221812)
-val Panel = Color(0xFF2C2018)
-val PanelRaised = Color(0xFF352820)
-val Recess = Color(0xFF100B07)
-val OutlineBrass = Color(0xFF8A6A35)
-val Brass = Color(0xFFD9A441)
-val BrassBright = Color(0xFFF2C14E)
-val Copper = Color(0xFFB4713D)
-val Steel = Color(0xFF7C8288)
-val Patina = Color(0xFF7FA08C)
-val TextWarm = Color(0xFFF2E4C9)
-val TextMuted = Color(0xFFB3A184)
-val Danger = Color(0xFFC45A3B)
+// Premium stylized steampunk: dark workshop, warm brass/copper, restrained teal energy accent.
+val Background = Color(0xFF0D0A07)
+val SurfaceDark = Color(0xFF17110D)
+val Panel = Color(0xFF211813)
+val PanelRaised = Color(0xFF30231A)
+val Recess = Color(0xFF090705)
+val OutlineBrass = Color(0xFF7A5628)
+val BrassDark = Color(0xFF573817)
+val Brass = Color(0xFFB77B2C)
+val BrassBright = Color(0xFFE1B35C)
+val Copper = Color(0xFFA6532D)
+val Steel = Color(0xFF6E7474)
+val Patina = Color(0xFF5B8A80)
+val TealSurface = Color(0xFF174A48)
+val TealGlow = Color(0xFF59D9D1)
+val TextWarm = Color(0xFFF0DFC0)
+val TextMuted = Color(0xFFB8A584)
+val Danger = Color(0xFFC65332)
 
-/** Цвет плитки по уровню: фон и цвет текста. Контраст проверен. */
+/** Tile material palette derived from the visual concept: cream, copper, bronze, patina and gold. */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFF3D3227), TextWarm), // 2 Уголь
-    RawTileColor(Color(0xFF4A3B29), TextWarm), // 4
-    RawTileColor(Color(0xFF5E4729), TextWarm), // 8
-    RawTileColor(Color(0xFF72532C), TextWarm), // 16
-    RawTileColor(Color(0xFF886330), TextWarm), // 32
-    RawTileColor(Color(0xFF9E7532), TextWarm), // 64
-    RawTileColor(Color(0xFFB48734), Color(0xFF241708)), // 128
-    RawTileColor(Color(0xFFC89A38), Color(0xFF241708)), // 256
-    RawTileColor(Color(0xFFDCA93F), Color(0xFF241708)), // 512
-    RawTileColor(Color(0xFFECB948), Color(0xFF241708)), // 1024
-    RawTileColor(Color(0xFFF5C84F), Color(0xFF241708)), // 2048 Ядро
+    RawTileColor(Color(0xFFD8C6A1), Color(0xFF4A2E18)), // 2 ivory brass plate
+    RawTileColor(Color(0xFFC9B184), Color(0xFF4A2E18)), // 4
+    RawTileColor(Color(0xFFAA653B), Color(0xFFF3DDB7)), // 8 copper
+    RawTileColor(Color(0xFFB07B31), Color(0xFFF5E4C5)), // 16 bronze
+    RawTileColor(Color(0xFFC45827), Color(0xFFF6DFC0)), // 32 orange copper
+    RawTileColor(Color(0xFFA83B2D), Color(0xFFF6E1C6)), // 64 red copper
+    RawTileColor(Color(0xFF3F746D), Color(0xFFF2E2C2)), // 128 patina
+    RawTileColor(Color(0xFF2F6662), Color(0xFFF2E2C2)), // 256 teal patina
+    RawTileColor(Color(0xFFB27524), Color(0xFFF9E7C5)), // 512
+    RawTileColor(Color(0xFFC08A28), Color(0xFFFFEDC8)), // 1024
+    RawTileColor(Color(0xFFD3A33C), Color(0xFF231408)), // 2048 core
 )
 
 fun tileColors(level: Int): TileColors {
@@ -45,10 +48,14 @@ fun tileColors(level: Int): TileColors {
 
 fun tileBevel(level: Int): Brush = Brush.verticalGradient(
     listOf(
-        tileColors(level).background.copy(alpha = 1f),
-        tileColors(level).background.darken(0.82f),
+        tileColors(level).background.lighten(1.08f),
+        tileColors(level).background,
+        tileColors(level).background.darken(0.72f),
     ),
 )
 
 private fun Color.darken(factor: Float): Color =
-    Color((red * factor), (green * factor), (blue * factor), alpha)
+    Color((red * factor).coerceIn(0f, 1f), (green * factor).coerceIn(0f, 1f), (blue * factor).coerceIn(0f, 1f), alpha)
+
+private fun Color.lighten(factor: Float): Color =
+    Color((red * factor).coerceIn(0f, 1f), (green * factor).coerceIn(0f, 1f), (blue * factor).coerceIn(0f, 1f), alpha)
