@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - fix/release-hardening
+      - feat/steampunk-ui
   pull_request:
     branches:
       - master
+      - fix/release-hardening
 
 permissions:
   contents: read
