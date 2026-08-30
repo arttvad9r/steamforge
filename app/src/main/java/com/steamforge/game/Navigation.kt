@@ -1,5 +1,6 @@
 package com.steamforge.game
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -11,15 +12,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.ui.achievements.AchievementsScreen
@@ -35,18 +38,14 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @Serializable data object Workshop : NavKey
-
 @Serializable data class Game(val daily: Boolean = false) : NavKey
-
 @Serializable data object Achievements : NavKey
-
 @Serializable data object Settings : NavKey
 
 @Composable
 fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
     val backStack = rememberNavBackStack(Workshop)
-    // Уважаем системную настройку длительности анимаций (например, "удалить анимации")
-    val systemAnimationsEnabled = androidx.compose.ui.platform.LocalContext.current.let {
+    val systemAnimationsEnabled = LocalContext.current.let {
         android.provider.Settings.Global.getFloat(
             it.contentResolver,
             android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
@@ -54,7 +53,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
         ) != 0f
     }
 
-    // Privacy-выбор: null = пользователь ещё не решал (показываем диалог)
     val consentFlow = androidx.compose.runtime.remember(container.repo) {
         container.repo.progress.map { it.analyticsConsent }
     }
@@ -62,6 +60,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
     val consentScope = rememberCoroutineScope()
     if (consent == null) {
         ConsentDialog(
+            privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL,
             onDecide = { granted ->
                 consentScope.launch { container.repo.updateProgress { it.copy(analyticsConsent = granted) } }
             },
@@ -80,9 +79,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
         ),
         entryProvider = entryProvider {
             entry<Workshop> {
-                val vm: WorkshopViewModel = viewModel {
-                    WorkshopViewModel(container.repo)
-                }
+                val vm: WorkshopViewModel = viewModel { WorkshopViewModel(container.repo) }
                 WorkshopScreen(
                     vm = vm,
                     sfx = container.sfx,
@@ -93,9 +90,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<Game> { key ->
-                val vm: GameViewModel = viewModel(
-                    key = if (key.daily) "daily" else "normal",
-                ) {
+                val vm: GameViewModel = viewModel(key = if (key.daily) "daily" else "normal") {
                     GameViewModel(
                         repo = container.repo,
                         analytics = container.analytics,
@@ -124,28 +119,40 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * Первый запуск: прозрачный выбор — аналитика/персонализированная реклама или нет.
- * Игра работает при любом выборе; отказ = без аналитики и с неперсонализированной рекламой.
- */
 @Composable
-private fun ConsentDialog(onDecide: (Boolean) -> Unit) {
+private fun ConsentDialog(
+    privacyPolicyUrl: String,
+    onDecide: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
     AlertDialog(
-        onDismissRequest = { /* решение обязательно; без него сбор данных не включается */ },
+        onDismissRequest = { /* решение обязательно; до него SDK не активируются */ },
         title = { Text("Приватность") },
         text = {
             Column {
                 Text(
-                    "Игра хранит прогресс только на устройстве. Для анонимной статистики " +
-                        "(AppMetrica) и рекламы (Яндекс) передаются технические данные об использовании. " +
-                        "Отказ отключит статистику и персонализацию рекламы — игра останется полной.",
+                    "Игра хранит прогресс на устройстве. Для статистики (AppMetrica) и рекламы " +
+                        "(Яндекс) могут передаваться технические данные об использовании. " +
+                        "Отказ отключит AppMetrica и персонализацию рекламы; игра останется полной.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Подробнее — в Политике конфиденциальности в Настройках.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (privacyPolicyUrl.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri()))
+                            }
+                        },
+                    ) {
+                        Text("Открыть политику конфиденциальности")
+                    }
+                } else {
+                    Text(
+                        "Политика конфиденциальности будет доступна до production-релиза.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         },
         confirmButton = {
