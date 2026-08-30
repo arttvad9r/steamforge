@@ -338,7 +338,8 @@ class GameViewModelTest {
         model.restart()
         advanceUntilIdle()
         assertFalse(model.ui.value.finished)
-        assertEquals(2, analytics.events.count { it.first == "game_started" })
+        // Restoring an existing saved session does not emit game_started; restart starts one new session.
+        assertEquals(1, analytics.events.count { it.first == "game_started" })
 
         var acceptedMove = false
         for (move in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {
