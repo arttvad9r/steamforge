@@ -51,6 +51,8 @@ class AdsManager(
     val rewardedReady: StateFlow<Boolean> = _rewardedReady.asStateFlow()
     private var rewardedRetryAttempt = 0
     private var rewardedRetryScheduled = false
+    /** Rewarded уже был показан в текущей result-паузе: interstitial в этой же паузе подавляется. */
+    private var rewardedShownSincePause = false
 
     private var interstitialLoader: InterstitialAdLoader? = null
     private var interstitialAd: InterstitialAd? = null
@@ -84,7 +86,9 @@ class AdsManager(
         onRewarded = onReward
         analytics.logEvent("rewarded_started")
         ad.setAdEventListener(object : RewardedAdEventListener {
-            override fun onAdShown() = Unit
+            override fun onAdShown() {
+                rewardedShownSincePause = true
+            }
 
             override fun onAdFailedToShow(adError: com.yandex.mobile.ads.common.AdError) {
                 analytics.logEvent("rewarded_show_failed")
@@ -121,6 +125,11 @@ class AdsManager(
     }
 
     fun maybeShowInterstitial(activity: Activity) {
+        // Никогда не ставим interstitial сразу после rewarded на одном и том же result screen.
+        if (rewardedShownSincePause) {
+            rewardedShownSincePause = false
+            return
+        }
         if (!interstitialPending || !cfg.interstitialEnabled) return
         val ad = interstitialAd ?: run {
             loadInterstitial()
