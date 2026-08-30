@@ -83,6 +83,7 @@ class GameViewModel(
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
+    private var discardFinishedRecord = false
 
     private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -163,7 +164,7 @@ class GameViewModel(
 
     fun onMove(move: Move) {
         val s = _ui.value
-        if (s.finished || s.removingMode) return
+        if (s.finished || s.removingMode || finishStarted) return
         val snapshot = UndoSnapshot(s.state, s.pressure, s.overdriveRemaining)
         val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
         val result = engine.applyMove(s.state, move, rng, multiplier)
@@ -212,7 +213,7 @@ class GameViewModel(
     fun undo() {
         val s = _ui.value
         val snap = undoSnapshot ?: return
-        if (s.finished) return
+        if (s.finished || finishStarted) return
         if (s.freeUndosLeft > 0) {
             _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
         } else if (s.gems >= cfg.undoGemsCost) {
@@ -237,13 +238,15 @@ class GameViewModel(
     }
 
     fun toggleRemovingMode() {
+        if (finishStarted) return
         _ui.update { it.copy(removingMode = !it.removingMode) }
     }
 
     fun canRemoveTile(tile: Tile): Boolean =
-        tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
+        !finishStarted && tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
 
     fun removeTile(tile: Tile) {
+        if (finishStarted) return
         val s = _ui.value
         if (!canRemoveTile(tile)) return
         val tiles = s.state.tiles.filterNot { it.id == tile.id }
@@ -261,19 +264,20 @@ class GameViewModel(
         persistGame()
     }
 
-    /** Новая партия после результата. Активная незавершённая партия при прямом вызове просто заменяется. */
     fun restart() {
+        if (finishStarted && !_ui.value.finished) return
         if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
         newGameInternal()
     }
 
     /**
      * Выход не является завершением партии и не выдаёт XP. Обычная партия сохраняется для продолжения,
-     * Daily-попытка просто закрывается. Завершённый overlay при выходе удаляется из persistence.
+     * Daily-попытка просто закрывается. Если Game Over уже фиксируется, результат удалится после транзакции.
      */
     fun exit() {
-        if (_ui.value.finished) {
-            writesScope.launch { repo.clearFinishedGame() }
+        if (_ui.value.finished || finishStarted) {
+            discardFinishedRecord = true
+            if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
         } else if (!dailyMode) {
             persistGame()
         }
@@ -285,6 +289,7 @@ class GameViewModel(
 
     private fun newGameInternal() {
         finishStarted = false
+        discardFinishedRecord = false
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
@@ -345,6 +350,9 @@ class GameViewModel(
         val s = _ui.value
         if (s.finished || finishStarted) return
         finishStarted = true
+        discardFinishedRecord = false
+        _ui.update { it.copy(canUndo = false, removingMode = false) }
+
         val summary = GameSummary(
             score = s.state.score,
             maxTileLevel = s.state.maxLevel,
@@ -384,6 +392,7 @@ class GameViewModel(
                     achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
                 ) to e
             }
+            if (discardFinishedRecord) repo.clearFinishedGame()
             eff?.let { effects ->
                 effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
                 effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
@@ -417,7 +426,7 @@ class GameViewModel(
     }
 
     private fun persistGame() {
-        if (dailyMode) return
+        if (dailyMode || finishStarted) return
         val s = _ui.value
         writesScope.launch {
             repo.saveGame(
