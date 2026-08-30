@@ -9,26 +9,36 @@ import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
-/** Ручной DI: один контейнер на процесс. Hilt для такого объёма избыточен. */
+/** Ручной DI: один контейнер на процесс. */
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val isDebug: Boolean = (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val repo = SteamforgeRepository(appContext)
     val sfx = SfxPlayer(appContext)
 
-    /** До consent-решения делегата нет: события не покидают процесс. */
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
     val ads = AdsManager(analytics, isDebug = isDebug)
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false
 
-    /**
-     * Вызывается при каждом изменении privacy-выбора. Первый вызов активирует
-     * рекламный SDK (согласие передаётся в Yandex Ads до инициализации), положительное
-     * решение активирует AppMetrica, отзыв согласия останавливает передачу данных.
-     */
+    init {
+        appScope.launch {
+            repo.progress
+                .map { it.soundEnabled }
+                .distinctUntilChanged()
+                .collect(sfx::setEnabled)
+        }
+    }
+
     fun onConsentUpdated(granted: Boolean) {
         if (granted && metrica == null && BuildConfig.APPMETRICA_API_KEY.isNotBlank()) {
             metrica = runCatching {
