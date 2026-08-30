@@ -50,9 +50,12 @@ class GameSaveCodecTest {
     }
 
     @Test
-    fun `broken input returns null`() {
+    fun `broken or structurally invalid input returns null`() {
         assertNull(GameSaveCodec.decode("garbage"))
         assertNull(GameSaveCodec.decode("v3|bad"))
         assertNull(GameSaveCodec.decode("v3|4|0|1|0|0|1|0|0|0|0|bad,tile"))
+        assertNull(GameSaveCodec.decode("v3|4|0|3|0|0|1|0|0|0|0|1,1,0,0;2,2,0,0"))
+        assertNull(GameSaveCodec.decode("v3|4|0|2|0|0|1|0|0|0|0|2,1,0,0"))
+        assertNull(GameSaveCodec.decode("v3|4|0|3|0|0|1|0|0|0|0|1,1,4,0;2,2,1,1"))
     }
 }
