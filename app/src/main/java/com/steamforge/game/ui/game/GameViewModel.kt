@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameEngine
+import com.steamforge.game.core.GameRules
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
-import com.steamforge.game.core.GameRules
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 import com.steamforge.game.core.Tile
@@ -22,6 +22,8 @@ import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.applyGameFinished
+import java.util.UUID
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,8 +33,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
-import kotlin.random.Random
 
 data class GameUiState(
     val state: GameState = GameState(),
@@ -78,8 +78,8 @@ class GameViewModel(
     private val engine = GameEngine()
     private val daily = if (dailyMode) dailyProvider() else null
     private var sessionSeed: Long? = if (dailyMode) daily?.seed else null
-    private var rngDraws: Long = 0L
-    private var rng: Random = CountingRandom(Random(if (dailyMode) daily?.seed ?: 0L else seedProvider())) { rngDraws++ }
+    private var rng = ReplayableRandom(if (dailyMode) daily?.seed ?: 0L else seedProvider())
+    private var dailyCompletedToday = false
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
@@ -100,9 +100,7 @@ class GameViewModel(
                 val restored = runCatching { savedGameProvider() }.getOrNull()
                 if (!dailyMode && restored != null) {
                     sessionSeed = restored.seed ?: seedProvider()
-                    rngDraws = 0L
-                    rng = CountingRandom(Random(sessionSeed ?: 0L)) { rngDraws++ }
-                    repeat(restored.rngDraws.coerceAtLeast(0L).coerceAtMost(1_000_000L).toInt()) { rng.nextInt() }
+                    rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
                     _ui.update {
                         it.copy(
                             state = restored.state,
@@ -118,6 +116,10 @@ class GameViewModel(
                 }
             }
             repo.progress.collect { p ->
+                val completedToday = dailyMode &&
+                    p.dailyChallengeDay == LocalDay.todayEpochDay() &&
+                    p.dailyChallengeDone
+                dailyCompletedToday = completedToday
                 _ui.update { s ->
                     s.copy(
                         gems = p.gems,
@@ -125,7 +127,7 @@ class GameViewModel(
                         soundEnabled = p.soundEnabled,
                         hapticsEnabled = p.hapticsEnabled,
                         animationsActive = p.animationsEnabled && systemAnimationsEnabled,
-                        dailySatisfied = s.dailySatisfied || (dailyMode && p.dailyChallengeDay == LocalDay.todayEpochDay() && p.dailyChallengeDone),
+                        dailySatisfied = s.dailySatisfied || completedToday,
                     )
                 }
             }
@@ -204,7 +206,7 @@ class GameViewModel(
         undoSnapshot = snapshot
 
         if (daily != null && !_ui.value.dailySatisfied) checkDailyGoal(result.state)
-        if (result.state.status == GameStatus.GAME_OVER) finishGame(discard = false) else persistGame()
+        if (result.state.status == GameStatus.GAME_OVER) finishGame() else persistGame()
     }
 
     fun undo() {
@@ -215,7 +217,9 @@ class GameViewModel(
             _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
         } else if (s.gems >= cfg.undoGemsCost) {
             writesScope.launch { repo.updateProgress { p -> p.copy(gems = p.gems - cfg.undoGemsCost) } }
-        } else return
+        } else {
+            return
+        }
         _ui.update {
             it.copy(
                 state = snap.state,
@@ -257,20 +261,22 @@ class GameViewModel(
         persistGame()
     }
 
+    /** Новая партия после результата. Активная незавершённая партия при прямом вызове просто заменяется. */
     fun restart() {
-        if (_ui.value.finished) {
-            writesScope.launch { repo.clearFinishedGame() }
-        }
+        if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
         newGameInternal()
     }
 
+    /**
+     * Выход не является завершением партии и не выдаёт XP. Обычная партия сохраняется для продолжения,
+     * Daily-попытка просто закрывается. Завершённый overlay при выходе удаляется из persistence.
+     */
     fun exit() {
-        val s = _ui.value
-        if (s.finished) {
+        if (_ui.value.finished) {
             writesScope.launch { repo.clearFinishedGame() }
-            return
+        } else if (!dailyMode) {
+            persistGame()
         }
-        if (!dailyMode) persistGame()
     }
 
     fun markWinBannerShown() {
@@ -280,8 +286,7 @@ class GameViewModel(
     private fun newGameInternal() {
         finishStarted = false
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
-        rngDraws = 0L
-        rng = CountingRandom(Random(sessionSeed ?: 0L)) { rngDraws++ }
+        rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
         val state = engine.newGame(rng = rng)
         _ui.update {
@@ -303,7 +308,7 @@ class GameViewModel(
                 overdrivesSession = 0,
                 undosSession = 0,
                 highMergesSession = 0,
-                dailySatisfied = false,
+                dailySatisfied = dailyMode && dailyCompletedToday,
             )
         }
         analytics.logEvent(
@@ -329,11 +334,14 @@ class GameViewModel(
                 rewardGems = challenge.rewardGems,
                 bonusXp = challenge.bonusXp,
             )
-            if (granted) analytics.logEvent("daily_completed", mapOf("type" to challenge.type.name))
+            if (granted) {
+                dailyCompletedToday = true
+                analytics.logEvent("daily_completed", mapOf("type" to challenge.type.name))
+            }
         }
     }
 
-    private fun finishGame(discard: Boolean) {
+    private fun finishGame() {
         val s = _ui.value
         if (s.finished || finishStarted) return
         finishStarted = true
@@ -346,7 +354,7 @@ class GameViewModel(
             overdrives = s.overdrivesSession,
             undos = s.undosSession,
             won = s.state.won,
-            daily = dailyMode && s.dailySatisfied,
+            daily = dailyMode,
         )
         val today = LocalDay.todayEpochDay()
         val resultId = "fg-" + UUID.randomUUID().toString()
@@ -357,7 +365,14 @@ class GameViewModel(
             score = summary.score,
             maxTileLevel = summary.maxTileLevel,
             state = GameSaveCodec.encode(
-                SavedGame(s.state, sessionSeed, s.pressure, s.overdriveRemaining, s.freeUndosLeft, rngDraws),
+                SavedGame(
+                    state = s.state,
+                    seed = sessionSeed,
+                    pressure = s.pressure,
+                    overdriveRemaining = s.overdriveRemaining,
+                    freeUndosLeft = s.freeUndosLeft,
+                    rngDraws = rng.draws,
+                ),
             ),
         )
         writesScope.launch {
@@ -365,16 +380,19 @@ class GameViewModel(
             repo.applyGameFinish(record) { latest ->
                 val (updated, e) = applyGameFinished(latest, summary, cfg)
                 eff = e
-                updated.copy(achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today }) to e
+                updated.copy(
+                    achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
+                ) to e
             }
             eff?.let { effects ->
                 effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
                 effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
             }
-            if (discard) repo.clearFinishedGame()
             _ui.update { it.copy(finished = true, effects = eff, gameResultId = resultId, removingMode = false) }
             ads?.onGameFinished()
-            if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) analytics.logEvent("rewarded_offered")
+            if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
+                analytics.logEvent("rewarded_offered")
+            }
             analytics.logEvent(
                 "game_finished",
                 mapOf(
@@ -403,18 +421,44 @@ class GameViewModel(
         val s = _ui.value
         writesScope.launch {
             repo.saveGame(
-                SavedGame(s.state, sessionSeed, s.pressure, s.overdriveRemaining, s.freeUndosLeft, rngDraws),
+                SavedGame(
+                    state = s.state,
+                    seed = sessionSeed,
+                    pressure = s.pressure,
+                    overdriveRemaining = s.overdriveRemaining,
+                    freeUndosLeft = s.freeUndosLeft,
+                    rngDraws = rng.draws,
+                ),
             )
         }
     }
 }
 
-private class CountingRandom(
-    private val delegate: Random,
-    private val onDraw: () -> Unit,
+/**
+ * Маленький детерминированный PRNG с сериализуемой позицией. Random.nextInt/nextDouble строятся поверх
+ * nextBits, поэтому одного счётчика draws достаточно для точного продолжения последовательности.
+ */
+private class ReplayableRandom(
+    private val seed: Long,
+    initialDraws: Long = 0L,
 ) : Random() {
+    var draws: Long = initialDraws.coerceIn(0L, 1_000_000L)
+        private set
+
     override fun nextBits(bitCount: Int): Int {
-        onDraw()
-        return delegate.nextBits(bitCount)
+        require(bitCount in 0..32)
+        if (bitCount == 0) return 0
+        val index = draws++
+        var z = seed + GOLDEN_GAMMA * (index + 1L)
+        z = (z xor (z ushr 30)) * MIX_1
+        z = (z xor (z ushr 27)) * MIX_2
+        z = z xor (z ushr 31)
+        return (z ushr (64 - bitCount)).toInt()
+    }
+
+    private companion object {
+        const val GOLDEN_GAMMA = -7046029254386353131L
+        const val MIX_1 = -4658895280553007687L
+        const val MIX_2 = -7723592293110705685L
     }
 }
