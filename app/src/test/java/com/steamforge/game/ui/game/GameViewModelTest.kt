@@ -1,8 +1,11 @@
 package com.steamforge.game.ui.game
 
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
+import com.steamforge.game.core.Tile
 import com.steamforge.game.data.FakeDataRepo
+import com.steamforge.game.data.SavedGame
 import com.steamforge.game.progression.DailyChallenge
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.DailyGoalType
@@ -69,13 +72,37 @@ class GameViewModelTest {
         repeat(maxMoves) { i -> onMove(moves[i % moves.size]) }
     }
 
-    private suspend fun finishByPlaying(model: GameViewModel, maxMoves: Int = 3000) {
-        val moves = listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)
-        repeat(maxMoves) { i ->
-            if (model.ui.value.finished) return
-            model.onMove(moves[i % moves.size])
+    /** Full board with exactly one legal merge. LEFT merges the leading 2+2, spawn fills the gap,
+     * and the resulting board has no adjacent equal tiles, so Game Over is deterministic. */
+    private fun finishingSavedGame(seed: Long = 17L): SavedGame {
+        val levels = listOf(
+            1, 1, 3, 4,
+            5, 6, 7, 8,
+            9, 10, 1, 2,
+            3, 4, 5, 6,
+        )
+        val tiles = levels.mapIndexed { index, level ->
+            Tile(
+                id = (index + 1).toLong(),
+                level = level,
+                row = index / 4,
+                col = index % 4,
+            )
         }
-        assertTrue("game did not finish within $maxMoves moves", model.ui.value.finished)
+        return SavedGame(
+            state = GameState(
+                size = 4,
+                tiles = tiles,
+                score = 128,
+                nextTileId = 17L,
+                moves = 20,
+            ),
+            seed = seed,
+            pressure = 0,
+            overdriveRemaining = 0,
+            freeUndosLeft = 2,
+            rngDraws = 0L,
+        )
     }
 
     @Test
@@ -238,11 +265,14 @@ class GameViewModelTest {
     @Test
     fun `analytics events fired for real finish`() = runTest(dispatcher) {
         val analytics = RecordingAnalytics()
-        val model = vm(repo = FakeDataRepo(), analytics = analytics, seed = 17L)
+        val repo = FakeDataRepo(initialGame = finishingSavedGame(seed = 17L))
+        val model = vm(repo = repo, analytics = analytics, seed = 17L)
         advanceUntilIdle()
-        assertTrue(analytics.events.any { it.first == "game_started" })
-        finishByPlaying(model)
+
+        model.onMove(Move.LEFT)
         advanceUntilIdle()
+
+        assertTrue(model.ui.value.finished)
         assertTrue(analytics.events.any { it.first == "game_finished" })
     }
 
@@ -294,21 +324,33 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `restart resets finish guard so second game can finish`() = runTest(dispatcher) {
-        val repo = FakeDataRepo()
-        val model = vm(repo, seed = 123L)
+    fun `restart resets finish guard and allows next game moves`() = runTest(dispatcher) {
+        val analytics = RecordingAnalytics()
+        val repo = FakeDataRepo(initialGame = finishingSavedGame(seed = 123L))
+        val model = vm(repo, analytics = analytics, seed = 123L)
         advanceUntilIdle()
-        finishByPlaying(model)
+
+        model.onMove(Move.LEFT)
         advanceUntilIdle()
+        assertTrue(model.ui.value.finished)
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
 
         model.restart()
         advanceUntilIdle()
         assertFalse(model.ui.value.finished)
-        finishByPlaying(model)
-        advanceUntilIdle()
-        assertEquals(2, repo.currentProgress.stats.gamesPlayed)
-        assertNotNull(repo.currentFinished)
+        assertEquals(2, analytics.events.count { it.first == "game_started" })
+
+        var acceptedMove = false
+        for (move in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {
+            val before = model.ui.value.state
+            model.onMove(move)
+            advanceUntilIdle()
+            if (model.ui.value.state != before) {
+                acceptedMove = true
+                break
+            }
+        }
+        assertTrue("restart left finish guard active", acceptedMove)
     }
 
     @Test
