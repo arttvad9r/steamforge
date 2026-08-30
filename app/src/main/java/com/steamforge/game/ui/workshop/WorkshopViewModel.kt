@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.progression.LocalDay
-import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +27,8 @@ data class WorkshopUiState(
     val dailyRewardGems: Int = 0,
     val goldGaugeCosmetic: Boolean = false,
     val animationsEnabled: Boolean = true,
+    val soundEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
 )
 
 class WorkshopViewModel(
@@ -39,7 +40,6 @@ class WorkshopViewModel(
     val ui: StateFlow<WorkshopUiState> = repo.progress.map { p ->
         val todayDay = today()
         val canClaim = p.dailyRewardDay != todayDay
-        // streak продолжается только со вчерашнего дня
         val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
         val nextDay = (continuingStreak % cfg.dailyRewardCycle) + 1
         val li = p.levelInfo(cfg)
@@ -58,6 +58,8 @@ class WorkshopViewModel(
             dailyRewardGems = cfg.dailyRewardGems(nextDay),
             goldGaugeCosmetic = "gold_gauge" in p.unlockedCosmetics,
             animationsEnabled = p.animationsEnabled,
+            soundEnabled = p.soundEnabled,
+            hapticsEnabled = p.hapticsEnabled,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorkshopUiState())
 
