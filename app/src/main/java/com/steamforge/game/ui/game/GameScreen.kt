@@ -104,7 +104,6 @@ import kotlin.math.abs
 private const val MOVE_MS = 110
 private const val POP_MS = 140
 private const val SPAWN_MS = 130
-private const val UNDO_COST_PLACEHOLDER = 5
 
 @Composable
 fun GameScreen(
@@ -227,10 +226,11 @@ fun GameScreen(
                         if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
                     )
                 }
-                if (ui.daily != null) {
+                val daily = ui.daily
+                if (daily != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        dailyGoalText(ui.daily) + if (ui.dailySatisfied) " — выполнено" else "",
+                        dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.labelMedium,
                         color = if (ui.dailySatisfied) TealGlow else TextMuted,
