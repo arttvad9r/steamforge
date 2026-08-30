@@ -47,11 +47,12 @@ object GameSaveCodec {
         val isV1 = parts.size == 7 && parts[0] == "v1"
         if (!isV3 && !isV2 && !isV1) return null
         return runCatching {
-            val size = parts[1].toInt().coerceIn(2, 8)
-            val score = parts[2].toInt().coerceAtLeast(0)
-            val nextId = parts[3].toLong().coerceAtLeast(1L)
+            val size = parts[1].toInt().also { require(it in 2..8) }
+            val score = parts[2].toInt().also { require(it >= 0) }
+            val nextId = parts[3].toLong().also { require(it > 0L) }
+            require(parts[4] == "0" || parts[4] == "1")
             val won = parts[4] == "1"
-            val moves = parts[5].toInt().coerceAtLeast(0)
+            val moves = parts[5].toInt().also { require(it >= 0) }
             var seed: Long? = null
             var pressure = 0
             var overdrive = 0
@@ -82,14 +83,18 @@ object GameSaveCodec {
                 parts[tilesIndex].split(';').map { t ->
                     val f = t.split(',')
                     require(f.size == 4)
-                    Tile(
-                        id = f[0].toLong(),
-                        level = f[1].toInt().coerceIn(1, 30),
-                        row = f[2].toInt().coerceIn(0, size - 1),
-                        col = f[3].toInt().coerceIn(0, size - 1),
-                    )
+                    val id = f[0].toLong().also { require(it > 0L) }
+                    val level = f[1].toInt().also { require(it in 1..30) }
+                    val row = f[2].toInt().also { require(it in 0 until size) }
+                    val col = f[3].toInt().also { require(it in 0 until size) }
+                    Tile(id = id, level = level, row = row, col = col)
                 }
             }
+            require(tiles.size <= size * size)
+            require(tiles.map { it.id }.toSet().size == tiles.size)
+            require(tiles.map { it.row to it.col }.toSet().size == tiles.size)
+            require(nextId > (tiles.maxOfOrNull { it.id } ?: 0L))
+
             SavedGame(
                 state = GameState(
                     size = size,
