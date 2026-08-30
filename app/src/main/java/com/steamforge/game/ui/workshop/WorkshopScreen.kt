@@ -246,18 +246,19 @@ private fun GaugeBar(fraction: Float, accent: Color) {
 
 @Composable
 private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
-    val transition = rememberInfiniteTransition(label = "gears")
-    val angle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = if (animationsEnabled) {
-            infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart)
-        } else {
-            infiniteRepeatable(tween(1, easing = LinearEasing), RepeatMode.Restart)
-        },
-        label = "angle",
-    )
-    val visibleAngle = if (animationsEnabled) angle else 0f
+    val angle = if (animationsEnabled) {
+        val transition = rememberInfiniteTransition(label = "gears")
+        val animated by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart),
+            label = "angle",
+        )
+        animated
+    } else {
+        0f
+    }
+
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -286,8 +287,8 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
             strokeWidth = 10.dp.toPx(),
             cap = StrokeCap.Round,
         )
-        drawGear(Offset(w * 0.40f, h * 0.55f), 30.dp.toPx(), visibleAngle, accent.copy(alpha = 0.75f))
-        drawGear(Offset(w * 0.62f, h * 0.62f), 20.dp.toPx(), -visibleAngle * 1.6f, Copper.copy(alpha = 0.8f))
+        drawGear(Offset(w * 0.40f, h * 0.55f), 30.dp.toPx(), angle, accent.copy(alpha = 0.75f))
+        drawGear(Offset(w * 0.62f, h * 0.62f), 20.dp.toPx(), -angle * 1.6f, Copper.copy(alpha = 0.8f))
     }
 }
 
