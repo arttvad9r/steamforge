@@ -1,0 +1,60 @@
+package com.steamforge.game
+
+import android.app.Application
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import com.steamforge.game.analytics.AppMetricaAnalytics
+import com.steamforge.game.analytics.MutableAnalytics
+import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.data.SteamforgeRepository
+import com.steamforge.game.monetization.AdsManager
+import com.steamforge.game.sound.SfxPlayer
+
+/** Ручной DI: один контейнер на процесс. Hilt для такого объёма избыточен. */
+class AppContainer(context: Context) {
+    private val appContext = context.applicationContext
+    val isDebug: Boolean = (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    val repo = SteamforgeRepository(appContext)
+    val sfx = SfxPlayer(appContext)
+
+    /** До consent-решения делегата нет: события не покидают процесс. */
+    val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
+    val ads = AdsManager(analytics, isDebug = isDebug)
+
+    private var metrica: AppMetricaAnalytics? = null
+    private var adsInitialized = false
+
+    /**
+     * Вызывается при каждом изменении privacy-выбора. Первый вызов активирует
+     * рекламный SDK (согласие передаётся в Yandex Ads до инициализации), положительное
+     * решение активирует AppMetrica, отзыв согласия останавливает передачу данных.
+     */
+    fun onConsentUpdated(granted: Boolean) {
+        if (granted && metrica == null && BuildConfig.APPMETRICA_API_KEY.isNotBlank()) {
+            metrica = runCatching {
+                AppMetricaAnalytics(appContext, BuildConfig.APPMETRICA_API_KEY, debugLogging = isDebug)
+            }.getOrNull()
+        }
+        metrica?.setSendingEnabled(granted)
+        analytics.setDelegate(if (granted) metrica else null)
+        if (!adsInitialized) {
+            adsInitialized = true
+            runCatching { ads.init(appContext, userConsent = granted) }
+        } else {
+            runCatching { com.yandex.mobile.ads.common.YandexAds.setUserConsent(granted) }
+        }
+        if (isDebug && BuildConfig.APPMETRICA_API_KEY.isBlank()) {
+            println("Steamforge: APPMETRICA_API_KEY не задан (steamforge.appmetricaApiKey) — аналитика отключена")
+        }
+    }
+}
+
+class SteamforgeApp : Application() {
+    lateinit var container: AppContainer
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        container = AppContainer(this)
+    }
+}

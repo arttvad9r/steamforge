@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Труба и пар -->
+    <path
+        android:pathData="M22,86 L22,62 Q22,56 28,56 L40,56"
+        android:strokeColor="#7C8288"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M78,34 Q84,30 88,34 M84,42 Q90,38 94,42"
+        android:strokeColor="#D9A441"
+        android:strokeAlpha="0.55"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- Шестерня -->
+    <path
+        android:pathData="M77.0,54.0L83.4,59.7L80.2,68.5L71.6,68.8L71.6,68.8L72.9,77.3L64.8,82.0L58.0,76.7L58.0,76.7L53.5,84.0L44.2,82.4L42.5,73.9L42.5,73.9L34.3,76.6L28.3,69.5L32.4,61.9L32.4,61.9L24.4,58.7L24.4,49.3L32.4,46.1L32.4,46.1L28.3,38.5L34.3,31.4L42.5,34.1L42.5,34.1L44.2,25.6L53.5,24.0L58.0,31.3L58.0,31.3L64.8,26.0L72.9,30.7L71.6,39.2L71.6,39.2L80.2,39.5L83.4,48.3L77.0,54.0ZM63.0,54.0L62.7,56.3L61.8,58.5L60.4,60.4L58.5,61.8L56.3,62.7L54.0,63.0L51.7,62.7L49.5,61.8L47.6,60.4L46.2,58.5L45.3,56.3L45.0,54.0L45.3,51.7L46.2,49.5L47.6,47.6L49.5,46.2L51.7,45.3L54.0,45.0L56.3,45.3L58.5,46.2L60.4,47.6L61.8,49.5L62.7,51.7Z"
+        android:fillType="evenOdd"
+        android:fillColor="#D9A441" />
+    <!-- Блик -->
+    <path
+        android:pathData="M39.0,54.0 A15.0,15.0 0 0 1 54.0,39.0 L54.0,45.0 A9.0,9.0 0 0 0 45.0,54.0 Z"
+        android:fillColor="#F2C14E" />
+</vector>

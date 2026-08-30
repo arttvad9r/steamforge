@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Автобэкап до API 31: whitelist — включён ТОЛЬКО файл прогресса DataStore.
+  Всё остальное (кэш, внешние файлы) не входит в бэкап.
+-->
+<full-backup-content>
+    <include domain="file" path="datastore"/>
+</full-backup-content>
