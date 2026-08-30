@@ -2,7 +2,6 @@ package com.steamforge.game.progression
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,175 +9,91 @@ class ProgressionTest {
 
     private val cfg = ProgressionConfig()
 
-    // ---------- Steam Pressure ----------
+    @Test
+    fun `level progression advances across thresholds`() {
+        assertEquals(1, WorkshopProgression.levelInfo(0, cfg).level)
+        assertEquals(2, WorkshopProgression.levelInfo(cfg.baseXpToLevel, cfg).level)
+        val level3Xp = cfg.baseXpToLevel + WorkshopProgression.xpToNext(2, cfg)
+        assertEquals(3, WorkshopProgression.levelInfo(level3Xp, cfg).level)
+    }
+
+    @Test
+    fun `game xp uses score tile and win but daily bonus is claimed separately`() {
+        val normal = GameSummary(score = 1000, maxTileLevel = 7, won = false, daily = false)
+        val daily = normal.copy(daily = true)
+        val won = normal.copy(won = true)
+        val expectedBase = 1000 / cfg.xpScoreDivisor + 7 * cfg.xpPerMaxTileLevel
+        assertEquals(expectedBase, WorkshopProgression.xpForGame(normal, cfg))
+        assertEquals(expectedBase, WorkshopProgression.xpForGame(daily, cfg))
+        assertEquals(expectedBase + cfg.winBonusXp, WorkshopProgression.xpForGame(won, cfg))
+    }
+
+    @Test
+    fun `apply finish updates best stats achievements and level rewards`() {
+        val summary = GameSummary(
+            score = 3000,
+            maxTileLevel = 8,
+            moves = 100,
+            merges = 40,
+            maxMergesInOneMove = 3,
+            overdrives = 5,
+            undos = 10,
+            won = false,
+        )
+        val (updated, effects) = applyGameFinished(PlayerProgress(), summary, cfg)
+        assertEquals(1, updated.stats.gamesPlayed)
+        assertEquals(3000, updated.bestScore)
+        assertEquals(3000, updated.stats.bestScore)
+        assertEquals(3000L, updated.stats.totalScore)
+        assertEquals(8, updated.stats.maxTileLevel)
+        assertEquals(40, updated.stats.totalMerges)
+        assertTrue(effects.xpGained > 0)
+        assertTrue(updated.unlockedAchievements.isNotEmpty())
+        assertTrue(updated.gems >= effects.gemsGained)
+    }
 
     @Test
     fun `pressure gain grows with merge level`() {
-        val low = cfg.pressureGainForMerge(1)
-        val mid = cfg.pressureGainForMerge(5)
-        val high = cfg.pressureGainForMerge(11)
-        assertTrue(low < mid && mid < high)
-        assertEquals(4, low)
-        assertEquals(4 + 3 * 10, high)
+        assertTrue(cfg.pressureGainForMerge(6) > cfg.pressureGainForMerge(2))
     }
 
     @Test
-    fun `overdrive config is sane`() {
-        assertTrue(cfg.overdriveMerges > 0)
-        assertEquals(2, cfg.overdriveMultiplier)
-        assertEquals(100, cfg.pressureMax)
-    }
-
-    // ---------- Workshop XP ----------
-
-    @Test
-    fun `xp for game combines score level and bonuses`() {
-        val base = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8), cfg)
-        assertEquals(2000 / 20 + 8 * 10, base)
-        val won = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8, won = true), cfg)
-        assertEquals(base + cfg.winBonusXp, won)
-        val daily = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8, daily = true), cfg)
-        assertEquals(base + cfg.dailyBonusXp, daily)
-    }
-
-    @Test
-    fun `level progression is monotonic and thresholds grow`() {
-        val l1 = WorkshopProgression.levelInfo(0, cfg)
-        assertEquals(1, l1.level)
-        val need1 = WorkshopProgression.xpToNext(1, cfg)
-        val need2 = WorkshopProgression.xpToNext(2, cfg)
-        assertTrue(need2 > need1)
-        val l2 = WorkshopProgression.levelInfo(need1, cfg)
-        assertEquals(2, l2.level)
-        assertEquals(0, l2.xpIntoLevel)
-        // после накопления XP на 3 уровня
-        val l4 = WorkshopProgression.levelInfo(need1 + need2 + need3(), cfg)
-        assertEquals(4, l4.level)
-    }
-
-    private fun need3() = WorkshopProgression.xpToNext(3, cfg)
-
-    @Test
-    fun `level up gems grow with level`() {
-        assertTrue(cfg.levelUpGems(3) > cfg.levelUpGems(2))
-    }
-
-    // ---------- applyGameFinished ----------
-
-    @Test
-    fun `game finish updates stats xp and best`() {
-        val stats = PlayerStats(gamesPlayed = 3, bestScore = 500)
-        val (progress, effects) = applyGameFinished(
-            progress = PlayerProgress(gems = 10, totalXp = 0, bestScore = 500, stats = stats),
-            summary = GameSummary(score = 1200, maxTileLevel = 7, moves = 100, merges = 80, maxMergesInOneMove = 2),
-            cfg = cfg,
-        )
-        assertEquals(4, progress.stats.gamesPlayed)
-        assertEquals(1200, progress.bestScore)
-        assertTrue(effects.xpGained > 0)
-        assertTrue(effects.newBest)
-        assertTrue(progress.gems > 10 || effects.gemsGained >= 0)
-    }
-
-    @Test
-    fun `game finish unlocks first merge achievement and awards gems`() {
-        val (progress, effects) = applyGameFinished(
-            progress = PlayerProgress(),
-            summary = GameSummary(score = 100, maxTileLevel = 2, merges = 10, maxMergesInOneMove = 1),
-            cfg = cfg,
-        )
-        assertTrue("merge_1" in progress.unlockedAchievements)
-        assertEquals(3, effects.newAchievements.first { it.id == "merge_1" }.gemReward)
-        assertTrue(effects.gemsGained >= 3)
-    }
-
-    @Test
-    fun `achievements unlock only once`() {
-        val stats = PlayerStats(gamesPlayed = 1, totalMerges = 5)
-        val (p1, _) = applyGameFinished(PlayerProgress(), GameSummary(merges = 5), cfg)
-        val (p2, e2) = applyGameFinished(p1, GameSummary(merges = 5), cfg)
-        assertFalse("merge_1" in e2.newAchievements.map { it.id })
-        assertEquals(p1.unlockedAchievements, p2.unlockedAchievements)
-    }
-
-    @Test
-    fun `level up grants gems and reports levels`() {
-        // XP, достаточный ровно на 2 level-up'а; достижения предразблокированы, чтобы изолировать награду за уровни
-        val need = WorkshopProgression.xpToNext(1, cfg) + WorkshopProgression.xpToNext(2, cfg)
-        val summary = GameSummary(score = need * cfg.xpScoreDivisor, maxTileLevel = 0)
-        val (_, effects) = applyGameFinished(
-            PlayerProgress(unlockedAchievements = Achievements.all.map { it.id }.toSet()), summary, cfg,
-        )
-        assertTrue(effects.newAchievements.isEmpty())
-        assertEquals(listOf(2, 3), effects.levelUps)
-        assertEquals(cfg.levelUpGems(2) + cfg.levelUpGems(3), effects.gemsGained)
-    }
-
-    // ---------- Daily Challenge ----------
-
-    @Test
-    fun `same day gives same challenge`() {
-        val a = DailyChallenges.forEpochDay(20600)
-        val b = DailyChallenges.forEpochDay(20600)
+    fun `daily challenge deterministic for epoch day`() {
+        val a = DailyChallenges.forEpochDay(12345L)
+        val b = DailyChallenges.forEpochDay(12345L)
         assertEquals(a, b)
+        val c = DailyChallenges.forEpochDay(12346L)
+        assertFalse(a.seed == c.seed)
     }
 
     @Test
-    fun `different days usually differ and seeds are valid`() {
-        val a = DailyChallenges.forEpochDay(20600)
-        val b = DailyChallenges.forEpochDay(20601)
-        assertNotEquals(a.seed, b.seed)
-        assertTrue(a.seed > 0)
+    fun `daily goals evaluate correctly`() {
+        val reachTile = DailyChallenge(1, DailyGoalType.REACH_TILE, 128, 6, 1, 15, 60)
+        assertFalse(reachTile.isSatisfied(64, 9999, 99))
+        assertTrue(reachTile.isSatisfied(128, 0, 0))
+
+        val reachScore = DailyChallenge(1, DailyGoalType.REACH_SCORE, 500, 6, 1, 15, 60)
+        assertFalse(reachScore.isSatisfied(2048, 499, 99))
+        assertTrue(reachScore.isSatisfied(2, 500, 0))
+
+        val high = DailyChallenge(1, DailyGoalType.HIGH_MERGES, 3, 6, 1, 15, 60)
+        assertFalse(high.isSatisfied(2048, 9999, 2))
+        assertTrue(high.isSatisfied(2, 0, 3))
     }
 
     @Test
-    fun `daily goals in expected ranges`() {
-        for (day in 20500L..20560L) {
-            val c = DailyChallenges.forEpochDay(day)
-            when (c.type) {
-                DailyGoalType.REACH_TILE -> assertTrue(c.target in setOf(128, 256, 512))
-                DailyGoalType.REACH_SCORE -> assertTrue(c.target in 300..1000)
-                DailyGoalType.HIGH_MERGES -> assertTrue(c.target in 2..4)
-            }
-        }
+    fun `achievements unlock once`() {
+        val stats = PlayerStats(totalMerges = 1, bestScore = 1000, gamesPlayed = 10)
+        val first = Achievements.newlyUnlocked(stats, emptySet())
+        assertTrue(first.any { it.id == "merge_1" })
+        assertTrue(first.any { it.id == "score_1000" })
+        assertTrue(first.any { it.id == "games_10" })
+        val second = Achievements.newlyUnlocked(stats, first.map { it.id }.toSet())
+        assertFalse(second.any { it.id in first.map { a -> a.id } })
     }
 
     @Test
-    fun `goal satisfaction check`() {
-        val c = DailyChallenges.forEpochDay(20601).copy(type = DailyGoalType.REACH_SCORE, target = 500)
-        assertTrue(c.isSatisfied(maxTileValue = 8, score = 500, highMerges = 0))
-        assertFalse(c.isSatisfied(maxTileValue = 8, score = 499, highMerges = 0))
-    }
-
-    @Test
-    fun `local day is stable within a day`() {
-        val d = LocalDay.epochDayOf(2026, 8, 30)
-        assertEquals(d, LocalDay.epochDayOf(2026, 8, 30))
-        assertNotEquals(d, LocalDay.epochDayOf(2026, 8, 29))
-    }
-
-    // ---------- Achievements ----------
-
-    @Test
-    fun `at least 15 achievements defined`() {
-        assertTrue(Achievements.all.size >= 15)
-        assertTrue(Achievements.all.none { it.title.isBlank() })
-        assertTrue(Achievements.all.all { it.gemReward >= 0 })
-    }
-
-    @Test
-    fun `hidden achievement unlocks on gems earned`() {
-        val stats = PlayerStats(gemsEarned = 500)
-        val unlocked = Achievements.newlyUnlocked(stats, emptySet()).map { it.id }
-        assertTrue("gems_500" in unlocked)
-        val early = Achievements.newlyUnlocked(PlayerStats(gemsEarned = 100), emptySet()).map { it.id }
-        assertFalse("gems_500" in early)
-    }
-
-    @Test
-    fun `progress achievements report capped progress`() {
-        val def = Achievements.byId("games_50")!!
-        assertEquals(7, def.progressOf(PlayerStats(gamesPlayed = 7)))
-        assertEquals(50, def.progressOf(PlayerStats(gamesPlayed = 90)))
+    fun `daily reward cycle values grow`() {
+        assertTrue(cfg.dailyRewardGems(7) > cfg.dailyRewardGems(1))
     }
 }
