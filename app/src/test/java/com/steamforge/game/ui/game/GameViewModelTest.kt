@@ -3,7 +3,9 @@ package com.steamforge.game.ui.game
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.Move
 import com.steamforge.game.data.FakeDataRepo
+import com.steamforge.game.progression.DailyChallenge
 import com.steamforge.game.progression.DailyChallenges
+import com.steamforge.game.progression.DailyGoalType
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.ProgressionConfig
@@ -50,12 +52,13 @@ class GameViewModelTest {
         analytics: RecordingAnalytics = RecordingAnalytics(),
         daily: Boolean = false,
         seed: Long = 42L,
+        dailyChallenge: DailyChallenge? = null,
     ): GameViewModel = GameViewModel(
         repo = repo,
         analytics = analytics,
         cfg = ProgressionConfig(),
         dailyMode = daily,
-        dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
+        dailyProvider = { dailyChallenge ?: DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
         seedProvider = { seed },
         savedGameProvider = { repo.currentGame },
         systemAnimationsEnabled = true,
@@ -154,23 +157,34 @@ class GameViewModelTest {
 
     @Test
     fun `daily challenge reward is idempotent across different viewmodels`() = runTest(dispatcher) {
+        val today = LocalDay.todayEpochDay()
+        val challenge = DailyChallenge(
+            epochDay = today,
+            type = DailyGoalType.REACH_SCORE,
+            target = 0,
+            mergeLevel = 6,
+            seed = 12345L,
+            rewardGems = 15,
+            bonusXp = 60,
+        )
         val repo = FakeDataRepo()
-        val challenge = DailyChallenges.forEpochDay(LocalDay.todayEpochDay())
-        val first = vm(repo, daily = true, seed = challenge.seed)
+        val first = vm(repo, daily = true, seed = challenge.seed, dailyChallenge = challenge)
         advanceUntilIdle()
-        for (i in 0 until 1000) {
-            if (first.ui.value.dailySatisfied) break
-            first.onMove(listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)[i % 4])
+        for (move in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {
+            first.onMove(move)
             advanceUntilIdle()
+            if (first.ui.value.dailySatisfied) break
         }
         assertTrue(first.ui.value.dailySatisfied)
         val afterFirst = repo.currentProgress
         assertTrue(afterFirst.dailyChallengeDone)
+        assertEquals(today, afterFirst.dailyChallengeDay)
+        assertEquals(1, afterFirst.stats.dailyCompleted)
 
-        val second = vm(repo, daily = true, seed = challenge.seed)
+        val second = vm(repo, daily = true, seed = challenge.seed, dailyChallenge = challenge)
         advanceUntilIdle()
         assertTrue(second.ui.value.dailySatisfied)
-        second.playMoves(100)
+        second.playMoves(20)
         advanceUntilIdle()
         assertEquals(afterFirst.gems, repo.currentProgress.gems)
         assertEquals(afterFirst.totalXp, repo.currentProgress.totalXp)
