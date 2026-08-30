@@ -1,6 +1,7 @@
 package com.steamforge.game.ui.game
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -156,11 +157,13 @@ fun GameScreen(
             exitHandled = true
             vm.exit()
             onExit()
-            if (ui.finished && !ui.rewardDoubled && context is Activity) {
+            if (ui.finished && context is Activity) {
                 ads.maybeShowInterstitial(context)
             }
         }
     }
+
+    BackHandler { leave() }
 
     Scaffold(
         modifier = modifier
@@ -253,7 +256,7 @@ fun GameScreen(
                 }
             },
             onRestart = {
-                if (activity != null && !ui.rewardDoubled) ads.maybeShowInterstitial(activity)
+                if (activity != null) ads.maybeShowInterstitial(activity)
                 vm.restart()
             },
             onExit = { leave() },
