@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -137,7 +138,7 @@ fun SteamPanel(
     content: @Composable () -> Unit,
 ) {
     val border = if (highlighted) Brass else BrassDark
-    Column(
+    Box(
         modifier = modifier
             .shadow(12.dp, FrameShape, ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color.Black.copy(alpha = 0.7f))
             .clip(FrameShape)
@@ -152,10 +153,28 @@ fun SteamPanel(
             )
             .border(2.dp, border, FrameShape)
             .padding(3.dp)
-            .border(1.dp, BrassBright.copy(alpha = 0.18f), InnerShape)
-            .padding(contentPadding),
+            .border(1.dp, BrassBright.copy(alpha = 0.18f), InnerShape),
     ) {
-        content()
+        Canvas(Modifier.matchParentSize()) {
+            val inset = 8.dp.toPx()
+            val radius = 1.7.dp.toPx()
+            val rivet = BrassBright.copy(alpha = if (highlighted) 0.42f else 0.26f)
+            val shadow = Color.Black.copy(alpha = 0.55f)
+            val centers = listOf(
+                Offset(inset, inset),
+                Offset(size.width - inset, inset),
+                Offset(inset, size.height - inset),
+                Offset(size.width - inset, size.height - inset),
+            )
+            centers.forEach { center ->
+                drawCircle(shadow, radius * 1.35f, center + Offset(0.7.dp.toPx(), 0.7.dp.toPx()))
+                drawCircle(rivet, radius, center)
+                drawCircle(Color.White.copy(alpha = 0.12f), radius * 0.38f, center - Offset(0.45.dp.toPx(), 0.45.dp.toPx()))
+            }
+        }
+        Column(modifier = Modifier.padding(contentPadding)) {
+            content()
+        }
     }
 }
 
