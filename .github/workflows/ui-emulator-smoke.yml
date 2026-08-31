@@ -191,23 +191,25 @@ jobs:
 
           needle = sys.argv[1].casefold()
           root = ET.parse("/tmp/window.xml").getroot()
-          parents = {child: parent for parent in root.iter() for child in parent}
-          labels = [
+
+          def node_label(node):
+              return (
+                  (node.attrib.get("text") or "")
+                  + " "
+                  + (node.attrib.get("content-desc") or "")
+              ).casefold()
+
+          candidates = [
               node for node in root.iter("node")
-              if needle in (((node.attrib.get("text") or "") + " " + (node.attrib.get("content-desc") or "")).casefold())
+              if node.attrib.get("checkable") == "true"
+              and node.attrib.get("clickable") == "true"
+              and (
+                  needle in node_label(node)
+                  or any(needle in node_label(descendant) for descendant in node.iter("node"))
+              )
           ]
-          assert labels, f"switch label not found: {needle}"
-
-          node = labels[0]
-          interactive = None
-          while node is not None:
-              if node.attrib.get("checkable") == "true" and node.attrib.get("clickable") == "true":
-                  interactive = node
-                  break
-              node = parents.get(node)
-
-          assert interactive is not None, f"interactive switch ancestor not found: {needle}"
-          node = interactive
+          assert candidates, f"interactive switch not found: {needle}"
+          node = candidates[0]
           assert node.attrib.get("checked") in ("true", "false"), node.attrib
           bounds = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
           assert bounds, node.attrib
