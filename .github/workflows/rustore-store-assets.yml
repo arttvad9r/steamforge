@@ -88,6 +88,7 @@ jobs:
           adb shell settings put global window_animation_scale 0.5
           adb shell settings put global transition_animation_scale 0.5
           adb shell settings put global animator_duration_scale 0.5
+          adb shell settings put secure immersive_mode_confirmations confirmed || true
           adb shell wm size 1080x1920
           adb shell wm density 360
 
@@ -117,6 +118,37 @@ jobs:
               sleep 2
             done
             return 1
+          }
+
+          dismiss_immersive_confirmation() {
+            for i in $(seq 1 5); do
+              if ! dump_ui; then
+                sleep 1
+                continue
+              fi
+              if grep -Fq 'com.android.systemui:id/ok' /tmp/window.xml || grep -Fqi 'Got it' /tmp/window.xml; then
+                python3 - <<'PY' > /tmp/immersive-tap.txt
+          import re
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('/tmp/window.xml').getroot()
+          node = next(
+              n for n in root.iter('node')
+              if n.attrib.get('resource-id') == 'com.android.systemui:id/ok'
+              or (n.attrib.get('text') or '').casefold() == 'got it'
+          )
+          match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib['bounds'])
+          assert match
+          left, top, right, bottom = map(int, match.groups())
+          print((left + right) // 2, (top + bottom) // 2)
+          PY
+                read -r x y < /tmp/immersive-tap.txt
+                adb shell input tap "$x" "$y"
+                sleep 1
+                return 0
+              fi
+              return 0
+            done
           }
 
           wait_for_text() {
@@ -154,6 +186,7 @@ jobs:
             test -s "store-screenshots/$1"
           }
 
+          dismiss_immersive_confirmation
           wait_for_text 'ПРИВАТНОСТЬ'
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ'; fi
           wait_for_text 'ИГРАТЬ'
