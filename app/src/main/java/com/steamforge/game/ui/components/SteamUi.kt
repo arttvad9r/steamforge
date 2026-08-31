@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -96,7 +97,20 @@ fun SteamLogoHeader(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val vertical = if (compact) 8.dp else 13.dp
+    val configuration = LocalConfiguration.current
+    val narrowScreen = configuration.screenWidthDp < 390
+    val shortScreen = configuration.screenHeightDp < 850
+    val vertical = when {
+        compact && shortScreen -> 5.dp
+        compact -> 8.dp
+        narrowScreen -> 9.dp
+        else -> 13.dp
+    }
+    val titleStyle = when {
+        compact -> MaterialTheme.typography.headlineSmall
+        narrowScreen -> MaterialTheme.typography.headlineLarge
+        else -> MaterialTheme.typography.displaySmall
+    }
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         if (leading != null) Box(Modifier.align(Alignment.CenterStart)) { leading() }
         SteamPanel(
@@ -107,9 +121,11 @@ fun SteamLogoHeader(
             Text(
                 "STEAMFORGE",
                 modifier = Modifier.fillMaxWidth(),
-                style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displaySmall,
+                style = titleStyle,
                 color = BrassBright,
                 textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
             )
         }
         if (trailing != null) Box(Modifier.align(Alignment.CenterEnd)) { trailing() }
@@ -133,10 +149,11 @@ fun SteamSectionTitle(text: String, modifier: Modifier = Modifier) {
 fun SteamPanel(
     modifier: Modifier = Modifier,
     highlighted: Boolean = false,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(14.dp),
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(10.dp),
     content: @Composable () -> Unit,
 ) {
     val border = if (highlighted) Brass else BrassDark
+    val frameGap = if (LocalConfiguration.current.screenHeightDp < 850) 2.dp else 3.dp
     Box(
         modifier = modifier
             .shadow(12.dp, FrameShape, ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color.Black.copy(alpha = 0.7f))
@@ -151,7 +168,7 @@ fun SteamPanel(
                 ),
             )
             .border(2.dp, border, FrameShape)
-            .padding(3.dp)
+            .padding(frameGap)
             .border(1.dp, BrassBright.copy(alpha = 0.18f), InnerShape),
     ) {
         Canvas(Modifier.matchParentSize()) {
@@ -248,14 +265,27 @@ fun BrassRoundButton(
 
 @Composable
 fun StatPlate(label: String, value: String, modifier: Modifier = Modifier, accent: Color = TextWarm) {
+    val compactScreen = LocalConfiguration.current.screenWidthDp < 390 || LocalConfiguration.current.screenHeightDp < 850
     val valueStyle = when {
         value.length <= 5 -> MaterialTheme.typography.titleLarge
         value.length <= 10 -> MaterialTheme.typography.labelLarge
         else -> MaterialTheme.typography.labelMedium
     }
-    SteamPanel(modifier = modifier, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+    val labelStyle = if (compactScreen || label.length > 5) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
+    val horizontalPadding = if (compactScreen) 9.dp else 12.dp
+    val verticalPadding = if (compactScreen) 5.dp else 8.dp
+    SteamPanel(
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = horizontalPadding, vertical = verticalPadding),
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = TextMuted)
+            Text(
+                label,
+                style = labelStyle,
+                color = TextMuted,
+                maxLines = 1,
+                softWrap = false,
+            )
             Spacer(Modifier.height(2.dp))
             Text(
                 value,
