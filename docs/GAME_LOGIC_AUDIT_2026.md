@@ -22,6 +22,10 @@ Changing this would alter scoring balance, progression speed and existing high-s
 
 Do not silently change this rule in a release-hardening patch.
 
+### Wrench stale UI events
+
+The normal UI exits removal mode after one tile is removed. A second stale click delivered before recomposition is theoretically able to call the ViewModel again because `removeTile()` itself does not currently require `removingMode == true`. The UI path makes this unlikely, and changing the invariant requires updating the existing wrench contract/tests. Treat this as a small follow-up hardening item rather than mixing it into the save/Undo migration.
+
 ### Local-clock daily challenges
 
 Daily challenge selection and claim use the device-local day. This is acceptable for the current offline-first architecture but is not an anti-cheat mechanism. Server-authoritative time would require backend/product work and is outside the current release scope.
