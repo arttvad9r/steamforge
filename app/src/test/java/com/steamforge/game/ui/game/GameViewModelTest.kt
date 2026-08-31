@@ -237,6 +237,8 @@ class GameViewModelTest {
         advanceUntilIdle()
         val target = model.ui.value.state.tiles.first { it.level <= 4 }
         val before = model.ui.value.state.tiles.size
+        model.toggleRemovingMode()
+        assertTrue(model.ui.value.removingMode)
         model.removeTile(target)
         advanceUntilIdle()
         assertEquals(before - 1, model.ui.value.state.tiles.size)
