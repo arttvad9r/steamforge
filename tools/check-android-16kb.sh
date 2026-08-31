@@ -34,7 +34,7 @@ fi
 
 echo "Checking ELF LOAD alignment for ${#libraries[@]} native libraries..."
 for library in "${libraries[@]}"; do
-  "$READELF" -lW "$library" | python3 - "$library" <<'PY'
+  "$READELF" -lW "$library" | python3 -c '
 import sys
 
 path = sys.argv[1]
@@ -54,7 +54,7 @@ minimum = min(alignments)
 print(f"{path}: min LOAD align = 0x{minimum:x}")
 if minimum < 16384:
     raise SystemExit(f"ERROR: {path}: requires at least 0x4000 (16 KB) LOAD alignment")
-PY
+' "$library"
 done
 
 echo '16 KB compatibility checks passed.'
