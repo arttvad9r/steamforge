@@ -5,13 +5,23 @@ on:
     branches:
       - master
       - fix/release-hardening
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
   pull_request:
     branches:
       - master
       - fix/release-hardening
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
 
 permissions:
   contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
