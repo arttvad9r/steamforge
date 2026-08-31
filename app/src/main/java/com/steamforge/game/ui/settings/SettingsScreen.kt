@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,7 +56,6 @@ import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.components.SteamLogoHeader
 import com.steamforge.game.ui.components.SteamPanel
-import com.steamforge.game.ui.components.SteamSectionTitle
 
 @Composable
 fun SettingsScreen(
@@ -82,11 +82,22 @@ fun SettingsScreen(
                 compact = true,
                 leading = { BrassRoundButton("←", "Назад", onBack) },
             )
-            Spacer(Modifier.height(10.dp))
-            SteamSectionTitle("НАСТРОЙКИ")
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
-            SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+            SteamPanel(
+                modifier = Modifier.fillMaxWidth(),
+                highlighted = true,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    "НАСТРОЙКИ",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextWarm,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(5.dp))
+                SettingDivider()
                 SettingToggleRow("♪", "Звук", "Звуковые эффекты", ui.soundEnabled, vm::setSound)
                 SettingDivider()
                 SettingToggleRow("▣", "Вибрация", "Виброотклик на действия", ui.hapticsEnabled, vm::setHaptics)
@@ -94,7 +105,7 @@ fun SettingsScreen(
                 SettingToggleRow("⚙", "Анимации", "Визуальные эффекты и движение", ui.animationsEnabled, vm::setAnimations)
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             Text("ПРИВАТНОСТЬ", style = MaterialTheme.typography.labelLarge, color = BrassBright, modifier = Modifier.padding(start = 6.dp))
             Spacer(Modifier.height(6.dp))
             SteamPanel(Modifier.fillMaxWidth()) {
