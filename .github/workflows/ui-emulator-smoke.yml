@@ -12,7 +12,7 @@ permissions:
 jobs:
   visual-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +41,7 @@ jobs:
 
       - name: Create and boot emulator
         run: |
+          ls -l /dev/kvm || true
           sudo chmod 666 /dev/kvm || true
           echo no | avdmanager create avd \
             -n steamforge_ci \
@@ -53,13 +54,21 @@ jobs:
             -noaudio \
             -no-boot-anim \
             -gpu swiftshader_indirect \
+            -accel on \
             -camera-back none \
             -camera-front none \
             > emulator.log 2>&1 &
-          adb wait-for-device
+          echo $! > emulator.pid
+          adb start-server
+          timeout 180 adb wait-for-device
           for i in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
               break
+            fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then
+              echo 'Emulator process exited early'
+              cat emulator.log
+              exit 1
             fi
             sleep 2
           done
@@ -137,6 +146,10 @@ jobs:
       - name: Emulator diagnostics on failure
         if: failure()
         run: |
-          tail -300 emulator.log || true
+          echo '=== emulator.log ==='
+          tail -400 emulator.log || true
+          echo '=== adb devices ==='
+          adb devices -l || true
+          echo '=== UI hierarchy ==='
           adb shell uiautomator dump /sdcard/window.xml || true
           adb pull /sdcard/window.xml - || true
