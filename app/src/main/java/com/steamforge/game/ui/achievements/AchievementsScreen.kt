@@ -171,7 +171,7 @@ private fun AchievementRow(item: AchievementUi) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text("◆ ${item.def.gemReward}", color = if (unlocked) TealGlow else TextMuted, style = MaterialTheme.typography.labelLarge)
-                if (!unlocked) Text("🔒", color = Brass, style = MaterialTheme.typography.labelMedium)
+                if (!unlocked) Text("⊘", color = Brass, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
