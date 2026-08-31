@@ -199,11 +199,11 @@ class AdsManager(
             loader.loadAd(
                 AdRequest.Builder(id).build(),
                 object : RewardedAdLoadListener {
-                    override fun onAdLoaded(ad: RewardedAd) {
+                    override fun onAdLoaded(rewarded: RewardedAd) {
                         rewardedLoading = false
                         rewardedRetryAttempt = 0
                         rewardedRetryScheduled = false
-                        rewardedAd = ad
+                        rewardedAd = rewarded
                         _rewardedReady.value = true
                     }
 
@@ -234,11 +234,11 @@ class AdsManager(
             loader.loadAd(
                 AdRequest.Builder(id).build(),
                 object : InterstitialAdLoadListener {
-                    override fun onAdLoaded(ad: InterstitialAd) {
+                    override fun onAdLoaded(interstitialAd: InterstitialAd) {
                         interstitialLoading = false
                         interstitialRetryAttempt = 0
                         interstitialRetryScheduled = false
-                        interstitialAd = ad
+                        this@AdsManager.interstitialAd = interstitialAd
                     }
 
                     override fun onAdFailedToLoad(error: AdRequestError) {
