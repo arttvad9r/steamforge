@@ -31,7 +31,7 @@ concurrency:
 jobs:
   runtime-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -76,9 +76,10 @@ jobs:
             --force
           AVD_CONFIG="$ANDROID_AVD_HOME/steamforge_android17_16kb.avd/config.ini"
           test -f "$AVD_CONFIG"
-          printf '\ndisk.dataPartition.size=4G\n' >> "$AVD_CONFIG"
+          printf '\ndisk.dataPartition.size=4G\nhw.ramSize=3072\n' >> "$AVD_CONFIG"
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
             -avd steamforge_android17_16kb \
+            -memory 3072 \
             -no-window \
             -noaudio \
             -no-boot-anim \
@@ -115,7 +116,7 @@ jobs:
           adb shell service check window | grep -q 'found'
 
           # Fresh preview images continue first-boot provisioning after framework services appear.
-          # Wait for the usual setup flags when available, then give background provisioning a short settle window.
+          # Wait for the setup flags, then leave enough time for GMS/system startup pressure to settle.
           for i in $(seq 1 30); do
             device_provisioned="$(adb shell settings get global device_provisioned 2>/dev/null | tr -d '\r' || true)"
             user_setup_complete="$(adb shell settings get secure user_setup_complete 2>/dev/null | tr -d '\r' || true)"
@@ -123,8 +124,9 @@ jobs:
             if [ "$device_provisioned" = "1" ] && [ "$user_setup_complete" = "1" ]; then break; fi
             sleep 2
           done
-          sleep 15
+          sleep 45
           adb shell df -h /data
+          adb shell dumpsys meminfo | head -40 || true
 
       - name: Verify Android 17 and 16 KB runtime
         run: |
