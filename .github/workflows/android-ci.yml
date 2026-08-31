@@ -50,6 +50,12 @@ jobs:
             "platforms;android-36" \
             "build-tools;36.0.0"
 
+      - name: Verify release tooling syntax
+        shell: bash
+        run: |
+          bash -n tools/build-rustore-release.sh
+          bash -n tools/check-android-16kb.sh
+
       - name: Verify
         run: |
           ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace --no-daemon
