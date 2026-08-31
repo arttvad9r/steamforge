@@ -137,7 +137,7 @@ keytool -genkeypair -v -keystore steamforge-release.jks \
 - [ ] `steamforge.rewardedAdUnitId`, `steamforge.interstitialAdUnitId`
 - [ ] `steamforge.privacyPolicyUrl`
 - [ ] `keystore.properties` + независимый backup keystore
-- [ ] Финальная иконка 512×512; 1–10 реальных скриншотов (рекомендуется 4–5), описания, возрастной рейтинг, категория
+- [ ] Финальная иконка 512×512; минимум 3 реальных скриншота одного типа/ориентации (до 10), описания, возрастной рейтинг, категория
 - [ ] E-mail поддержки в карточке и политике
 
 ## Известные ограничения V1
