@@ -238,11 +238,14 @@ class GameViewModel(
     fun undo() {
         val s = _ui.value
         val snap = undoSnapshot ?: return
-        if (s.finished || finishStarted) return
-        if (s.freeUndosLeft > 0) {
+        if (s.finished || s.removingMode || finishStarted) return
+        val paidUndo = s.freeUndosLeft <= 0
+        if (!paidUndo) {
             _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
         } else if (s.gems >= cfg.undoGemsCost) {
-            writesScope.launch { repo.updateProgress { p -> p.copy(gems = p.gems - cfg.undoGemsCost) } }
+            writesScope.launch {
+                repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.undoGemsCost).coerceAtLeast(0)) }
+            }
         } else {
             return
         }
@@ -250,6 +253,7 @@ class GameViewModel(
         _ui.update {
             it.copy(
                 state = snap.state,
+                gems = if (paidUndo) (it.gems - cfg.undoGemsCost).coerceAtLeast(0) else it.gems,
                 pressure = snap.pressure,
                 overdriveRemaining = snap.overdriveRemaining,
                 lastResult = null,
@@ -268,23 +272,38 @@ class GameViewModel(
     }
 
     fun toggleRemovingMode() {
-        if (finishStarted) return
-        _ui.update { it.copy(removingMode = !it.removingMode) }
+        val s = _ui.value
+        if (finishStarted || s.finished) return
+        if (s.removingMode) {
+            _ui.update { it.copy(removingMode = false) }
+            return
+        }
+        if (s.gems < cfg.wrenchGemsCost) return
+        _ui.update { it.copy(removingMode = true) }
     }
 
-    fun canRemoveTile(tile: Tile): Boolean =
-        !finishStarted && tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
+    fun canRemoveTile(tile: Tile): Boolean {
+        val s = _ui.value
+        return !finishStarted &&
+            !s.finished &&
+            s.removingMode &&
+            tile.level in 1..cfg.wrenchMaxTileLevel &&
+            s.gems >= cfg.wrenchGemsCost
+    }
 
     fun removeTile(tile: Tile) {
-        if (finishStarted) return
         val s = _ui.value
+        if (finishStarted || s.finished || !s.removingMode) return
         if (!canRemoveTile(tile)) return
         val tiles = s.state.tiles.filterNot { it.id == tile.id }
         if (tiles.size == s.state.tiles.size) return
-        writesScope.launch { repo.updateProgress { p -> p.copy(gems = p.gems - cfg.wrenchGemsCost) } }
+        writesScope.launch {
+            repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.wrenchGemsCost).coerceAtLeast(0)) }
+        }
         _ui.update {
             it.copy(
                 state = s.state.copy(tiles = tiles, status = GameStatus.PLAYING),
+                gems = (it.gems - cfg.wrenchGemsCost).coerceAtLeast(0),
                 removingMode = false,
                 canUndo = false,
             )
