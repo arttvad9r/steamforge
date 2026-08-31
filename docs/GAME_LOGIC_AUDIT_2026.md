@@ -8,6 +8,8 @@ This note records correctness findings from the release hardening pass. It inten
 - **Undo restores session counters produced by the cancelled move.** Merge, high-merge, max-merge and overdrive statistics no longer count an undone move. The Undo itself still increments the Undo counter.
 - **Active saves persist all session counters.** Process recreation no longer resets merge/overdrive/undo counters used by end-of-game statistics and achievements.
 - **Save format is upgraded to v4 with v3/v2/v1 read compatibility.** Existing saves remain readable.
+- **Wrench actions are enforced by the ViewModel, not only by recomposition timing.** Removal requires an active removal mode, stale second tile clicks are ignored, finished games cannot accept wrench actions, and removal mode cannot be entered without enough gems.
+- **Paid power-up balance is reflected in UI immediately and clamped at zero when persisted.** This closes the short window in which another paid action could still observe the pre-spend gem balance.
 
 ## Reviewed but intentionally not changed automatically
 
@@ -21,10 +23,6 @@ Changing this would alter scoring balance, progression speed and existing high-s
 2. Change the engine to apply the multiplier only to the first N merge events covered by `overdriveRemaining`.
 
 Do not silently change this rule in a release-hardening patch.
-
-### Wrench stale UI events
-
-The normal UI exits removal mode after one tile is removed. A second stale click delivered before recomposition is theoretically able to call the ViewModel again because `removeTile()` itself does not currently require `removingMode == true`. The UI path makes this unlikely, and changing the invariant requires updating the existing wrench contract/tests. Treat this as a small follow-up hardening item rather than mixing it into the save/Undo migration.
 
 ### Local-clock daily challenges
 
