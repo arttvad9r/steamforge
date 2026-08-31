@@ -65,14 +65,8 @@ if [[ ! -x "$APKSIGNER" ]]; then
 fi
 [[ -n "$APKSIGNER" && -x "$APKSIGNER" ]] || fail 'apksigner not found; install Android Build Tools 36.0.0'
 
-ZIPALIGN="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools/36.0.0/zipalign"
-if [[ ! -x "$ZIPALIGN" ]]; then
-  ZIPALIGN="$(command -v zipalign || true)"
-fi
-[[ -n "$ZIPALIGN" && -x "$ZIPALIGN" ]] || fail 'zipalign not found; install Android Build Tools 36.0.0'
-
-printf 'Checking APK alignment...\n'
-"$ZIPALIGN" -c -P 16 -v 4 "$APK" >/dev/null
+printf 'Checking APK 16 KB compatibility...\n'
+bash tools/check-android-16kb.sh "$APK"
 
 printf 'Checking APK signature...\n'
 "$APKSIGNER" verify --verbose --print-certs "$APK"
