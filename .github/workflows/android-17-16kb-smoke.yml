@@ -105,15 +105,20 @@ jobs:
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
 
           # API 37 preview images can report sys.boot_completed before framework services are ready.
+          stable=0
           for i in $(seq 1 60); do
             package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
             window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
-            if [[ "$package_service" == *found* && "$window_service" == *found* ]]; then break; fi
+            if [ "$package_service" = 'Service package: found' ] && [ "$window_service" = 'Service window: found' ]; then
+              stable=$((stable + 1))
+              if [ "$stable" -ge 5 ]; then break; fi
+            else
+              stable=0
+            fi
             if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
             sleep 2
           done
-          adb shell service check package | grep -q 'found'
-          adb shell service check window | grep -q 'found'
+          test "$stable" -ge 5
 
           # Fresh preview images continue first-boot provisioning after framework services appear.
           for i in $(seq 1 30); do
@@ -146,7 +151,9 @@ jobs:
               package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
               window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
               activity_service="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
-              if [[ "$package_service" == *found* && "$window_service" == *found* && "$activity_service" == *found* ]]; then
+              if [ "$package_service" = 'Service package: found' ] && \
+                 [ "$window_service" = 'Service window: found' ] && \
+                 [ "$activity_service" = 'Service activity: found' ]; then
                 stable=$((stable + 1))
                 if [ "$stable" -ge 5 ]; then
                   echo 'Android framework services stable for 10 seconds.'
@@ -165,20 +172,45 @@ jobs:
             return 1
           }
 
-          wait_for_framework
+          package_visible() {
+            adb shell pm path com.steamforge.game 2>/dev/null | tr -d '\r' | grep -q '^package:'
+          }
 
-          install_output=''
-          if ! install_output="$(adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1)"; then
-            echo "$install_output"
-            if grep -Fq "Can't find service: package" <<< "$install_output"; then
-              echo 'Package service restarted during install; waiting for framework recovery and retrying once.'
-              wait_for_framework
-              adb install -r app/build/outputs/apk/debug/app-debug.apk
-            else
-              exit 1
+          wait_for_package() {
+            for i in $(seq 1 30); do
+              if package_visible; then
+                echo 'Steamforge package is visible to Package Manager.'
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
+
+          install_once() {
+            local install_output
+            if install_output="$(adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1)"; then
+              echo "$install_output"
+              return 0
             fi
-          else
             echo "$install_output"
+            return 1
+          }
+
+          wait_for_framework
+          if ! install_once; then
+            echo 'Install was interrupted; waiting for framework recovery and retrying once.'
+            wait_for_framework
+            install_once
+          fi
+
+          wait_for_framework
+          if ! wait_for_package; then
+            echo 'Installed package disappeared during framework restart; reinstalling once.'
+            wait_for_framework
+            install_once
+            wait_for_framework
+            wait_for_package
           fi
 
           adb logcat -c
@@ -197,14 +229,19 @@ jobs:
           }
 
           launch_once() {
-            adb shell am force-stop com.steamforge.game
-            adb shell am start -W -n com.steamforge.game/.MainActivity
+            if ! adb shell am force-stop com.steamforge.game; then return 1; fi
+            if ! adb shell am start -W -n com.steamforge.game/.MainActivity; then return 1; fi
             wait_for_resumed
           }
 
           if ! launch_once; then
             echo 'First launch was interrupted; waiting for framework stability before one retry.'
             wait_for_framework
+            if ! wait_for_package; then
+              install_once
+              wait_for_framework
+              wait_for_package
+            fi
             launch_once
           fi
 
@@ -212,6 +249,11 @@ jobs:
           if ! wait_for_resumed; then
             echo 'Foreground process was interrupted after launch; performing final bounded restart.'
             wait_for_framework
+            if ! wait_for_package; then
+              install_once
+              wait_for_framework
+              wait_for_package
+            fi
             launch_once
             sleep 5
             wait_for_resumed
@@ -242,6 +284,8 @@ jobs:
           adb shell service check package || true
           adb shell service check window || true
           adb shell service check activity || true
+          echo '=== package ==='
+          adb shell pm path com.steamforge.game || true
           echo '=== process ==='
           adb shell pidof com.steamforge.game || true
           echo '=== activity ==='
