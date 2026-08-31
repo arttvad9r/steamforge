@@ -137,7 +137,7 @@ fun SteamPanel(
     content: @Composable () -> Unit,
 ) {
     val border = if (highlighted) Brass else BrassDark
-    Box(
+    Column(
         modifier = modifier
             .shadow(12.dp, FrameShape, ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color.Black.copy(alpha = 0.7f))
             .clip(FrameShape)
