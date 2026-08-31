@@ -154,7 +154,7 @@ fun SteamPanel(
             .padding(3.dp)
             .border(1.dp, BrassBright.copy(alpha = 0.18f), InnerShape),
     ) {
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(Modifier.matchParentSize()) {
             val inset = 8.dp.toPx()
             val radius = 1.7.dp.toPx()
             val rivet = BrassBright.copy(alpha = if (highlighted) 0.42f else 0.26f)
