@@ -317,14 +317,20 @@ private fun HudMetric(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    val valueStyle = if (value.length <= 5) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelLarge
+    val compactScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 390
+    val valueStyle = when {
+        compactScreen && value.length > 7 -> MaterialTheme.typography.labelMedium
+        value.length <= 5 -> MaterialTheme.typography.titleLarge
+        else -> MaterialTheme.typography.labelLarge
+    }
+    val labelStyle = if (compactScreen) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
     Column(
         modifier = modifier.semantics { contentDescription = "$label: $value" },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = labelStyle,
             color = TextMuted,
             maxLines = 1,
             softWrap = false,
