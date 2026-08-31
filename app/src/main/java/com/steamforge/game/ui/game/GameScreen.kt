@@ -356,7 +356,14 @@ fun BoardView(
                             .offset(off.x, off.y)
                             .size(cell)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Panel.copy(alpha = 0.68f))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Recess.copy(alpha = 0.94f),
+                                        Panel.copy(alpha = 0.58f),
+                                    ),
+                                ),
+                            )
                             .border(1.dp, BrassDark.copy(alpha = 0.55f), RoundedCornerShape(10.dp)),
                     )
                 }
@@ -475,18 +482,44 @@ private fun TileView(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxSize()) {
+            val inset = 6.dp.toPx()
+            val bevelHighlight = Color.White.copy(alpha = if (tile.level <= 2) 0.24f else 0.14f)
+            val bevelShadow = Color.Black.copy(alpha = 0.34f)
+
+            if (tile.level >= 8) {
+                drawCircle(
+                    TealGlow.copy(alpha = if (colors.glow) 0.16f else 0.07f),
+                    radius = size.minDimension * 0.34f,
+                    center = Offset(size.width / 2f, size.height / 2f),
+                )
+            }
+
+            drawLine(bevelHighlight, Offset(inset, inset), Offset(size.width - inset, inset), 1.dp.toPx())
+            drawLine(bevelHighlight, Offset(inset, inset), Offset(inset, size.height - inset), 1.dp.toPx())
+            drawLine(bevelShadow, Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), 1.5.dp.toPx())
+            drawLine(bevelShadow, Offset(size.width - inset, inset), Offset(size.width - inset, size.height - inset), 1.5.dp.toPx())
+
             val r = 2.dp.toPx()
             val p = 7.dp.toPx()
             val rivet = if (tile.level >= 7) BrassBright.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.28f)
-            drawCircle(rivet, r, Offset(p, p))
-            drawCircle(rivet, r, Offset(size.width - p, p))
-            drawCircle(rivet, r, Offset(p, size.height - p))
-            drawCircle(rivet, r, Offset(size.width - p, size.height - p))
+            val centers = listOf(
+                Offset(p, p),
+                Offset(size.width - p, p),
+                Offset(p, size.height - p),
+                Offset(size.width - p, size.height - p),
+            )
+            centers.forEach { center ->
+                drawCircle(Color.Black.copy(alpha = 0.38f), r * 1.35f, center + Offset(0.6.dp.toPx(), 0.7.dp.toPx()))
+                drawCircle(rivet, r, center)
+                drawCircle(Color.White.copy(alpha = 0.18f), r * 0.38f, center - Offset(0.45.dp.toPx(), 0.45.dp.toPx()))
+            }
         }
         Text(
             tile.value.toString(),
             style = if (tile.value >= 1024) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
             color = colors.content,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
@@ -510,13 +543,15 @@ private fun GhostTileView(
         alpha.animateTo(0.1f, tween(MOVE_MS))
     }
     val colors = tileColors(from.level)
+    val shape = RoundedCornerShape(10.dp)
     Box(
         modifier = Modifier
             .offset { IntOffset(x.roundToPx(), y.roundToPx()) }
             .size(cell)
             .graphicsLayer { this.alpha = alpha.value }
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.background),
+            .clip(shape)
+            .background(tileBevel(from.level))
+            .border(1.dp, BrassDark.copy(alpha = 0.65f), shape),
         contentAlignment = Alignment.Center,
     ) {
         Text(from.value.toString(), style = MaterialTheme.typography.headlineSmall, color = colors.content)
