@@ -7,7 +7,8 @@
 ## Технически готово
 
 - `master` содержит release-hardening и финальную на текущем этапе steampunk UI-систему.
-- Android CI run `33416313501` прошёл успешно: unit tests, lint, debug/release build и 16 KiB compatibility check.
+- Последний Android-code baseline `d966216c2ac771e686e3a808d9391251a715caa1` прошёл Android CI run `33421038939`: unit tests, lint, debug/release build, release-tooling/privacy guards и 16 KiB compatibility check — success.
+- Последующие commits до текущего `master` меняют только privacy/release-документацию и не меняют Android-код приложения.
 - `UI Emulator Smoke` run `33415341176` успешно запускает приложение на Android 36 и проходит обычный и compact layout основных экранов.
 - Отдельный `RuStore Store Assets` run `33416313529` успешно создаёт placeholder-free набор из трёх реальных вертикальных screenshot-ассетов:
   - `01-game-1080x1920.png`;
@@ -15,12 +16,14 @@
   - `03-achievements-1080x1920.png`.
 - Store pipeline автоматически проверяет PNG-формат, количество файлов и точный размер `1080×1920` (9:16); итоговые кадры дополнительно проверены визуально.
 - Settings сознательно не включён в магазинный набор до появления production Privacy Policy URL: текущий экран иначе показывает placeholder-текст.
+- Yandex Mobile Ads automatic SDK initialization явно отключён в manifest; инициализация выполняется приложением только после privacy-решения пользователя, а CI защищает этот флаг от случайного удаления.
+- Adaptive launcher icon имеет отдельный monochrome drawable для Android themed icons; финальный художественный store/launcher asset ещё должен быть утверждён до публикации.
 - Подготовлены тексты карточки RuStore: `docs/RUSTORE_LISTING.md`.
 - Подготовлен черновик Privacy Policy: `docs/PRIVACY_POLICY_DRAFT.md`.
 - Подготовлена инструкция по signing первого релиза: `docs/RELEASE_SIGNING.md`.
 - Подготовлены release notes: `docs/RELEASE_NOTES_V1.md`.
 - Для первого релиза выбран production-signed APK; AAB не нужен для V1.
-- Production preflight усилен: он проверяет production credentials, опубликованную Privacy Policy, signing, 16 KiB compatibility, generated package/version metadata и создаёт отдельный checksum-фиксированный artifact в локальном `dist/`.
+- Production preflight усилен: он проверяет production credentials, отсутствие секретов в tracked project properties, опубликованную Privacy Policy, signing, 16 KiB compatibility, generated package/version metadata и создаёт отдельный checksum-фиксированный artifact в локальном `dist/`.
 
 ## Решение, которое нельзя оставлять на момент первой публикации
 
