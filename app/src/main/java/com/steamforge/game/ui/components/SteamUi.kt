@@ -230,11 +230,24 @@ fun BrassRoundButton(
 
 @Composable
 fun StatPlate(label: String, value: String, modifier: Modifier = Modifier, accent: Color = TextWarm) {
+    val valueStyle = when {
+        value.length <= 5 -> MaterialTheme.typography.titleLarge
+        value.length <= 10 -> MaterialTheme.typography.labelLarge
+        else -> MaterialTheme.typography.labelMedium
+    }
     SteamPanel(modifier = modifier, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = TextMuted)
             Spacer(Modifier.height(2.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, color = accent)
+            Text(
+                value,
+                modifier = Modifier.fillMaxWidth(),
+                style = valueStyle,
+                color = accent,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+            )
         }
     }
 }
