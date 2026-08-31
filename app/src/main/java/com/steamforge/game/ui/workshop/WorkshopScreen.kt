@@ -94,16 +94,16 @@ fun WorkshopScreen(
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             SteamLogoHeader()
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 GemChip(ui.gems, Modifier.weight(1f))
                 Spacer(Modifier.width(10.dp))
                 StatPlate("СЕРИЯ ДНЕЙ", ui.dailyRewardStreak.toString(), Modifier.weight(1f), BrassBright)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             WorkshopConsole(
                 level = ui.level,
@@ -113,7 +113,7 @@ fun WorkshopScreen(
                 animationsEnabled = ui.animationsEnabled,
                 accent = accent,
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(Modifier.fillMaxWidth()) {
                 MenuCard("⚒", "ИГРАТЬ", TealSurface, onPlay, Modifier.weight(1f), accent = TealGlow)
@@ -122,7 +122,7 @@ fun WorkshopScreen(
                 Spacer(Modifier.width(8.dp))
                 MenuCard("⚙", "НАСТРОЙКИ", Color(0xFF2C3436), onSettings, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             SteamPanel(Modifier.fillMaxWidth(), highlighted = !ui.dailyDone) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -155,7 +155,7 @@ fun WorkshopScreen(
                     style = if (ui.dailyDone) SteamButtonStyle.Dark else SteamButtonStyle.Brass,
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             SteamPanel(Modifier.fillMaxWidth(), highlighted = ui.dailyRewardAvailable) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -243,11 +243,15 @@ private fun WorkshopConsole(
     animationsEnabled: Boolean,
     accent: Color,
 ) {
-    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+    SteamPanel(
+        modifier = Modifier.fillMaxWidth(),
+        highlighted = true,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("УРОВЕНЬ МАСТЕРСКОЙ", style = MaterialTheme.typography.labelLarge, color = TextMuted)
-            Spacer(Modifier.height(6.dp))
-            Box(Modifier.size(154.dp), contentAlignment = Alignment.Center) {
+            Spacer(Modifier.height(3.dp))
+            Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
                 WorkshopScene(animationsEnabled, accent)
                 Canvas(Modifier.fillMaxSize()) {
                     drawCircle(Recess.copy(alpha = 0.88f), radius = size.minDimension * 0.32f, center = center)
@@ -255,7 +259,7 @@ private fun WorkshopConsole(
                 }
                 Text(level.toString(), style = MaterialTheme.typography.displaySmall, color = TextWarm)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(5.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("XP", style = MaterialTheme.typography.titleMedium, color = TealGlow)
                 Spacer(Modifier.width(8.dp))
@@ -263,7 +267,7 @@ private fun WorkshopConsole(
                 Spacer(Modifier.width(8.dp))
                 Text("${levelInfo.xpIntoLevel}/${levelInfo.xpToNext}", style = MaterialTheme.typography.labelMedium, color = TextMuted)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth()) {
                 StatPlate("ПАРТИЙ", gamesPlayed.toString(), Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
@@ -275,19 +279,20 @@ private fun WorkshopConsole(
 
 @Composable
 private fun GaugeBar(fraction: Float, accent: Color, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(5.dp)
     Box(
         modifier = modifier
-            .height(12.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .height(10.dp)
+            .clip(shape)
             .background(Recess)
-            .border(1.dp, Brass.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+            .border(1.dp, Brass.copy(alpha = 0.45f), shape)
             .semantics { contentDescription = "Прогресс уровня: ${(fraction * 100).toInt()} процентов" },
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(12.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .height(10.dp)
+                .clip(shape)
                 .background(Brush.horizontalGradient(listOf(Copper, accent))),
         )
     }
@@ -353,7 +358,7 @@ private fun MenuCard(
 
     Box(
         modifier = modifier
-            .height(104.dp)
+            .height(96.dp)
             .shadow(8.dp, shape)
             .clip(shape)
             .background(
@@ -400,7 +405,7 @@ private fun MenuCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.28f), Recess)))
                     .border(1.dp, accent.copy(alpha = 0.72f), CircleShape),
