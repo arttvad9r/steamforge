@@ -74,6 +74,9 @@ jobs:
             -k 'system-images;android-37.0;google_apis_ps16k;x86_64' \
             -d pixel_6 \
             --force
+          AVD_CONFIG="$ANDROID_AVD_HOME/steamforge_android17_16kb.avd/config.ini"
+          test -f "$AVD_CONFIG"
+          printf '\ndisk.dataPartition.size=4G\n' >> "$AVD_CONFIG"
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
             -avd steamforge_android17_16kb \
             -no-window \
@@ -111,6 +114,7 @@ jobs:
           done
           adb shell service check package | grep -q 'found'
           adb shell service check window | grep -q 'found'
+          adb shell df -h /data
 
       - name: Verify Android 17 and 16 KB runtime
         run: |
@@ -148,6 +152,7 @@ jobs:
           adb shell getprop ro.build.version.release || true
           adb shell getprop ro.build.version.sdk || true
           adb shell getconf PAGE_SIZE || true
+          adb shell df -h /data || true
           echo '=== services ==='
           adb shell service check package || true
           adb shell service check window || true
