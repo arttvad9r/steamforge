@@ -50,11 +50,23 @@ jobs:
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-      - name: Verify release tooling syntax
+      - name: Verify release tooling and privacy guard
         shell: bash
         run: |
           bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          android = '{http://schemas.android.com/apk/res/android}'
+          root = ET.parse('app/src/main/AndroidManifest.xml').getroot()
+          matches = [
+              node for node in root.findall('./application/meta-data')
+              if node.get(android + 'name') == 'com.yandex.mobile.ads.AUTOMATIC_SDK_INITIALIZATION'
+          ]
+          if len(matches) != 1 or matches[0].get(android + 'value') != 'false':
+              raise SystemExit('Yandex Mobile Ads automatic initialization must stay disabled')
+          PY
 
       - name: Verify
         run: |
