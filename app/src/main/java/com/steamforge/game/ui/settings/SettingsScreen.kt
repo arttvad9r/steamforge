@@ -87,7 +87,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(10.dp))
 
             SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
-                SettingToggleRow("🔊", "Звук", "Звуковые эффекты", ui.soundEnabled, vm::setSound)
+                SettingToggleRow("♪", "Звук", "Звуковые эффекты", ui.soundEnabled, vm::setSound)
                 SettingDivider()
                 SettingToggleRow("▣", "Вибрация", "Виброотклик на действия", ui.hapticsEnabled, vm::setHaptics)
                 SettingDivider()
