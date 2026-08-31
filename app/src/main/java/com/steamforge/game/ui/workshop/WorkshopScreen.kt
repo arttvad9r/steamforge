@@ -361,6 +361,13 @@ private fun MenuCard(
         Spacer(Modifier.height(6.dp))
         Text(icon, style = MaterialTheme.typography.headlineSmall, color = BrassBright)
         Spacer(Modifier.weight(1f))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = TextWarm, textAlign = TextAlign.Center)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextWarm,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
