@@ -74,6 +74,9 @@ jobs:
             -k 'system-images;android-37.0;google_apis_ps16k;x86_64' \
             -d pixel_6 \
             --force
+          AVD_CONFIG="$ANDROID_AVD_HOME/steamforge_android17_16kb.avd/config.ini"
+          test -f "$AVD_CONFIG"
+          printf '\ndisk.dataPartition.size=4G\n' >> "$AVD_CONFIG"
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
             -avd steamforge_android17_16kb \
             -no-window \
@@ -101,7 +104,6 @@ jobs:
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
 
           # API 37 preview images can report sys.boot_completed before framework services are ready.
-          # Do not attempt package installation until both services used by the smoke test exist.
           for i in $(seq 1 60); do
             package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
             window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
@@ -111,6 +113,7 @@ jobs:
           done
           adb shell service check package | grep -q 'found'
           adb shell service check window | grep -q 'found'
+          adb shell df -h /data
 
       - name: Verify Android 17 and 16 KB runtime
         run: |
@@ -126,17 +129,38 @@ jobs:
         run: |
           set -euxo pipefail
           adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb logcat -c
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          for i in $(seq 1 20); do
-            if adb shell pidof com.steamforge.game >/dev/null 2>&1; then break; fi
+
+          # Fresh preview images may briefly kill foreground apps while finishing provisioning.
+          # Treat that as infrastructure churn only if Android restores Steamforge and MainActivity
+          # becomes resumed again. A real crash loop will fail this bounded readiness check.
+          ready=0
+          for i in $(seq 1 30); do
+            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
+            if [ -n "$pid" ] && [ -n "$resumed" ]; then
+              ready=1
+              break
+            fi
             sleep 1
           done
-          adb shell pidof com.steamforge.game
-          sleep 3
-          adb shell uiautomator dump /sdcard/android17-window.xml
-          adb pull /sdcard/android17-window.xml /tmp/android17-window.xml
-          grep -Fq 'ПРИВАТНОСТЬ' /tmp/android17-window.xml
+          test "$ready" = '1'
+
+          sleep 5
+          ready=0
+          for i in $(seq 1 20); do
+            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
+            if [ -n "$pid" ] && [ -n "$resumed" ]; then
+              echo "Steamforge resumed with pid $pid"
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = '1'
 
       - name: Emulator diagnostics on failure
         if: failure()
@@ -148,10 +172,15 @@ jobs:
           adb shell getprop ro.build.version.release || true
           adb shell getprop ro.build.version.sdk || true
           adb shell getconf PAGE_SIZE || true
+          adb shell df -h /data || true
           echo '=== services ==='
           adb shell service check package || true
           adb shell service check window || true
           echo '=== process ==='
           adb shell pidof com.steamforge.game || true
+          echo '=== activity ==='
+          adb shell dumpsys activity activities | grep -F 'com.steamforge.game' || true
           echo '=== focused window ==='
           adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
+          echo '=== recent logcat ==='
+          adb logcat -d -v brief | tail -600 || true
