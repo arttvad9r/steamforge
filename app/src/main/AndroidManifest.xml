@@ -15,6 +15,16 @@
         android:supportsRtl="true"
         android:windowSoftInputMode="adjustResize"
         android:theme="@style/Theme.Steamforge">
+
+        <!--
+          Yandex Mobile Ads 8 initializes automatically by default. Steamforge must apply the
+          persisted privacy choice before initialization, so auto-init is explicitly disabled.
+          AdsManager performs the manual initialization after analyticsConsent becomes non-null.
+        -->
+        <meta-data
+            android:name="com.yandex.mobile.ads.AUTOMATIC_SDK_INITIALIZATION"
+            android:value="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
