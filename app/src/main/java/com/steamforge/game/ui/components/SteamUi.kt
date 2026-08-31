@@ -147,10 +147,16 @@ fun SteamLogoHeader(
         narrowScreen -> MaterialTheme.typography.headlineLarge
         else -> MaterialTheme.typography.displaySmall
     }
+    val hasSideAction = leading != null || trailing != null
+    val titleModifier = if (hasSideAction) {
+        Modifier.padding(horizontal = 56.dp).fillMaxWidth()
+    } else {
+        Modifier.fillMaxWidth(if (compact) 0.76f else 0.84f)
+    }
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         if (leading != null) Box(Modifier.align(Alignment.CenterStart)) { leading() }
         SteamPanel(
-            modifier = Modifier.fillMaxWidth(if (compact) 0.76f else 0.84f),
+            modifier = titleModifier,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = vertical),
             highlighted = true,
         ) {
