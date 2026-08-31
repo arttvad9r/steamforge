@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,7 +45,6 @@ import com.steamforge.game.ui.components.BrassRoundButton
 import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamLogoHeader
 import com.steamforge.game.ui.components.SteamPanel
-import com.steamforge.game.ui.components.SteamSectionTitle
 
 @Composable
 fun AchievementsScreen(
@@ -71,35 +69,41 @@ fun AchievementsScreen(
                 compact = true,
                 leading = { BrassRoundButton("←", "Назад", onBack) },
             )
-            Spacer(Modifier.height(10.dp))
-            SteamSectionTitle("ДОСТИЖЕНИЯ")
-            Spacer(Modifier.height(10.dp))
-            SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+            Spacer(Modifier.height(8.dp))
+            SteamPanel(
+                modifier = Modifier.fillMaxWidth(),
+                highlighted = true,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(TealSurface)
-                            .border(1.dp, TealGlow, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("★", color = BrassBright, style = MaterialTheme.typography.titleLarge)
-                    }
+                    Text(
+                        "ДОСТИЖЕНИЯ",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = TextWarm,
+                    )
                     Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("ПРОГРЕСС ДОСТИЖЕНИЙ", style = MaterialTheme.typography.labelLarge, color = TextWarm)
-                        Spacer(Modifier.height(6.dp))
-                        ProgressLine(unlocked, achievementItems.size.coerceAtLeast(1))
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Text("$unlocked / ${achievementItems.size}", style = MaterialTheme.typography.titleLarge, color = BrassBright)
+                    Text(
+                        "$unlocked / ${achievementItems.size}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = BrassBright,
+                    )
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("ПРОГРЕСС", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                    Spacer(Modifier.width(8.dp))
+                    ProgressLine(
+                        progress = unlocked,
+                        max = achievementItems.size.coerceAtLeast(1),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .navigationBarsPadding(),
@@ -126,24 +130,28 @@ private fun AchievementRow(item: AchievementUi) {
                 contentDescription = "${if (hidden) "Скрытое достижение" else item.def.title}: ${if (unlocked) "разблокировано" else "заблокировано"}"
             },
         highlighted = unlocked,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(
                         Brush.verticalGradient(
                             if (unlocked) listOf(TealSurface, Color(0xFF18332E)) else listOf(Color(0xFF30271C), Recess),
                         ),
                     )
-                    .border(1.dp, if (unlocked) TealGlow.copy(alpha = 0.75f) else Brass.copy(alpha = 0.45f), RoundedCornerShape(11.dp)),
+                    .border(
+                        1.dp,
+                        if (unlocked) TealGlow.copy(alpha = 0.75f) else Brass.copy(alpha = 0.45f),
+                        RoundedCornerShape(10.dp),
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(iconText, style = MaterialTheme.typography.titleLarge, color = if (unlocked) BrassBright else TextMuted)
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     if (hidden) "???" else item.def.title.uppercase(),
@@ -160,11 +168,11 @@ private fun AchievementRow(item: AchievementUi) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!unlocked && item.def.maxProgress > 1) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     ProgressLine(item.progress, item.def.maxProgress)
                 }
                 if (item.unlockDate != null) {
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text("Открыто: ${item.unlockDate}", color = TealGlow, style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -193,9 +201,13 @@ private fun achievementIcon(id: String, hidden: Boolean): String {
 }
 
 @Composable
-private fun ProgressLine(progress: Int, max: Int) {
+private fun ProgressLine(
+    progress: Int,
+    max: Int,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(7.dp)
             .clip(RoundedCornerShape(4.dp))
