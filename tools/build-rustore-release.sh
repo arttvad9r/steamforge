@@ -53,6 +53,13 @@ PY
 printf 'Steamforge RuStore release preflight\n'
 printf '%s\n' '---------------------------------'
 
+DIRTY_STATE="$(git status --porcelain --untracked-files=normal)"
+if [[ -n "$DIRTY_STATE" ]]; then
+  printf '%s\n' "$DIRTY_STATE" >&2
+  fail 'working tree is not clean; commit/stash/remove local source changes before a production build'
+fi
+SOURCE_SHA="$(git rev-parse HEAD)"
+
 # Production credentials must remain outside the repository. The project-level
 # gradle.properties is tracked, so only ~/.gradle/gradle.properties may contain them.
 sensitive_project_props=(
@@ -69,6 +76,13 @@ done
 
 IFS='|' read -r APP_ID VERSION_CODE VERSION_NAME <<< "$(read_declared_metadata)"
 printf 'Declared release: %s  version %s (code %s)\n' "$APP_ID" "$VERSION_NAME" "$VERSION_CODE"
+printf 'Source commit: %s\n' "$SOURCE_SHA"
+
+DIST_DIR="$ROOT_DIR/dist"
+DIST_APK="$DIST_DIR/Steamforge-${VERSION_NAME}-vc${VERSION_CODE}-rustore.apk"
+mkdir -p "$DIST_DIR"
+# Never leave a stale same-version file looking like the result of a failed preflight.
+rm -f "$DIST_APK" "$DIST_APK.sha256" "$DIST_APK.metadata.txt"
 
 CONFIRMED_APP_ID="$(read_prop steamforge.confirmApplicationId || true)"
 [[ -n "$CONFIRMED_APP_ID" ]] || fail "steamforge.confirmApplicationId is missing. Set it to '$APP_ID' only after confirming the final package name before first publication."
@@ -175,17 +189,31 @@ printf 'Checking APK 16 KB compatibility...\n'
 bash tools/check-android-16kb.sh "$APK"
 
 printf 'Checking APK signature...\n'
-"$APKSIGNER" verify --verbose --print-certs "$APK"
+APKSIGNER_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+printf '%s\n' "$APKSIGNER_OUTPUT"
+CERT_SHA256="$(printf '%s\n' "$APKSIGNER_OUTPUT" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+[[ -n "$CERT_SHA256" ]] || fail 'could not read signer certificate SHA-256 digest from apksigner output'
 
-DIST_DIR="$ROOT_DIR/dist"
-DIST_APK="$DIST_DIR/Steamforge-${VERSION_NAME}-vc${VERSION_CODE}-rustore.apk"
-mkdir -p "$DIST_DIR"
 cp -f "$APK" "$DIST_APK"
-sha256sum "$DIST_APK" > "$DIST_APK.sha256"
+DIST_BASENAME="$(basename "$DIST_APK")"
+(
+  cd "$DIST_DIR"
+  sha256sum "$DIST_BASENAME" > "$DIST_BASENAME.sha256"
+)
+APK_SHA256="$(awk '{print $1}' "$DIST_APK.sha256")"
+cat > "$DIST_APK.metadata.txt" <<EOF
+sourceCommit=$SOURCE_SHA
+applicationId=$APP_ID
+versionCode=$VERSION_CODE
+versionName=$VERSION_NAME
+apkSha256=$APK_SHA256
+certificateSha256=$CERT_SHA256
+EOF
 
 printf '\nRelease artifact:\n'
 ls -lh "$DIST_APK"
-printf 'SHA-256: '
-awk '{print $1}' "$DIST_APK.sha256"
+printf 'SHA-256: %s\n' "$APK_SHA256"
+printf 'Certificate SHA-256: %s\n' "$CERT_SHA256"
 printf 'Package: %s\nVersion: %s (%s)\n' "$APP_ID" "$VERSION_NAME" "$VERSION_CODE"
+printf 'Source: %s\n' "$SOURCE_SHA"
 printf '\nPreflight complete. Device-smoke and upload the exact file from dist/.\n'
