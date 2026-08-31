@@ -53,6 +53,20 @@ PY
 printf 'Steamforge RuStore release preflight\n'
 printf '%s\n' '---------------------------------'
 
+# Production credentials must remain outside the repository. The project-level
+# gradle.properties is tracked, so only ~/.gradle/gradle.properties may contain them.
+sensitive_project_props=(
+  steamforge.appmetricaApiKey
+  steamforge.privacyPolicyUrl
+  steamforge.rewardedAdUnitId
+  steamforge.interstitialAdUnitId
+)
+for key in "${sensitive_project_props[@]}"; do
+  if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$ROOT_DIR/gradle.properties"; then
+    fail "Production property $key must not be stored in tracked gradle.properties; move it to ~/.gradle/gradle.properties"
+  fi
+done
+
 IFS='|' read -r APP_ID VERSION_CODE VERSION_NAME <<< "$(read_declared_metadata)"
 printf 'Declared release: %s  version %s (code %s)\n' "$APP_ID" "$VERSION_NAME" "$VERSION_CODE"
 
