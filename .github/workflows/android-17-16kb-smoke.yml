@@ -91,11 +91,11 @@ jobs:
           echo $! > emulator-android17.pid
           adb start-server
           for i in $(seq 1 120); do
-            if adb devices | grep -q '^emulator-'; then break; fi
+            if adb devices | grep -q '^emulator-.*device$'; then break; fi
             if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
             sleep 2
           done
-          adb devices | grep '^emulator-'
+          adb devices | grep '^emulator-.*device$'
           for i in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
             if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
@@ -113,6 +113,17 @@ jobs:
           done
           adb shell service check package | grep -q 'found'
           adb shell service check window | grep -q 'found'
+
+          # Fresh preview images continue first-boot provisioning after framework services appear.
+          # Wait for the usual setup flags when available, then give background provisioning a short settle window.
+          for i in $(seq 1 30); do
+            device_provisioned="$(adb shell settings get global device_provisioned 2>/dev/null | tr -d '\r' || true)"
+            user_setup_complete="$(adb shell settings get secure user_setup_complete 2>/dev/null | tr -d '\r' || true)"
+            echo "Provisioning flags: device=$device_provisioned user=$user_setup_complete"
+            if [ "$device_provisioned" = "1" ] && [ "$user_setup_complete" = "1" ]; then break; fi
+            sleep 2
+          done
+          sleep 15
           adb shell df -h /data
 
       - name: Verify Android 17 and 16 KB runtime
@@ -130,37 +141,49 @@ jobs:
           set -euxo pipefail
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb logcat -c
-          adb shell am force-stop com.steamforge.game
-          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
 
-          # Fresh preview images may briefly kill foreground apps while finishing provisioning.
-          # Treat that as infrastructure churn only if Android restores Steamforge and MainActivity
-          # becomes resumed again. A real crash loop will fail this bounded readiness check.
-          ready=0
-          for i in $(seq 1 30); do
-            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
-            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
-            if [ -n "$pid" ] && [ -n "$resumed" ]; then
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-          test "$ready" = '1'
+          wait_for_resumed() {
+            for i in $(seq 1 30); do
+              pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+              resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
+              if [ -n "$pid" ] && [ -n "$resumed" ]; then
+                echo "Steamforge resumed with pid $pid"
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
 
+          launch_once() {
+            adb shell am force-stop com.steamforge.game
+            adb shell am start -W -n com.steamforge.game/.MainActivity
+            wait_for_resumed
+          }
+
+          if ! launch_once; then
+            echo 'First launch was interrupted; allowing preview provisioning to settle before one retry.'
+            sleep 15
+            launch_once
+          fi
+
+          # Require the process/activity to remain healthy after launch. If preview provisioning interrupts
+          # the first stable state, permit one final explicit restart, then require stability again.
           sleep 5
-          ready=0
-          for i in $(seq 1 20); do
-            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
-            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
-            if [ -n "$pid" ] && [ -n "$resumed" ]; then
-              echo "Steamforge resumed with pid $pid"
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-          test "$ready" = '1'
+          if ! wait_for_resumed; then
+            echo 'Foreground process was interrupted after launch; performing final bounded restart.'
+            sleep 10
+            launch_once
+            sleep 5
+            wait_for_resumed
+          fi
+
+          # Fail on an actual Java crash from Steamforge even if Android subsequently restarts the activity.
+          if adb logcat -d -v brief | grep -E 'FATAL EXCEPTION|Process: com\.steamforge\.game' | grep -q 'com.steamforge.game'; then
+            echo 'Steamforge fatal exception detected.'
+            adb logcat -d -v brief | grep -E -A40 -B10 'FATAL EXCEPTION|Process: com\.steamforge\.game' || true
+            exit 1
+          fi
 
       - name: Emulator diagnostics on failure
         if: failure()
@@ -173,6 +196,9 @@ jobs:
           adb shell getprop ro.build.version.sdk || true
           adb shell getconf PAGE_SIZE || true
           adb shell df -h /data || true
+          echo '=== provisioning ==='
+          adb shell settings get global device_provisioned || true
+          adb shell settings get secure user_setup_complete || true
           echo '=== services ==='
           adb shell service check package || true
           adb shell service check window || true
