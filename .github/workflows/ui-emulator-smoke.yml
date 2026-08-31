@@ -32,7 +32,7 @@ concurrency:
 jobs:
   visual-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -179,6 +179,39 @@ jobs:
             sleep 2
           }
 
+          assert_toggle_accessibility() {
+            local needle="$1"
+            local label="$2"
+            dump_ui "$label"
+            python3 - "$needle" <<'PY'
+          import re
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ET
+
+          needle = sys.argv[1].casefold()
+          root = ET.parse("/tmp/window.xml").getroot()
+          matches = [
+              node for node in root.iter("node")
+              if needle in (node.attrib.get("content-desc") or "").casefold()
+              and node.attrib.get("checkable") == "true"
+          ]
+          assert matches, f"checkable switch not found: {needle}"
+          node = matches[0]
+          assert node.attrib.get("clickable") == "true", node.attrib
+          bounds = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+          assert bounds, node.attrib
+          left, top, right, bottom = map(int, bounds.groups())
+          density_text = subprocess.check_output(["adb", "shell", "wm", "density"], text=True)
+          density_values = [int(value) for value in re.findall(r"\d+", density_text)]
+          assert density_values, density_text
+          min_px = 48 * density_values[-1] / 160
+          assert right - left >= min_px - 1, (node.attrib, min_px)
+          assert bottom - top >= min_px - 1, (node.attrib, min_px)
+          print(f"Switch '{needle}' bounds: {right-left}x{bottom-top}px, minimum {min_px:.1f}px")
+          PY
+          }
+
           # Standard phone (~411 x 914 dp)
           wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
           shot '00-consent.png'
@@ -206,6 +239,7 @@ jobs:
           sleep 2
           shot '04-settings.png'
           dump_ui '04-settings-window'
+          assert_toggle_accessibility 'Звук' '04-sound-toggle-a11y'
           tap_node 'СБРОСИТЬ' 'reset-open'
           wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
           shot '05-reset-confirmation.png'
@@ -232,6 +266,36 @@ jobs:
           sleep 2
           shot '12-compact-settings.png'
           dump_ui '12-compact-settings-window' || true
+
+          # Large text on a standard phone. Functional navigation must remain reachable at 1.3x font scale.
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+          adb shell settings put system font_scale 1.3
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_text 'ИГРАТЬ' '20-large-text-workshop-window'
+          shot '20-large-text-workshop.png'
+          tap_node 'ИГРАТЬ' 'large-text-play'
+          wait_for_tile '21-large-text-game-window'
+          shot '21-large-text-game.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'НАСТРОЙКИ' '21-large-text-back-window'
+          tap_node 'НАСТРОЙКИ' 'large-text-settings'
+          wait_for_text 'Звук' '22-large-text-settings-window'
+          shot '22-large-text-settings.png'
+
+          # Expanded portrait surface (~800 x 1280 dp): catches width assumptions on tablets/large windows.
+          adb shell settings put system font_scale 1.0
+          adb shell wm size 1600x2560
+          adb shell wm density 320
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_text 'ИГРАТЬ' '30-expanded-workshop-window'
+          shot '30-expanded-workshop.png'
+          tap_node 'ИГРАТЬ' 'expanded-play'
+          wait_for_tile '31-expanded-game-window'
+          shot '31-expanded-game.png'
 
       - name: Upload screenshot artifact
         if: always()
