@@ -7,6 +7,7 @@
     <application
         android:name=".SteamforgeApp"
         android:allowBackup="true"
+        android:appCategory="game"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
