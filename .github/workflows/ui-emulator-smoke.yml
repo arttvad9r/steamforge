@@ -7,7 +7,7 @@ on:
       - 'ci-screenshots/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   visual-smoke:
@@ -191,18 +191,6 @@ jobs:
           path: ci-screenshots/
           if-no-files-found: warn
           retention-days: 3
-
-      - name: Publish screenshots to smoke branch
-        if: always()
-        run: |
-          if [ ! -d ci-screenshots ] || [ -z "$(find ci-screenshots -type f -print -quit)" ]; then exit 0; fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ci-screenshots/
-          if ! git diff --cached --quiet; then
-            git commit -m 'ci: capture real emulator UI screenshots'
-            git push
-          fi
 
       - name: Emulator diagnostics on failure
         if: failure()
