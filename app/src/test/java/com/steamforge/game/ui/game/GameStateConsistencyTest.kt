@@ -6,6 +6,7 @@ import com.steamforge.game.core.Move
 import com.steamforge.game.core.Tile
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.data.SavedGame
+import com.steamforge.game.progression.PlayerProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -155,5 +157,59 @@ class GameStateConsistencyTest {
         assertEquals(saved.overdrivesSession, ui.overdrivesSession)
         assertEquals(saved.undosSession, ui.undosSession)
         assertEquals(saved.highMergesSession, ui.highMergesSession)
+    }
+
+    @Test
+    fun `wrench mode requires enough gems`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(initialProgress = PlayerProgress(gems = 9))
+        val model = vm(repo)
+        advanceUntilIdle()
+
+        model.toggleRemovingMode()
+
+        assertFalse(model.ui.value.removingMode)
+        assertEquals(9, model.ui.value.gems)
+    }
+
+    @Test
+    fun `wrench ignores stale tile clicks and charges exactly once`() = runTest(dispatcher) {
+        val saved = SavedGame(
+            state = GameState(
+                tiles = listOf(
+                    Tile(1, 1, 0, 0),
+                    Tile(2, 2, 1, 1),
+                ),
+                nextTileId = 3,
+            ),
+            seed = 123L,
+            pressure = 0,
+            overdriveRemaining = 0,
+            freeUndosLeft = 0,
+        )
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(gems = 20),
+            initialGame = saved,
+        )
+        val model = vm(repo)
+        advanceUntilIdle()
+        val first = saved.state.tiles[0]
+        val second = saved.state.tiles[1]
+
+        model.removeTile(first)
+        advanceUntilIdle()
+        assertEquals(saved.state, model.ui.value.state)
+        assertEquals(20, repo.currentProgress.gems)
+
+        model.toggleRemovingMode()
+        assertTrue(model.ui.value.removingMode)
+        model.removeTile(first)
+        model.removeTile(second)
+        assertFalse(model.ui.value.removingMode)
+        assertEquals(1, model.ui.value.state.tiles.size)
+        assertEquals(10, model.ui.value.gems)
+
+        advanceUntilIdle()
+        assertEquals(1, model.ui.value.state.tiles.size)
+        assertEquals(10, repo.currentProgress.gems)
     }
 }
