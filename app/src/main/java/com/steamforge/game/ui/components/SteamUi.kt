@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -155,7 +154,7 @@ fun SteamPanel(
             .padding(3.dp)
             .border(1.dp, BrassBright.copy(alpha = 0.18f), InnerShape),
     ) {
-        Canvas(Modifier.matchParentSize()) {
+        Canvas(Modifier.fillMaxSize()) {
             val inset = 8.dp.toPx()
             val radius = 1.7.dp.toPx()
             val rivet = BrassBright.copy(alpha = if (highlighted) 0.42f else 0.26f)
