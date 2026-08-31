@@ -3,8 +3,8 @@ name: Android CI
 on:
   push:
     branches:
+      - master
       - fix/release-hardening
-      - feat/steampunk-ui
   pull_request:
     branches:
       - master
