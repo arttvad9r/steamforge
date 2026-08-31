@@ -71,6 +71,7 @@ Production ad IDs никогда не используются debug-сборк�
 - Выбор хранится локально и меняется в Настройках.
 - «Сбросить прогресс» удаляет только игровые данные и сохраняет privacy choice, звук, вибрацию и анимации.
 - Черновик политики: `docs/PRIVACY_POLICY_DRAFT.md`.
+- Пакет карточки RuStore: `docs/RUSTORE_LISTING.md`.
 
 ## Команды
 
@@ -136,7 +137,7 @@ keytool -genkeypair -v -keystore steamforge-release.jks \
 - [ ] `steamforge.rewardedAdUnitId`, `steamforge.interstitialAdUnitId`
 - [ ] `steamforge.privacyPolicyUrl`
 - [ ] `keystore.properties` + независимый backup keystore
-- [ ] Финальная иконка, минимум 3 скриншота, описания, возрастной рейтинг, категория
+- [ ] Финальная иконка 512×512; 1–10 реальных скриншотов (рекомендуется 4–5), описания, возрастной рейтинг, категория
 - [ ] E-mail поддержки в карточке и политике
 
 ## Известные ограничения V1
