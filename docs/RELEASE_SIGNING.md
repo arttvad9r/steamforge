@@ -17,7 +17,23 @@
 
 ## APK: схема первого релиза
 
-### 1. Создать ключ подписи
+### 1. Сначала подтвердить `applicationId`
+
+Текущий Android package ID:
+
+```text
+com.steamforge.game
+```
+
+После первой публикации идентификатор приложения менять нельзя без создания нового приложения в магазине. Поэтому production preflight требует отдельного явного подтверждения. После финального решения добавить в локальный `~/.gradle/gradle.properties`:
+
+```properties
+steamforge.confirmApplicationId=com.steamforge.game
+```
+
+Если package ID будет изменён до первого релиза, сначала изменить `applicationId`/`namespace`, прогнать CI и только затем записать новое значение `steamforge.confirmApplicationId`.
+
+### 2. Создать ключ подписи
 
 Ключ создаёт и хранит владелец приложения. Не добавлять его в git и не передавать в публичные сервисы.
 
@@ -39,7 +55,7 @@ keytool -genkeypair -v \
 
 Сделать минимум две независимые резервные копии keystore и паролей.
 
-## 2. Локальная конфигурация
+### 3. Локальная конфигурация
 
 Создать в корне проекта `keystore.properties` — файл уже исключён из git:
 
@@ -53,13 +69,16 @@ keyPassword=...
 Production-параметры приложения задавать через `~/.gradle/gradle.properties`, а не коммитить в репозиторий:
 
 ```properties
+steamforge.confirmApplicationId=com.steamforge.game
 steamforge.appmetricaApiKey=...
 steamforge.rewardedAdUnitId=...
 steamforge.interstitialAdUnitId=...
 steamforge.privacyPolicyUrl=https://...
 ```
 
-## 3. Собрать и проверить production APK
+`steamforge.confirmApplicationId` не является секретом; остальные значения всё равно рекомендуется хранить только локально. Keystore и generated release artifacts исключены из git.
+
+### 4. Собрать и проверить production APK
 
 Для реального релиза использовать guarded preflight-скрипт:
 
@@ -67,39 +86,51 @@ steamforge.privacyPolicyUrl=https://...
 bash tools/build-rustore-release.sh
 ```
 
-Он останавливает сборку, если отсутствует хотя бы один обязательный production-параметр или keystore, а после сборки автоматически проверяет:
+До сборки он проверяет:
+
+- явное совпадение `steamforge.confirmApplicationId` с текущим `applicationId`;
+- наличие keystore и всех signing-полей;
+- что keystore не отслеживается git, если расположен внутри репозитория;
+- наличие production AppMetrica/Yandex Ads параметров;
+- отсутствие очевидных `demo`/`placeholder` значений;
+- HTTPS Privacy Policy URL;
+- что опубликованная Privacy Policy реально открывается и не содержит типовых placeholder-маркеров.
+
+После этого preflight автоматически выполняет:
 
 - unit tests;
 - Android lint;
-- release APK;
-- 16 KiB zip alignment;
-- APK signature через `apksigner`;
+- signed release build;
+- сверку `applicationId`, `versionCode` и `versionName` с generated release metadata;
+- 16 KiB ZIP/ELF compatibility check;
+- APK signature verification через `apksigner`;
 - SHA-256 итогового APK.
 
-Ожидаемый файл:
+Рабочий Gradle output остаётся здесь:
 
 ```text
 app/build/outputs/apk/release/app-release.apk
 ```
 
-Обычный `./gradlew assembleRelease` намеренно остаётся доступен без production secrets для CI и технической проверки release-конфигурации. **Не использовать такой CI APK для публикации.**
+Но файл, предназначенный для последнего smoke-test и загрузки, preflight копирует в отдельную локальную директорию `dist/`, например:
 
-Ручной эквивалент для диагностики:
-
-```bash
-./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
-apksigner verify --verbose --print-certs \
-  app/build/outputs/apk/release/app-release.apk
+```text
+dist/Steamforge-1.0-vc1-rustore.apk
+dist/Steamforge-1.0-vc1-rustore.apk.sha256
 ```
+
+`dist/` исключён из git. После успешного preflight не пересобирать APK между smoke-test и загрузкой в RuStore: использовать один и тот же файл из `dist/`.
+
+Обычный `./gradlew assembleRelease` намеренно остаётся доступен без production secrets для CI и технической проверки release-конфигурации. **Не использовать такой CI APK для публикации.**
 
 Перед первой публикацией отдельно сохранить SHA-256 отпечаток сертификата. Все последующие APK-версии Steamforge должны быть подписаны тем же ключом.
 
-## 4. Финальный smoke-test
+### 5. Финальный smoke-test
 
-Устанавливать на устройство именно production APK, который будет отправлен в RuStore:
+Устанавливать на устройство именно production APK из `dist/`, который будет отправлен в RuStore:
 
 ```bash
-adb install -r app/build/outputs/apk/release/app-release.apk
+adb install -r dist/Steamforge-1.0-vc1-rustore.apk
 ```
 
 Проверить минимум:
@@ -113,7 +144,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - AppMetrica после согласия;
 - работу без сети;
 - Settings → reset progress;
-- отсутствие demo/test identifiers в production flow.
+- отсутствие demo/test identifiers в production flow;
+- открытие Privacy Policy по production URL.
+
+После smoke-test повторно проверить SHA-256 файла и загружать именно его.
 
 ## AAB — если решим использовать позже
 
