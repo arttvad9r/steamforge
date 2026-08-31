@@ -51,4 +51,6 @@ jobs:
             "build-tools;36.0.0"
 
       - name: Verify
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace --no-daemon
+        run: |
+          ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace --no-daemon
+          bash tools/check-android-16kb.sh app/build/outputs/apk/release/app-release.apk
