@@ -22,23 +22,23 @@ val TextWarm = Color(0xFFF0DFC0)
 val TextMuted = Color(0xFFB8A584)
 val Danger = Color(0xFFC65332)
 
-/** Tile material palette derived from the visual concept: cream, copper, bronze, patina and gold. */
+/** Tile material palette derived from the visual concept: ivory, copper, bronze, patina and core gold. */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFFD8C6A1), Color(0xFF4A2E18)), // 2 ivory brass plate
-    RawTileColor(Color(0xFFC9B184), Color(0xFF4A2E18)), // 4
-    RawTileColor(Color(0xFFAA653B), Color(0xFFF3DDB7)), // 8 copper
-    RawTileColor(Color(0xFFB07B31), Color(0xFFF5E4C5)), // 16 bronze
-    RawTileColor(Color(0xFFC45827), Color(0xFFF6DFC0)), // 32 orange copper
-    RawTileColor(Color(0xFFA83B2D), Color(0xFFF6E1C6)), // 64 red copper
-    RawTileColor(Color(0xFF3F746D), Color(0xFFF2E2C2)), // 128 patina
-    RawTileColor(Color(0xFF2F6662), Color(0xFFF2E2C2)), // 256 teal patina
-    RawTileColor(Color(0xFFB27524), Color(0xFFF9E7C5)), // 512
-    RawTileColor(Color(0xFFC08A28), Color(0xFFFFEDC8)), // 1024
-    RawTileColor(Color(0xFFD3A33C), Color(0xFF231408)), // 2048 core
+    RawTileColor(Color(0xFFD7C5A2), Color(0xFF472A15)), // 2 aged ivory brass
+    RawTileColor(Color(0xFFC8AE7D), Color(0xFF432814)), // 4 warm brass
+    RawTileColor(Color(0xFFA95F39), Color(0xFFF4DEBD)), // 8 copper
+    RawTileColor(Color(0xFFA97734), Color(0xFFF6E3C1)), // 16 bronze
+    RawTileColor(Color(0xFFBC582B), Color(0xFFF7E0C0)), // 32 hot copper
+    RawTileColor(Color(0xFF99392D), Color(0xFFF8E2C8)), // 64 red copper
+    RawTileColor(Color(0xFF4C7B70), Color(0xFFF2E4C7)), // 128 oxidized brass
+    RawTileColor(Color(0xFF356862), Color(0xFFF2E4C7)), // 256 deep patina
+    RawTileColor(Color(0xFFA96F27), Color(0xFFF9E8C7)), // 512 dark gold
+    RawTileColor(Color(0xFFC08B31), Color(0xFFFFEDCB)), // 1024 bright gold
+    RawTileColor(Color(0xFFD4A647), Color(0xFF241508)), // 2048 mechanical core
 )
 
 fun tileColors(level: Int): TileColors {
@@ -46,13 +46,18 @@ fun tileColors(level: Int): TileColors {
     return TileColors(raw.bg, raw.content, glow = level >= 10)
 }
 
-fun tileBevel(level: Int): Brush = Brush.verticalGradient(
-    listOf(
-        tileColors(level).background.lighten(1.08f),
-        tileColors(level).background,
-        tileColors(level).background.darken(0.72f),
-    ),
-)
+fun tileBevel(level: Int): Brush {
+    val material = tileColors(level).background
+    return Brush.verticalGradient(
+        listOf(
+            material.lighten(1.17f),
+            material.lighten(1.07f),
+            material,
+            material.darken(0.84f),
+            material.darken(0.64f),
+        ),
+    )
+}
 
 private fun Color.darken(factor: Float): Color =
     Color((red * factor).coerceIn(0f, 1f), (green * factor).coerceIn(0f, 1f), (blue * factor).coerceIn(0f, 1f), alpha)

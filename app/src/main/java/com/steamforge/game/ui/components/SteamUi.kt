@@ -74,17 +74,53 @@ fun SteamBackdrop(
         Canvas(Modifier.fillMaxSize()) {
             val pipe = BrassDark.copy(alpha = 0.60f)
             val pipeHi = Copper.copy(alpha = 0.48f)
-            val glow = TealGlow.copy(alpha = 0.16f)
+            val glow = TealGlow.copy(alpha = 0.13f)
+            val warmGlow = BrassBright.copy(alpha = 0.055f)
             val margin = 14.dp.toPx()
             val pipeW = 8.dp.toPx()
+            val jointHalfWidth = 6.dp.toPx()
+            val jointStroke = 12.dp.toPx()
+
+            drawCircle(warmGlow, radius = 150.dp.toPx(), center = Offset(size.width * 0.50f, size.height * 0.03f))
+            drawCircle(glow, radius = 86.dp.toPx(), center = Offset(size.width * 0.08f, size.height * 0.21f))
+            drawCircle(glow, radius = 104.dp.toPx(), center = Offset(size.width * 0.92f, size.height * 0.74f))
 
             drawLine(pipe, Offset(margin, 0f), Offset(margin, size.height), pipeW, StrokeCap.Round)
             drawLine(pipe, Offset(size.width - margin, 0f), Offset(size.width - margin, size.height), pipeW, StrokeCap.Round)
             drawLine(pipeHi, Offset(margin + 2.dp.toPx(), 0f), Offset(margin + 2.dp.toPx(), size.height), 1.5.dp.toPx())
             drawLine(pipeHi, Offset(size.width - margin + 2.dp.toPx(), 0f), Offset(size.width - margin + 2.dp.toPx(), size.height), 1.5.dp.toPx())
 
-            drawCircle(glow, radius = 78.dp.toPx(), center = Offset(size.width * 0.10f, size.height * 0.20f))
-            drawCircle(glow, radius = 96.dp.toPx(), center = Offset(size.width * 0.90f, size.height * 0.72f))
+            var jointY = 112.dp.toPx()
+            val jointStep = 182.dp.toPx()
+            while (jointY < size.height) {
+                drawLine(
+                    BrassDark.copy(alpha = 0.82f),
+                    Offset(margin - jointHalfWidth, jointY),
+                    Offset(margin + jointHalfWidth, jointY),
+                    jointStroke,
+                    StrokeCap.Butt,
+                )
+                drawLine(
+                    BrassDark.copy(alpha = 0.82f),
+                    Offset(size.width - margin - jointHalfWidth, jointY),
+                    Offset(size.width - margin + jointHalfWidth, jointY),
+                    jointStroke,
+                    StrokeCap.Butt,
+                )
+                drawLine(
+                    BrassBright.copy(alpha = 0.18f),
+                    Offset(margin - jointHalfWidth, jointY - 3.dp.toPx()),
+                    Offset(margin + jointHalfWidth, jointY - 3.dp.toPx()),
+                    1.dp.toPx(),
+                )
+                drawLine(
+                    BrassBright.copy(alpha = 0.18f),
+                    Offset(size.width - margin - jointHalfWidth, jointY - 3.dp.toPx()),
+                    Offset(size.width - margin + jointHalfWidth, jointY - 3.dp.toPx()),
+                    1.dp.toPx(),
+                )
+                jointY += jointStep
+            }
         }
         content()
     }
@@ -186,6 +222,22 @@ fun SteamPanel(
                 drawCircle(shadow, radius * 1.35f, center + Offset(0.7.dp.toPx(), 0.7.dp.toPx()))
                 drawCircle(rivet, radius, center)
                 drawCircle(Color.White.copy(alpha = 0.12f), radius * 0.38f, center - Offset(0.45.dp.toPx(), 0.45.dp.toPx()))
+            }
+
+            val lineInset = 18.dp.toPx()
+            if (size.width > lineInset * 2f && size.height > 12.dp.toPx()) {
+                drawLine(
+                    Color.White.copy(alpha = if (highlighted) 0.09f else 0.055f),
+                    Offset(lineInset, 5.dp.toPx()),
+                    Offset(size.width - lineInset, 5.dp.toPx()),
+                    1.dp.toPx(),
+                )
+                drawLine(
+                    Color.Black.copy(alpha = 0.36f),
+                    Offset(lineInset, size.height - 5.dp.toPx()),
+                    Offset(size.width - lineInset, size.height - 5.dp.toPx()),
+                    1.dp.toPx(),
+                )
             }
         }
         Column(modifier = Modifier.padding(contentPadding)) {
