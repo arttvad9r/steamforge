@@ -1,10 +1,17 @@
 name: UI Emulator Smoke
 
 on:
-  push:
-    branches: ['feat/steampunk-ui']
-    paths-ignore:
-      - 'ci-screenshots/**'
+  pull_request:
+    branches:
+      - master
+      - fix/release-hardening
+    paths:
+      - 'app/src/main/java/com/steamforge/game/MainActivity.kt'
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
+      - 'app/src/main/java/com/steamforge/game/theme/**'
+      - 'app/src/main/java/com/steamforge/game/ui/**'
+      - '.github/workflows/ui-emulator-smoke.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
