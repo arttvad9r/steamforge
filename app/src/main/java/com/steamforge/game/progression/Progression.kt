@@ -27,7 +27,6 @@ data class PlayerStats(
     )
 }
 
-/** Итоги одной партии — передаются из GameViewModel в прогресс-систему. */
 data class GameSummary(
     val score: Int = 0,
     val maxTileLevel: Int = 0,
@@ -40,30 +39,25 @@ data class GameSummary(
     val daily: Boolean = false,
 )
 
-/** Вся числовая настройка прогрессии в одном месте. */
 data class ProgressionConfig(
-    // Steam Pressure / Overdrive
     val pressureMax: Int = 100,
     val pressureBaseGain: Int = 4,
     val pressureGainPerLevel: Int = 3,
     val overdriveMerges: Int = 4,
     val overdriveMultiplier: Int = 2,
-    // Workshop XP
     val xpScoreDivisor: Int = 20,
     val xpPerMaxTileLevel: Int = 10,
     val winBonusXp: Int = 60,
+    /** Daily bonus выдаётся атомарно при claimDailyChallenge; здесь оставлен для совместимости конфигурации. */
     val dailyBonusXp: Int = 60,
     val baseXpToLevel: Int = 120,
     val xpGrowthPerLevel: Int = 40,
     val levelUpGemsBase: Int = 10,
     val levelUpGemsPerLevel: Int = 2,
-    // Undo
     val freeUndosPerGame: Int = 2,
     val undoGemsCost: Int = 5,
-    // Wrench (удаление плитки)
     val wrenchGemsCost: Int = 10,
     val wrenchMaxTileLevel: Int = 4,
-    // Daily reward (цикл 7 дней)
     val dailyRewardCycle: Int = 7,
     val dailyRewardGemsBase: Int = 5,
     val dailyRewardGemsStep: Int = 3,
@@ -79,7 +73,6 @@ data class LevelInfo(val level: Int, val xpIntoLevel: Int, val xpToNext: Int) {
 }
 
 object WorkshopProgression {
-
     fun xpToNext(level: Int, cfg: ProgressionConfig): Int =
         cfg.baseXpToLevel + (level - 1) * cfg.xpGrowthPerLevel
 
@@ -96,7 +89,7 @@ object WorkshopProgression {
     fun xpForGame(summary: GameSummary, cfg: ProgressionConfig): Int {
         var xp = summary.score / cfg.xpScoreDivisor + summary.maxTileLevel * cfg.xpPerMaxTileLevel
         if (summary.won) xp += cfg.winBonusXp
-        if (summary.daily) xp += cfg.dailyBonusXp
+        // Daily completion bonus is granted exactly once by the repository's atomic daily claim.
         return xp
     }
 }
@@ -109,7 +102,6 @@ data class FinishEffects(
     val newBest: Boolean = false,
 )
 
-/** Чистая функция завершения партии: обновляет прогресс и считает награды. Без Android. */
 fun applyGameFinished(
     progress: PlayerProgress,
     summary: GameSummary,
@@ -145,27 +137,21 @@ fun applyGameFinished(
     return newProgress to effects
 }
 
-/** Всё сохраняемое состояние прогресса игрока. Слой data маппит его в DataStore. */
 data class PlayerProgress(
     val gems: Int = 0,
     val totalXp: Int = 0,
     val bestScore: Int = 0,
     val stats: PlayerStats = PlayerStats(),
     val unlockedAchievements: Set<String> = emptySet(),
-    /** id -> epochDay разблокировки (для экрана достижений). */
     val achievementDays: Map<String, Long> = emptyMap(),
     val unlockedCosmetics: Set<String> = emptySet(),
-    // Daily challenge
     val dailyChallengeDay: Long = -1L,
     val dailyChallengeDone: Boolean = false,
-    // Daily reward (цикл 7 дней)
     val dailyRewardDay: Long = -1L,
     val dailyRewardStreak: Int = 0,
-    // Settings
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
-    /** Privacy-выбор пользователя: null = ещё не решал. Влияет на аналитику/персонализацию рекламы. */
     val analyticsConsent: Boolean? = null,
 ) {
     fun levelInfo(cfg: ProgressionConfig): LevelInfo = WorkshopProgression.levelInfo(totalXp, cfg)

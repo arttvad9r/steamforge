@@ -1,11 +1,12 @@
 package com.steamforge.game.ui.game
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -61,10 +63,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import android.app.Activity
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -101,16 +100,16 @@ private const val SPAWN_MS = 130
 
 private val OutlineDim = Color(0xFF5A4632)
 
-/** Экран партии. Только отображение и ввод; вся логика — в GameViewModel/GameEngine. */
 @Composable
 fun GameScreen(
     vm: GameViewModel,
     sfx: SfxPlayer,
-    ads: AdsManager?,
+    ads: AdsManager,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val rewardedReady by ads.rewardedReady.collectAsStateWithLifecycle()
     var exitHandled by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -118,7 +117,6 @@ fun GameScreen(
     var prevFinished by remember { mutableStateOf(false) }
     var prevWon by remember { mutableStateOf(false) }
 
-    // Звук и вибрация — одноразовые реакции на смену состояния
     LaunchedEffect(ui.lastResult) {
         val res = ui.lastResult ?: return@LaunchedEffect
         if (res.merges.isNotEmpty()) {
@@ -131,26 +129,26 @@ fun GameScreen(
                 },
             )
             if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        } else if (ui.soundEnabled) {
+        } else {
             sfx.play(Sfx.MOVE)
         }
     }
     LaunchedEffect(ui.overdriveRemaining) {
         if (ui.overdriveRemaining > 0 && prevOverdrive == 0) {
-            if (ui.soundEnabled) sfx.play(Sfx.OVERDRIVE)
+            sfx.play(Sfx.OVERDRIVE)
             if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
         prevOverdrive = ui.overdriveRemaining
     }
     LaunchedEffect(ui.finished) {
         if (ui.finished && !prevFinished) {
-            if (ui.soundEnabled) sfx.play(if (ui.effects?.levelUps?.isNotEmpty() == true) Sfx.LEVEL_UP else Sfx.GAME_OVER)
+            sfx.play(if (ui.effects?.levelUps?.isNotEmpty() == true) Sfx.LEVEL_UP else Sfx.GAME_OVER)
             if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
         prevFinished = ui.finished
     }
     LaunchedEffect(ui.winCelebrated) {
-        if (ui.winCelebrated && !prevWon && ui.soundEnabled) sfx.play(Sfx.WIN)
+        if (ui.winCelebrated && !prevWon) sfx.play(Sfx.WIN)
         prevWon = ui.winCelebrated
     }
 
@@ -159,12 +157,13 @@ fun GameScreen(
             exitHandled = true
             vm.exit()
             onExit()
-            // Interstitial — только после завершённой партии, в естественной паузе
-            if (ui.finished && ads != null && context is Activity) {
+            if (ui.finished && context is Activity) {
                 ads.maybeShowInterstitial(context)
             }
         }
     }
+
+    BackHandler { leave() }
 
     Scaffold(
         modifier = modifier
@@ -250,17 +249,19 @@ fun GameScreen(
         val activity = context as? Activity
         GameOverOverlay(
             ui = ui,
-            rewardedAvailable = ads != null && ads.rewardedReady && (ui.effects?.gemsGained ?: 0) > 0 && !ui.rewardDoubled,
+            rewardedAvailable = rewardedReady && (ui.effects?.gemsGained ?: 0) > 0 && !ui.rewardDoubled,
             onRewarded = {
                 if (activity != null) {
-                    ads?.showRewarded(activity) { vm.grantDoubleReward() }
+                    ads.showRewarded(activity) { vm.grantDoubleReward() }
                 }
             },
-            onRestart = { vm.restart() },
+            onRestart = {
+                if (activity != null) ads.maybeShowInterstitial(activity)
+                vm.restart()
+            },
             onExit = { leave() },
         )
     } else if (ui.winCelebrated && !ui.winBannerShown) {
-        // CORE ONLINE: мастерская оживает
         OverlayPanel {
             Text(
                 "CORE ONLINE",
@@ -349,7 +350,6 @@ private fun ScoreChip(label: String, value: Int, icon: Boolean = false) {
     }
 }
 
-/** Шкала Steam Pressure + индикация Overdrive. */
 @Composable
 fun PressureGauge(
     pressure: Int,
@@ -419,7 +419,6 @@ fun PressureGauge(
     }
 }
 
-/** Поле 4x4: слоты, плитки, призраки объединений. */
 @Composable
 fun BoardView(
     state: GameState,
@@ -502,10 +501,8 @@ fun BoardView(
 }
 
 private data class Dp2(val x: Dp, val y: Dp)
-
 private enum class Appear { NONE, SPAWN, MERGE }
 
-/** Свайпы: накапливаем вектор жеста, на отпускании решаем направление. */
 private fun Modifier.swipeDetector(onSwipe: (Move) -> Unit): Modifier =
     pointerInput(Unit) {
         awaitEachGesture {

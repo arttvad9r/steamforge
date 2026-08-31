@@ -9,50 +9,53 @@ import org.junit.Test
 class GameSaveCodecTest {
 
     @Test
-    fun `roundtrip preserves full session`() {
-        val game = SavedGame(
+    fun `v3 roundtrip preserves board meta and rng position`() {
+        val original = SavedGame(
             state = GameState(
-                size = 4,
-                tiles = listOf(Tile(1, 1, 0, 0), Tile(2, 3, 1, 2), Tile(5, 2, 3, 3)),
+                tiles = listOf(Tile(1, 1, 0, 0), Tile(7, 5, 3, 2)),
                 score = 1234,
-                nextTileId = 6,
+                nextTileId = 8,
                 won = true,
                 moves = 42,
             ),
-            seed = 987654L,
-            pressure = 77,
+            seed = 987654321L,
+            pressure = 73,
             overdriveRemaining = 3,
             freeUndosLeft = 1,
+            rngDraws = 37L,
         )
-        assertEquals(game, GameSaveCodec.decode(GameSaveCodec.encode(game)))
+        assertEquals(original, GameSaveCodec.decode(GameSaveCodec.encode(original)))
     }
 
     @Test
-    fun `empty board roundtrip`() {
-        val game = SavedGame(GameState(), seed = 7L, pressure = 0, overdriveRemaining = 0, freeUndosLeft = 2)
-        assertEquals(game, GameSaveCodec.decode(GameSaveCodec.encode(game)))
+    fun `v2 remains readable with zero rng position`() {
+        val raw = "v2|4|100|3|0|5|42|70|2|1|1,1,0,0;2,2,1,1"
+        val decoded = GameSaveCodec.decode(raw)!!
+        assertEquals(42L, decoded.seed)
+        assertEquals(70, decoded.pressure)
+        assertEquals(2, decoded.overdriveRemaining)
+        assertEquals(1, decoded.freeUndosLeft)
+        assertEquals(0L, decoded.rngDraws)
     }
 
     @Test
-    fun `v1 save without meta fields decodes with defaults and does not crash`() {
-        // строка формата v1 из предыдущей версии приложения
-        val v1 = "v1|4|1234|6|1|42|1,1,0,0;2,3,1,2"
-        val decoded = GameSaveCodec.decode(v1)!!
-        assertEquals(1234, decoded.state.score)
-        assertEquals(42, decoded.state.moves)
-        assertEquals(2, decoded.state.tiles.size)
+    fun `v1 remains readable with safe defaults`() {
+        val raw = "v1|4|100|3|0|5|1,1,0,0;2,2,1,1"
+        val decoded = GameSaveCodec.decode(raw)!!
+        assertEquals(null, decoded.seed)
         assertEquals(0, decoded.pressure)
         assertEquals(0, decoded.overdriveRemaining)
         assertEquals(0, decoded.freeUndosLeft)
-        assertNull(decoded.seed)
+        assertEquals(0L, decoded.rngDraws)
     }
 
     @Test
-    fun `garbage input returns null`() {
-        assertNull(GameSaveCodec.decode(""))
+    fun `broken or structurally invalid input returns null`() {
         assertNull(GameSaveCodec.decode("garbage"))
-        assertNull(GameSaveCodec.decode("v9|4|0|1|0|0|"))
-        assertNull(GameSaveCodec.decode("v2|4|0|1|0|0|7|10|2"))
-        assertNull(GameSaveCodec.decode("v2|4|x|1|0|0|7|10|2|2|"))
+        assertNull(GameSaveCodec.decode("v3|bad"))
+        assertNull(GameSaveCodec.decode("v3|4|0|1|0|0|1|0|0|0|0|bad,tile"))
+        assertNull(GameSaveCodec.decode("v3|4|0|3|0|0|1|0|0|0|0|1,1,0,0;2,2,0,0"))
+        assertNull(GameSaveCodec.decode("v3|4|0|2|0|0|1|0|0|0|0|2,1,0,0"))
+        assertNull(GameSaveCodec.decode("v3|4|0|3|0|0|1|0|0|0|0|1,1,4,0;2,2,1,1"))
     }
 }

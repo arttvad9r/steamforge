@@ -32,7 +32,7 @@ class SettingsViewModel(
     fun setAnalyticsConsent(granted: Boolean) = update { it.copy(analyticsConsent = granted) }
 
     fun resetProgress() {
-        viewModelScope.launch { repo.resetAll() }
+        viewModelScope.launch { repo.resetGameProgress() }
     }
 
     private fun update(block: (PlayerProgress) -> PlayerProgress) {

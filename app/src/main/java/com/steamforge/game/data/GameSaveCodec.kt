@@ -4,24 +4,26 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Tile
 
-/** Активная партия: доска + мета-состояние (pressure/overdrive/undo/seed), переживает process death. */
+/** Активная партия: доска + мета-состояние, переживает process death. */
 data class SavedGame(
     val state: GameState,
     val seed: Long?,
     val pressure: Int,
     val overdriveRemaining: Int,
     val freeUndosLeft: Int,
+    /** Количество nextBits-вызовов детерминированного RNG, уже потреблённых в этой партии. */
+    val rngDraws: Long = 0L,
 )
 
 /**
- * Компактное кодирование партии для DataStore. Без внешних зависимостей.
- * Формат v1: v1|size|score|nextTileId|won|moves|id,level,row,col;...
- * Формат v2: v2|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|tiles
- * Старые v1-сейвы декодируются с дефолтными мета-полями (без crash).
+ * Компактное кодирование партии для DataStore.
+ * v1: v1|size|score|nextTileId|won|moves|tiles
+ * v2: v2|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|tiles
+ * v3: v3|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|tiles
  */
 object GameSaveCodec {
 
-    private const val VERSION = "v2"
+    private const val VERSION = "v3"
 
     fun encode(game: SavedGame): String = buildString {
         append(VERSION).append('|')
@@ -34,42 +36,65 @@ object GameSaveCodec {
         append(game.pressure).append('|')
         append(game.overdriveRemaining).append('|')
         append(game.freeUndosLeft).append('|')
+        append(game.rngDraws.coerceAtLeast(0L)).append('|')
         game.state.tiles.joinTo(this, ";") { "${it.id},${it.level},${it.row},${it.col}" }
     }
 
     fun decode(raw: String): SavedGame? {
         val parts = raw.split('|')
-        val isV2 = parts.size == 11 && parts[0] == VERSION
+        val isV3 = parts.size == 12 && parts[0] == "v3"
+        val isV2 = parts.size == 11 && parts[0] == "v2"
         val isV1 = parts.size == 7 && parts[0] == "v1"
-        if (!isV2 && !isV1) return null
+        if (!isV3 && !isV2 && !isV1) return null
         return runCatching {
-            val size = parts[1].toInt()
-            val score = parts[2].toInt()
-            val nextId = parts[3].toLong()
+            val size = parts[1].toInt().also { require(it in 2..8) }
+            val score = parts[2].toInt().also { require(it >= 0) }
+            val nextId = parts[3].toLong().also { require(it > 0L) }
+            require(parts[4] == "0" || parts[4] == "1")
             val won = parts[4] == "1"
-            val moves = parts[5].toInt()
+            val moves = parts[5].toInt().also { require(it >= 0) }
             var seed: Long? = null
             var pressure = 0
             var overdrive = 0
             var freeUndos = 0
+            var rngDraws = 0L
             val tilesIndex: Int
-            if (isV2) {
-                seed = parts[6].toLong().takeIf { it >= 0 }
-                pressure = parts[7].toInt().coerceIn(0, 1000)
-                overdrive = parts[8].toInt().coerceIn(0, 1000)
-                freeUndos = parts[9].toInt().coerceIn(0, 1000)
-                tilesIndex = 10
-            } else {
-                tilesIndex = 6
+            when {
+                isV3 -> {
+                    seed = parts[6].toLong().takeIf { it >= 0 }
+                    pressure = parts[7].toInt().coerceIn(0, 1000)
+                    overdrive = parts[8].toInt().coerceIn(0, 1000)
+                    freeUndos = parts[9].toInt().coerceIn(0, 1000)
+                    rngDraws = parts[10].toLong().coerceIn(0L, 1_000_000L)
+                    tilesIndex = 11
+                }
+                isV2 -> {
+                    seed = parts[6].toLong().takeIf { it >= 0 }
+                    pressure = parts[7].toInt().coerceIn(0, 1000)
+                    overdrive = parts[8].toInt().coerceIn(0, 1000)
+                    freeUndos = parts[9].toInt().coerceIn(0, 1000)
+                    tilesIndex = 10
+                }
+                else -> tilesIndex = 6
             }
             val tiles = if (parts[tilesIndex].isEmpty()) {
                 emptyList()
             } else {
                 parts[tilesIndex].split(';').map { t ->
                     val f = t.split(',')
-                    Tile(f[0].toLong(), f[1].toInt(), f[2].toInt(), f[3].toInt())
+                    require(f.size == 4)
+                    val id = f[0].toLong().also { require(it > 0L) }
+                    val level = f[1].toInt().also { require(it in 1..30) }
+                    val row = f[2].toInt().also { require(it in 0 until size) }
+                    val col = f[3].toInt().also { require(it in 0 until size) }
+                    Tile(id = id, level = level, row = row, col = col)
                 }
             }
+            require(tiles.size <= size * size)
+            require(tiles.map { it.id }.toSet().size == tiles.size)
+            require(tiles.map { it.row to it.col }.toSet().size == tiles.size)
+            require(nextId > (tiles.maxOfOrNull { it.id } ?: 0L))
+
             SavedGame(
                 state = GameState(
                     size = size,
@@ -84,6 +109,7 @@ object GameSaveCodec {
                 pressure = pressure,
                 overdriveRemaining = overdrive,
                 freeUndosLeft = freeUndos,
+                rngDraws = rngDraws,
             )
         }.getOrNull()
     }

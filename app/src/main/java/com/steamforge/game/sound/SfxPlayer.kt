@@ -7,7 +7,7 @@ import com.steamforge.game.R
 
 enum class Sfx { MOVE, UNDO, MERGE_LOW, MERGE_MID, MERGE_HIGH, OVERDRIVE, GAME_OVER, WIN, COIN, LEVEL_UP }
 
-/** SoundPool — официальный API для коротких игровых звуков. Без сети и зависимостей. */
+/** SoundPool — официальный API для коротких игровых звуков. */
 class SfxPlayer(context: Context) {
 
     private val pool: SoundPool = SoundPool.Builder()
@@ -19,6 +19,9 @@ class SfxPlayer(context: Context) {
                 .build(),
         )
         .build()
+
+    @Volatile
+    private var enabled: Boolean = true
 
     private val ids: Map<Sfx, Int> = mapOf(
         Sfx.MOVE to pool.load(context, R.raw.sfx_move, 1),
@@ -33,7 +36,12 @@ class SfxPlayer(context: Context) {
         Sfx.LEVEL_UP to pool.load(context, R.raw.sfx_levelup, 1),
     )
 
+    fun setEnabled(enabled: Boolean) {
+        this.enabled = enabled
+    }
+
     fun play(sfx: Sfx, volume: Float = 1f) {
+        if (!enabled) return
         ids[sfx]?.let { pool.play(it, volume, volume, 1, 0, 1f) }
     }
 

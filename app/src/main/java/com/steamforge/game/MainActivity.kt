@@ -23,16 +23,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as SteamforgeApp).container
-        // app_open попадает в AppMetrica только если consent уже выдан ранее
-        container.analytics.logEvent("app_open")
 
-        // Любое privacy-решение (сохранённое или новое) включает ads/analytics ровно один раз
         lifecycleScope.launch {
             container.repo.progress
                 .map { it.analyticsConsent }
                 .distinctUntilChanged()
                 .collectLatest { consent ->
-                    if (consent != null) container.onConsentUpdated(consent)
+                    if (consent != null) {
+                        container.onConsentUpdated(consent)
+                        if (consent) container.logAppOpenOnce()
+                    }
                 }
         }
 
@@ -49,8 +49,10 @@ class MainActivity : ComponentActivity() {
             when (event) {
                 Lifecycle.Event.ON_START -> sessionStartMs = System.currentTimeMillis()
                 Lifecycle.Event.ON_STOP -> {
-                    val seconds = (System.currentTimeMillis() - sessionStartMs) / 1000
-                    container.analytics.logEvent("session_duration", mapOf("seconds" to seconds))
+                    if (sessionStartMs > 0L) {
+                        val seconds = (System.currentTimeMillis() - sessionStartMs).coerceAtLeast(0L) / 1000
+                        container.analytics.logEvent("session_duration", mapOf("seconds" to seconds))
+                    }
                 }
                 else -> Unit
             }

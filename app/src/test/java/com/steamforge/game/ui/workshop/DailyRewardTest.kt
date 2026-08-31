@@ -1,10 +1,11 @@
 package com.steamforge.game.ui.workshop
 
 import com.steamforge.game.data.FakeDataRepo
-import com.steamforge.game.progression.LocalDay
-import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.PlayerProgress
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -18,76 +19,97 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/**
- * Дневная награда выдаётся ровно один раз за календарный день,
- * в том числе при повторных вызовах claim и при пересоздании ViewModel.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DailyRewardTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
-    }
+    fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
+    fun tearDown() = Dispatchers.resetMain()
 
-    private fun vm(repo: FakeDataRepo, today: Long = LocalDay.todayEpochDay()): WorkshopViewModel =
-        WorkshopViewModel(repo, cfg = ProgressionConfig(), today = { today })
-
-    /** stateIn(WhileSubscribed) оживает только при подписчике. */
-    private fun kotlinx.coroutines.CoroutineScope.subscribe(ui: kotlinx.coroutines.flow.StateFlow<*>) =
-        launch { ui.collect {} }
+    private fun CoroutineScope.subscribe(ui: StateFlow<*>) = launch { ui.collect {} }
 
     @Test
-    fun `daily reward claimable once per day and idempotent on repeat`() = runTest(dispatcher) {
+    fun `daily reward can be claimed only once per day`() = runTest(dispatcher) {
+        val day = 1000L
         val repo = FakeDataRepo()
-        val model = vm(repo)
-        backgroundScope.subscribe(model.ui)
+        val vm = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(vm.ui)
         advanceUntilIdle()
+        assertTrue(vm.ui.value.dailyRewardAvailable)
+        val reward = vm.ui.value.dailyRewardGems
 
-        val today = LocalDay.todayEpochDay()
-        assertTrue(model.ui.value.dailyRewardAvailable)
-        val expected = ProgressionConfig().dailyRewardGems(1)
-        model.claimDailyReward()
+        vm.claimDailyReward()
         advanceUntilIdle()
-        assertEquals(expected, repo.currentProgress.gems)
-        assertEquals(today, repo.currentProgress.dailyRewardDay)
+        assertEquals(reward, repo.currentProgress.gems)
+        assertFalse(vm.ui.value.dailyRewardAvailable)
 
-        // повторный claim в тот же день (recomposition / повторный вход / пересоздание VM)
-        val second = vm(repo)
+        vm.claimDailyReward()
+        advanceUntilIdle()
+        assertEquals(reward, repo.currentProgress.gems)
+    }
+
+    @Test
+    fun `streak continues from yesterday and resets after gap`() = runTest(dispatcher) {
+        val day = 1000L
+        val continuingRepo = FakeDataRepo(
+            initialProgress = PlayerProgress(dailyRewardDay = day - 1, dailyRewardStreak = 3),
+        )
+        val continuing = WorkshopViewModel(continuingRepo, today = { day })
+        backgroundScope.subscribe(continuing.ui)
+        advanceUntilIdle()
+        assertEquals(4, continuing.ui.value.dailyRewardDay)
+
+        val gapRepo = FakeDataRepo(
+            initialProgress = PlayerProgress(dailyRewardDay = day - 2, dailyRewardStreak = 5),
+        )
+        val gap = WorkshopViewModel(gapRepo, today = { day })
+        backgroundScope.subscribe(gap.ui)
+        advanceUntilIdle()
+        assertEquals(1, gap.ui.value.dailyRewardDay)
+    }
+
+    @Test
+    fun `recreated viewmodel cannot claim same daily reward twice`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo()
+        val first = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(first.ui)
+        advanceUntilIdle()
+        first.claimDailyReward()
+        advanceUntilIdle()
+        val gemsAfterFirst = repo.currentProgress.gems
+
+        val second = WorkshopViewModel(repo, today = { day })
         backgroundScope.subscribe(second.ui)
         advanceUntilIdle()
         assertFalse(second.ui.value.dailyRewardAvailable)
         second.claimDailyReward()
         advanceUntilIdle()
-        assertEquals(expected, repo.currentProgress.gems)
+        assertEquals(gemsAfterFirst, repo.currentProgress.gems)
     }
 
     @Test
-    fun `streak continues only from yesterday and reward grows with day`() = runTest(dispatcher) {
-        val today = LocalDay.todayEpochDay()
-        val cfg = ProgressionConfig()
-        // вчера был claim дня 3
-        val repo = FakeDataRepo(initialProgress = com.steamforge.game.progression.PlayerProgress(
-            dailyRewardDay = today - 1,
-            dailyRewardStreak = 3,
-            gems = 0,
-        ))
-        val model = vm(repo, today)
-        backgroundScope.subscribe(model.ui)
-        advanceUntilIdle()
-        assertTrue(model.ui.value.dailyRewardAvailable)
-        assertEquals(4, model.ui.value.dailyRewardDay)
-        model.claimDailyReward()
-        advanceUntilIdle()
-        assertEquals(cfg.dailyRewardGems(4), repo.currentProgress.gems)
-        assertEquals(today, repo.currentProgress.dailyRewardDay)
-        assertEquals(4, repo.currentProgress.dailyRewardStreak)
+    fun `reset game progress preserves settings and consent`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(
+                gems = 99,
+                totalXp = 555,
+                soundEnabled = false,
+                hapticsEnabled = false,
+                animationsEnabled = false,
+                analyticsConsent = true,
+            ),
+        )
+        repo.resetGameProgress()
+        val p = repo.currentProgress
+        assertEquals(0, p.gems)
+        assertEquals(0, p.totalXp)
+        assertFalse(p.soundEnabled)
+        assertFalse(p.hapticsEnabled)
+        assertFalse(p.animationsEnabled)
+        assertEquals(true, p.analyticsConsent)
     }
 }

@@ -2,7 +2,6 @@ package com.steamforge.game.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,8 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -87,23 +86,19 @@ fun SettingsScreen(
             ToggleRow("Анимации", ui.animationsEnabled, vm::setAnimations)
         }
         Spacer(Modifier.height(14.dp))
-        Text(
-            "Приватность",
-            style = MaterialTheme.typography.titleMedium,
-            color = TextMuted,
-        )
+        Text("Приватность", style = MaterialTheme.typography.titleMedium, color = TextMuted)
         Spacer(Modifier.height(8.dp))
         SettingsGroup {
             ToggleRow(
-                "Анонимная статистика и персонализированная реклама",
+                "Анонимная статистика и персонализация рекламы",
                 ui.analyticsConsent == true,
                 vm::setAnalyticsConsent,
             )
             Divider()
             Text(
-                "Прогресс хранится только на устройстве. При включённой опции анонимная " +
-                    "статистика (AppMetrica) и реклама (Яндекс) получают технические данные " +
-                    "об использовании; отключение прекращает передачу данных.",
+                "При включённой опции AppMetrica получает технические события использования, " +
+                    "а Яндекс Ads может персонализировать рекламу. При отключении AppMetrica " +
+                    "перестаёт отправлять данные, а реклама остаётся доступной в неперсонализированном режиме.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextMuted,
                 modifier = Modifier.padding(14.dp),
@@ -125,8 +120,14 @@ fun SettingsScreen(
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("Сбросить прогресс?") },
-            text = { Text("Будут удалены: очки, гемы, уровень мастерской, достижения и испытания. Отменить это нельзя.") },
+            title = { Text("Сбросить игровой прогресс?") },
+            text = {
+                Text(
+                    "Будут удалены очки, гемы, уровень мастерской, достижения, статистика, " +
+                        "испытания и сохранённая партия. Настройки и выбор приватности сохранятся. " +
+                        "Отменить это нельзя.",
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     confirmReset = false

@@ -10,8 +10,6 @@ class ProgressionTest {
 
     private val cfg = ProgressionConfig()
 
-    // ---------- Steam Pressure ----------
-
     @Test
     fun `pressure gain grows with merge level`() {
         val low = cfg.pressureGainForMerge(1)
@@ -29,16 +27,14 @@ class ProgressionTest {
         assertEquals(100, cfg.pressureMax)
     }
 
-    // ---------- Workshop XP ----------
-
     @Test
-    fun `xp for game combines score level and bonuses`() {
+    fun `xp for game combines score level and win while daily bonus is claimed separately`() {
         val base = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8), cfg)
         assertEquals(2000 / 20 + 8 * 10, base)
         val won = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8, won = true), cfg)
         assertEquals(base + cfg.winBonusXp, won)
         val daily = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8, daily = true), cfg)
-        assertEquals(base + cfg.dailyBonusXp, daily)
+        assertEquals(base, daily)
     }
 
     @Test
@@ -51,7 +47,6 @@ class ProgressionTest {
         val l2 = WorkshopProgression.levelInfo(need1, cfg)
         assertEquals(2, l2.level)
         assertEquals(0, l2.xpIntoLevel)
-        // после накопления XP на 3 уровня
         val l4 = WorkshopProgression.levelInfo(need1 + need2 + need3(), cfg)
         assertEquals(4, l4.level)
     }
@@ -62,8 +57,6 @@ class ProgressionTest {
     fun `level up gems grow with level`() {
         assertTrue(cfg.levelUpGems(3) > cfg.levelUpGems(2))
     }
-
-    // ---------- applyGameFinished ----------
 
     @Test
     fun `game finish updates stats xp and best`() {
@@ -94,7 +87,6 @@ class ProgressionTest {
 
     @Test
     fun `achievements unlock only once`() {
-        val stats = PlayerStats(gamesPlayed = 1, totalMerges = 5)
         val (p1, _) = applyGameFinished(PlayerProgress(), GameSummary(merges = 5), cfg)
         val (p2, e2) = applyGameFinished(p1, GameSummary(merges = 5), cfg)
         assertFalse("merge_1" in e2.newAchievements.map { it.id })
@@ -103,7 +95,6 @@ class ProgressionTest {
 
     @Test
     fun `level up grants gems and reports levels`() {
-        // XP, достаточный ровно на 2 level-up'а; достижения предразблокированы, чтобы изолировать награду за уровни
         val need = WorkshopProgression.xpToNext(1, cfg) + WorkshopProgression.xpToNext(2, cfg)
         val summary = GameSummary(score = need * cfg.xpScoreDivisor, maxTileLevel = 0)
         val (_, effects) = applyGameFinished(
@@ -113,8 +104,6 @@ class ProgressionTest {
         assertEquals(listOf(2, 3), effects.levelUps)
         assertEquals(cfg.levelUpGems(2) + cfg.levelUpGems(3), effects.gemsGained)
     }
-
-    // ---------- Daily Challenge ----------
 
     @Test
     fun `same day gives same challenge`() {
@@ -156,8 +145,6 @@ class ProgressionTest {
         assertEquals(d, LocalDay.epochDayOf(2026, 8, 30))
         assertNotEquals(d, LocalDay.epochDayOf(2026, 8, 29))
     }
-
-    // ---------- Achievements ----------
 
     @Test
     fun `at least 15 achievements defined`() {

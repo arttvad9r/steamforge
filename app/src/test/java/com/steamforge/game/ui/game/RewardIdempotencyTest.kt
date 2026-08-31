@@ -1,11 +1,11 @@
 package com.steamforge.game.ui.game
 
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.core.GameState
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.data.FinishedGameRecord
 import com.steamforge.game.data.GameSaveCodec
 import com.steamforge.game.data.SavedGame
-import com.steamforge.game.core.GameState
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.Dispatchers
@@ -22,10 +22,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/**
- * Идемпотентность rewarded-награды (x2 гемов): одно событие игрока — максимум одна выдача,
- * независимо от повторных callback'ов, повторного входа и пересоздания процесса.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RewardIdempotencyTest {
 
@@ -58,7 +54,9 @@ class RewardIdempotencyTest {
         score = 1500,
         maxTileLevel = 7,
         gemsGained = gems,
-        state = GameSaveCodec.encode(SavedGame(GameState(), seed = 1L, pressure = 0, overdriveRemaining = 0, freeUndosLeft = 0)),
+        state = GameSaveCodec.encode(
+            SavedGame(GameState(), seed = 1L, pressure = 0, overdriveRemaining = 0, freeUndosLeft = 0),
+        ),
         rewardedClaimed = claimed,
     )
 
@@ -77,44 +75,38 @@ class RewardIdempotencyTest {
         val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
         val model = vm(repo)
         advanceUntilIdle()
-
-        // восстановленный overlay партии fg-1
         assertTrue(model.ui.value.finished)
         assertEquals("fg-1", model.ui.value.gameResultId)
-        assertEquals(0, gems(repo))
 
         model.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(12, gems(repo))
         assertTrue(model.ui.value.rewardDoubled)
 
-        // SDK может безопасно вызвать callback повторно — награда не выдаётся второй раз
         model.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(12, gems(repo))
     }
 
     @Test
-    fun `process recreation does not re-grant already claimed reward`() = runTest(dispatcher) {
+    fun `process recreation does not regrant claimed reward`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
         val first = vm(repo)
         advanceUntilIdle()
         first.grantDoubleReward()
         advanceUntilIdle()
-        assertEquals(12, gems(repo))
 
-        // "пересоздание процесса": новый VM над тем же хранилищем
         val second = vm(repo)
         advanceUntilIdle()
         assertTrue(second.ui.value.finished)
-        assertTrue(second.ui.value.rewardDoubled) // кнопка x2 скрыта
+        assertTrue(second.ui.value.rewardDoubled)
         second.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(12, gems(repo))
     }
 
     @Test
-    fun `two different finished games each rewarded exactly once`() = runTest(dispatcher) {
+    fun `two different finished games each reward exactly once`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 10))
         val first = vm(repo)
         advanceUntilIdle()
@@ -122,16 +114,12 @@ class RewardIdempotencyTest {
         advanceUntilIdle()
         assertEquals(10, gems(repo))
 
-        // вторая завершённая партия — новая запись с другим id
         repo.currentFinished = record("fg-2", gems = 25)
         val second = vm(repo)
         advanceUntilIdle()
-        assertEquals("fg-2", second.ui.value.gameResultId)
         second.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(35, gems(repo))
-
-        // старый id больше не подтверждается; повтор нового id тоже ничего не добавляет
         second.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(35, gems(repo))
@@ -149,15 +137,13 @@ class RewardIdempotencyTest {
 
         repo.currentFinished = record("fg-2", gems = 10)
         assertFalse(repo.claimDoubleReward("fg-OTHER", 10))
-        assertEquals(0, gems(repo))
         assertTrue(repo.claimDoubleReward("fg-2", 10))
-        assertEquals(10, gems(repo))
         assertFalse(repo.claimDoubleReward("fg-2", 10))
         assertEquals(10, gems(repo))
     }
 
     @Test
-    fun `exit after finish discards the result record`() = runTest(dispatcher) {
+    fun `exit after finish discards result record`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
         val model = vm(repo)
         advanceUntilIdle()

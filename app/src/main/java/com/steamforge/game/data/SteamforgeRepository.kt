@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.steamforge.game.progression.Achievements
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
 import kotlinx.coroutines.flow.Flow
@@ -19,8 +20,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 /**
  * Единая точка локального persistence поверх Preferences DataStore.
- * UI/persistence разделены: ViewModel общается только через этот класс.
- * Все наградные операции атомарны внутри одного dataStore.edit.
+ * Все наградные операции, которым нужна идемпотентность, выполняются внутри одного dataStore.edit.
  */
 class SteamforgeRepository(private val context: Context) : DataRepo {
 
@@ -30,7 +30,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val gems = intPreferencesKey("gems")
         val totalXp = intPreferencesKey("total_xp")
         val bestScore = intPreferencesKey("best_score")
-        // stats
         val gamesPlayed = intPreferencesKey("stat_games")
         val totalScore = longPreferencesKey("stat_total_score")
         val maxTileLevel = intPreferencesKey("stat_max_tile")
@@ -40,31 +39,27 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val undos = intPreferencesKey("stat_undos")
         val dailyCompleted = intPreferencesKey("stat_daily")
         val gemsEarned = longPreferencesKey("stat_gems_earned")
-        // achievements / cosmetics
         val achievements = stringSetPreferencesKey("achievements")
         val achievementDays = stringSetPreferencesKey("achievement_days")
         val cosmetics = stringSetPreferencesKey("cosmetics")
-        // daily
         val dailyChallengeDay = longPreferencesKey("daily_challenge_day")
         val dailyChallengeDone = booleanPreferencesKey("daily_challenge_done")
         val dailyRewardDay = longPreferencesKey("daily_reward_day")
         val dailyRewardStreak = intPreferencesKey("daily_reward_streak")
-        // settings
         val soundEnabled = booleanPreferencesKey("sound_enabled")
         val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
         val animationsEnabled = booleanPreferencesKey("animations_enabled")
-        // privacy: null (ключ отсутствует) = выбор ещё не сделан
         val analyticsConsent = booleanPreferencesKey("analytics_consent")
     }
 
     override val progress: Flow<PlayerProgress> = context.dataStore.data.map(::mapProgress)
 
     override val savedGame: Flow<SavedGame?> = context.dataStore.data.map { prefs ->
-        prefs[Keys.game]?.let { raw -> GameSaveCodec.decode(raw) }
+        prefs[Keys.game]?.let(GameSaveCodec::decode)
     }
 
     override val finishedGame: Flow<FinishedGameRecord?> = context.dataStore.data.map { prefs ->
-        prefs[Keys.finishedGame]?.let { raw -> FinishedGameCodec.decode(raw) }
+        prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
     }
 
     override suspend fun saveGame(state: SavedGame) {
@@ -75,7 +70,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { it.remove(Keys.game) }
     }
 
-    /** Атомарное обновление прогресса поверх актуального значения. */
     override suspend fun updateProgress(block: (PlayerProgress) -> PlayerProgress) {
         context.dataStore.edit { prefs -> writeProgress(prefs, block(mapProgress(prefs))) }
     }
@@ -92,12 +86,11 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         }
     }
 
-    /** Одна DataStore-транзакция: защита от повторной выдачи, даже если callback придёт повторно. */
     override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
         if (gems <= 0) return false
         var granted = false
         context.dataStore.edit { prefs ->
-            val record = prefs[Keys.finishedGame]?.let { FinishedGameCodec.decode(it) }
+            val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
             if (record != null && record.id == gameResultId && !record.rewardedClaimed) {
                 prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
                 val progress = mapProgress(prefs)
@@ -114,47 +107,90 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         return granted
     }
 
+    override suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean {
+        if (rewardGems < 0 || bonusXp < 0) return false
+        var granted = false
+        context.dataStore.edit { prefs ->
+            val progress = mapProgress(prefs)
+            if (progress.dailyChallengeDay == day && progress.dailyChallengeDone) return@edit
+
+            val baseStats = progress.stats.copy(dailyCompleted = progress.stats.dailyCompleted + 1)
+            val unlocked = Achievements.newlyUnlocked(baseStats, progress.unlockedAchievements)
+            val unlockedGems = unlocked.sumOf { it.gemReward }
+            val totalGems = rewardGems + unlockedGems
+            val updated = progress.copy(
+                dailyChallengeDay = day,
+                dailyChallengeDone = true,
+                gems = progress.gems + totalGems,
+                totalXp = progress.totalXp + bonusXp,
+                stats = baseStats.copy(gemsEarned = baseStats.gemsEarned + totalGems),
+                unlockedAchievements = progress.unlockedAchievements + unlocked.map { it.id }.toSet(),
+                achievementDays = progress.achievementDays + unlocked.associate { it.id to day },
+            )
+            writeProgress(prefs, updated)
+            granted = true
+        }
+        return granted
+    }
+
     override suspend fun clearFinishedGame() {
         context.dataStore.edit { it.remove(Keys.finishedGame) }
     }
 
-    /** Полный сброс прогресса. Вызывается только после подтверждения в Settings. */
-    override suspend fun resetAll() {
-        context.dataStore.edit { it.clear() }
+    /**
+     * Сбрасывает только игровые данные. Privacy-выбор и пользовательские настройки сохраняются,
+     * поэтому reset progression не возвращает приложение в промежуточное consent-состояние.
+     */
+    override suspend fun resetGameProgress() {
+        context.dataStore.edit { prefs ->
+            val sound = prefs[Keys.soundEnabled]
+            val haptics = prefs[Keys.hapticsEnabled]
+            val animations = prefs[Keys.animationsEnabled]
+            val consent = prefs[Keys.analyticsConsent]
+            prefs.clear()
+            if (sound != null) prefs[Keys.soundEnabled] = sound
+            if (haptics != null) prefs[Keys.hapticsEnabled] = haptics
+            if (animations != null) prefs[Keys.animationsEnabled] = animations
+            if (consent != null) prefs[Keys.analyticsConsent] = consent
+        }
     }
 
-    private fun mapProgress(prefs: Preferences): PlayerProgress = PlayerProgress(
-        gems = prefs[Keys.gems] ?: 0,
-        totalXp = prefs[Keys.totalXp] ?: 0,
-        bestScore = prefs[Keys.bestScore] ?: 0,
-        stats = PlayerStats(
-            gamesPlayed = prefs[Keys.gamesPlayed] ?: 0,
-            totalScore = prefs[Keys.totalScore] ?: 0L,
-            maxTileLevel = prefs[Keys.maxTileLevel] ?: 0,
-            totalMerges = prefs[Keys.totalMerges] ?: 0,
-            maxMergesInOneMove = prefs[Keys.maxMergesInOneMove] ?: 0,
-            overdrives = prefs[Keys.overdrives] ?: 0,
-            undos = prefs[Keys.undos] ?: 0,
-            dailyCompleted = prefs[Keys.dailyCompleted] ?: 0,
-            gemsEarned = prefs[Keys.gemsEarned] ?: 0L,
-        ),
-        unlockedAchievements = prefs[Keys.achievements] ?: emptySet(),
-        achievementDays = (prefs[Keys.achievementDays] ?: emptySet())
-            .mapNotNull { entry ->
-                val i = entry.indexOf(':')
-                if (i <= 0) null else entry.take(i) to (entry.substring(i + 1).toLongOrNull() ?: 0L)
-            }
-            .toMap(),
-        unlockedCosmetics = prefs[Keys.cosmetics] ?: emptySet(),
-        dailyChallengeDay = prefs[Keys.dailyChallengeDay] ?: -1L,
-        dailyChallengeDone = prefs[Keys.dailyChallengeDone] ?: false,
-        dailyRewardDay = prefs[Keys.dailyRewardDay] ?: -1L,
-        dailyRewardStreak = prefs[Keys.dailyRewardStreak] ?: 0,
-        soundEnabled = prefs[Keys.soundEnabled] ?: true,
-        hapticsEnabled = prefs[Keys.hapticsEnabled] ?: true,
-        animationsEnabled = prefs[Keys.animationsEnabled] ?: true,
-        analyticsConsent = prefs[Keys.analyticsConsent],
-    )
+    private fun mapProgress(prefs: Preferences): PlayerProgress {
+        val persistedBest = prefs[Keys.bestScore] ?: 0
+        return PlayerProgress(
+            gems = prefs[Keys.gems] ?: 0,
+            totalXp = prefs[Keys.totalXp] ?: 0,
+            bestScore = persistedBest,
+            stats = PlayerStats(
+                gamesPlayed = prefs[Keys.gamesPlayed] ?: 0,
+                bestScore = persistedBest,
+                totalScore = prefs[Keys.totalScore] ?: 0L,
+                maxTileLevel = prefs[Keys.maxTileLevel] ?: 0,
+                totalMerges = prefs[Keys.totalMerges] ?: 0,
+                maxMergesInOneMove = prefs[Keys.maxMergesInOneMove] ?: 0,
+                overdrives = prefs[Keys.overdrives] ?: 0,
+                undos = prefs[Keys.undos] ?: 0,
+                dailyCompleted = prefs[Keys.dailyCompleted] ?: 0,
+                gemsEarned = prefs[Keys.gemsEarned] ?: 0L,
+            ),
+            unlockedAchievements = prefs[Keys.achievements] ?: emptySet(),
+            achievementDays = (prefs[Keys.achievementDays] ?: emptySet())
+                .mapNotNull { entry ->
+                    val i = entry.indexOf(':')
+                    if (i <= 0) null else entry.take(i) to (entry.substring(i + 1).toLongOrNull() ?: 0L)
+                }
+                .toMap(),
+            unlockedCosmetics = prefs[Keys.cosmetics] ?: emptySet(),
+            dailyChallengeDay = prefs[Keys.dailyChallengeDay] ?: -1L,
+            dailyChallengeDone = prefs[Keys.dailyChallengeDone] ?: false,
+            dailyRewardDay = prefs[Keys.dailyRewardDay] ?: -1L,
+            dailyRewardStreak = prefs[Keys.dailyRewardStreak] ?: 0,
+            soundEnabled = prefs[Keys.soundEnabled] ?: true,
+            hapticsEnabled = prefs[Keys.hapticsEnabled] ?: true,
+            animationsEnabled = prefs[Keys.animationsEnabled] ?: true,
+            analyticsConsent = prefs[Keys.analyticsConsent],
+        )
+    }
 
     private fun writeProgress(prefs: androidx.datastore.preferences.core.MutablePreferences, p: PlayerProgress) {
         prefs[Keys.gems] = p.gems
@@ -179,10 +215,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.soundEnabled] = p.soundEnabled
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
         prefs[Keys.animationsEnabled] = p.animationsEnabled
-        if (p.analyticsConsent != null) {
-            prefs[Keys.analyticsConsent] = p.analyticsConsent
-        } else {
-            prefs.remove(Keys.analyticsConsent)
-        }
+        if (p.analyticsConsent != null) prefs[Keys.analyticsConsent] = p.analyticsConsent else prefs.remove(Keys.analyticsConsent)
     }
 }

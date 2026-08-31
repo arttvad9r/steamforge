@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameEngine
+import com.steamforge.game.core.GameRules
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
-import com.steamforge.game.core.GameRules
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 import com.steamforge.game.core.Tile
@@ -22,6 +22,8 @@ import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.applyGameFinished
+import java.util.UUID
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,8 +33,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
-import kotlin.random.Random
 
 data class GameUiState(
     val state: GameState = GameState(),
@@ -49,28 +49,20 @@ data class GameUiState(
     val winCelebrated: Boolean = false,
     val winBannerShown: Boolean = false,
     val removingMode: Boolean = false,
-    /** Уникальный id завершённой партии: ключ идемпотентности rewarded-награды. */
     val gameResultId: String? = null,
     val rewardDoubled: Boolean = false,
-    // данные для анимаций UI
     val lastResult: MoveResult? = null,
     val previousTiles: List<Tile> = emptyList(),
-    // сессия (для summary)
     val mergesTotal: Int = 0,
     val maxMergesInOneMove: Int = 0,
     val overdrivesSession: Int = 0,
     val undosSession: Int = 0,
     val highMergesSession: Int = 0,
-    // настройки фидбека
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsActive: Boolean = true,
 )
 
-/**
- * Связывает чистый GameEngine с мета-системами и persistence.
- * Overdrive/pressure живёт здесь, а не в движке — механику Overdrive можно менять без GameEngine.
- */
 class GameViewModel(
     private val repo: DataRepo,
     private val analytics: Analytics,
@@ -85,22 +77,17 @@ class GameViewModel(
 
     private val engine = GameEngine()
     private val daily = if (dailyMode) dailyProvider() else null
-    private var rng: Random = Random(if (dailyMode) daily?.seed ?: 0L else seedProvider())
-
-    /** Seed текущей партии: персистится вместе с доской, чтобы спавны после restore были той же партии. */
     private var sessionSeed: Long? = if (dailyMode) daily?.seed else null
+    private var rng = ReplayableRandom(if (dailyMode) daily?.seed ?: 0L else seedProvider())
+    private var dailyCompletedToday = false
 
-    /**
-     * Запись результата партии должна пережить уход с экрана (навигация отменяет viewModelScope),
-     * поэтому все записи репозитория идут в независимом scope на main.
-     */
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
+    private var discardFinishedRecord = false
 
     private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
 
-    /** Снапшот для undo: одноуровневая отмена. */
     private var undoSnapshot: UndoSnapshot? = null
 
     private data class UndoSnapshot(val state: GameState, val pressure: Int, val overdriveRemaining: Int)
@@ -114,7 +101,7 @@ class GameViewModel(
                 val restored = runCatching { savedGameProvider() }.getOrNull()
                 if (!dailyMode && restored != null) {
                     sessionSeed = restored.seed ?: seedProvider()
-                    rng = Random(sessionSeed ?: 0L)
+                    rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
                     _ui.update {
                         it.copy(
                             state = restored.state,
@@ -130,6 +117,10 @@ class GameViewModel(
                 }
             }
             repo.progress.collect { p ->
+                val completedToday = dailyMode &&
+                    p.dailyChallengeDay == LocalDay.todayEpochDay() &&
+                    p.dailyChallengeDone
+                dailyCompletedToday = completedToday
                 _ui.update { s ->
                     s.copy(
                         gems = p.gems,
@@ -137,13 +128,13 @@ class GameViewModel(
                         soundEnabled = p.soundEnabled,
                         hapticsEnabled = p.hapticsEnabled,
                         animationsActive = p.animationsEnabled && systemAnimationsEnabled,
+                        dailySatisfied = s.dailySatisfied || completedToday,
                     )
                 }
             }
         }
     }
 
-    /** Process death на экране результата: overlay показывается заново, награда идемпотентна по id. */
     private fun restoreFinished(record: FinishedGameRecord) {
         sessionSeed = null
         val restoredState = GameSaveCodec.decode(record.state)
@@ -173,7 +164,7 @@ class GameViewModel(
 
     fun onMove(move: Move) {
         val s = _ui.value
-        if (s.finished || s.removingMode) return
+        if (s.finished || s.removingMode || finishStarted) return
         val snapshot = UndoSnapshot(s.state, s.pressure, s.overdriveRemaining)
         val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
         val result = engine.applyMove(s.state, move, rng, multiplier)
@@ -184,7 +175,6 @@ class GameViewModel(
         var overdrives = s.overdrivesSession
 
         if (overdrive > 0) {
-            // Во время Overdrive давление заморожено, счётчик тратится на объединения
             overdrive = (overdrive - result.merges.size).coerceAtLeast(0)
         } else {
             pressure += result.merges.sumOf { cfg.pressureGainForMerge(it.tile.level) }
@@ -216,20 +206,14 @@ class GameViewModel(
         }
         undoSnapshot = snapshot
 
-        if (daily != null && !_ui.value.dailySatisfied) {
-            checkDailyGoal(result.state)
-        }
-        if (result.state.status == GameStatus.GAME_OVER) {
-            finishGame(discard = false)
-        } else {
-            persistGame()
-        }
+        if (daily != null && !_ui.value.dailySatisfied) checkDailyGoal(result.state)
+        if (result.state.status == GameStatus.GAME_OVER) finishGame() else persistGame()
     }
 
     fun undo() {
         val s = _ui.value
         val snap = undoSnapshot ?: return
-        if (s.finished) return
+        if (s.finished || finishStarted) return
         if (s.freeUndosLeft > 0) {
             _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
         } else if (s.gems >= cfg.undoGemsCost) {
@@ -253,15 +237,16 @@ class GameViewModel(
         persistGame()
     }
 
-    /** Wrench: удалить плитку низкого уровня за гемы. Доступна и в game over как спасение. */
     fun toggleRemovingMode() {
+        if (finishStarted) return
         _ui.update { it.copy(removingMode = !it.removingMode) }
     }
 
     fun canRemoveTile(tile: Tile): Boolean =
-        tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
+        !finishStarted && tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
 
     fun removeTile(tile: Tile) {
+        if (finishStarted) return
         val s = _ui.value
         if (!canRemoveTile(tile)) return
         val tiles = s.state.tiles.filterNot { it.id == tile.id }
@@ -280,32 +265,33 @@ class GameViewModel(
     }
 
     fun restart() {
-        finishIfNeeded(discard = true)
+        if (finishStarted && !_ui.value.finished) return
+        if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
         newGameInternal()
     }
 
-    /** Выход с экрана: завершаем партию, чтобы засчитать XP/достижения; overlay не переносится на следующее посещение. */
+    /**
+     * Выход не является завершением партии и не выдаёт XP. Обычная партия сохраняется для продолжения,
+     * Daily-попытка просто закрывается. Если Game Over уже фиксируется, результат удалится после транзакции.
+     */
     fun exit() {
-        finishIfNeeded(discard = true)
+        if (_ui.value.finished || finishStarted) {
+            discardFinishedRecord = true
+            if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
+        } else if (!dailyMode) {
+            persistGame()
+        }
     }
 
     fun markWinBannerShown() {
         _ui.update { it.copy(winBannerShown = true) }
     }
 
-    private fun finishIfNeeded(discard: Boolean) {
-        val s = _ui.value
-        if (s.finished) {
-            // overlay уже показан: выход/рестарт только выбрасывает запись
-            if (discard) writesScope.launch { repo.clearFinishedGame() }
-            return
-        }
-        finishGame(discard)
-    }
-
     private fun newGameInternal() {
+        finishStarted = false
+        discardFinishedRecord = false
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
-        rng = Random(sessionSeed ?: 0L)
+        rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
         val state = engine.newGame(rng = rng)
         _ui.update {
@@ -327,6 +313,7 @@ class GameViewModel(
                 overdrivesSession = 0,
                 undosSession = 0,
                 highMergesSession = 0,
+                dailySatisfied = dailyMode && dailyCompletedToday,
             )
         }
         analytics.logEvent(
@@ -347,32 +334,25 @@ class GameViewModel(
         _ui.update { it.copy(dailySatisfied = true) }
         val today = LocalDay.todayEpochDay()
         writesScope.launch {
-            repo.updateProgress { p ->
-                val baseStats = p.stats.copy(dailyCompleted = p.stats.dailyCompleted + 1)
-                val unlocked = Achievements.newlyUnlocked(baseStats, p.unlockedAchievements)
-                val unlockedGems = unlocked.sumOf { it.gemReward }
-                p.copy(
-                    dailyChallengeDay = today,
-                    dailyChallengeDone = true,
-                    gems = p.gems + challenge.rewardGems + unlockedGems,
-                    totalXp = p.totalXp + challenge.bonusXp,
-                    stats = baseStats.copy(gemsEarned = baseStats.gemsEarned + challenge.rewardGems + unlockedGems),
-                    unlockedAchievements = p.unlockedAchievements + unlocked.map { it.id }.toSet(),
-                    achievementDays = p.achievementDays + unlocked.associate { it.id to today },
-                )
+            val granted = repo.claimDailyChallenge(
+                day = today,
+                rewardGems = challenge.rewardGems,
+                bonusXp = challenge.bonusXp,
+            )
+            if (granted) {
+                dailyCompletedToday = true
+                analytics.logEvent("daily_completed", mapOf("type" to challenge.type.name))
             }
         }
-        analytics.logEvent("daily_completed", mapOf("type" to challenge.type.name))
     }
 
-    /**
-     * Завершение партии. Прогресс-награды и запись результата пишутся в одной DataStore-транзакции;
-     * [discard] = выход/рестарт сразу после финиша: запись не нужна, overlay не восстановится.
-     */
-    private fun finishGame(discard: Boolean) {
+    private fun finishGame() {
         val s = _ui.value
         if (s.finished || finishStarted) return
         finishStarted = true
+        discardFinishedRecord = false
+        _ui.update { it.copy(canUndo = false, removingMode = false) }
+
         val summary = GameSummary(
             score = s.state.score,
             maxTileLevel = s.state.maxLevel,
@@ -392,9 +372,15 @@ class GameViewModel(
             daily = dailyMode,
             score = summary.score,
             maxTileLevel = summary.maxTileLevel,
-            newBest = summary.score > s.best,
             state = GameSaveCodec.encode(
-                SavedGame(s.state, sessionSeed, s.pressure, s.overdriveRemaining, s.freeUndosLeft),
+                SavedGame(
+                    state = s.state,
+                    seed = sessionSeed,
+                    pressure = s.pressure,
+                    overdriveRemaining = s.overdriveRemaining,
+                    freeUndosLeft = s.freeUndosLeft,
+                    rngDraws = rng.draws,
+                ),
             ),
         )
         writesScope.launch {
@@ -402,16 +388,18 @@ class GameViewModel(
             repo.applyGameFinish(record) { latest ->
                 val (updated, e) = applyGameFinished(latest, summary, cfg)
                 eff = e
-                updated.copy(achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today }) to e
+                updated.copy(
+                    achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
+                ) to e
             }
+            if (discardFinishedRecord) repo.clearFinishedGame()
             eff?.let { effects ->
                 effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
                 effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
             }
-            if (discard) repo.clearFinishedGame()
             _ui.update { it.copy(finished = true, effects = eff, gameResultId = resultId, removingMode = false) }
             ads?.onGameFinished()
-            if (ads?.rewardedReady == true && (eff?.gemsGained ?: 0) > 0) {
+            if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
                 analytics.logEvent("rewarded_offered")
             }
             analytics.logEvent(
@@ -420,18 +408,12 @@ class GameViewModel(
                     "score" to summary.score,
                     "max_tile" to (1 shl summary.maxTileLevel),
                     "moves" to summary.moves,
-                    "daily" to dailyMode,
+                    "daily" to summary.daily,
                 ),
             )
         }
-        _ui.update { it.copy(removingMode = false) }
     }
 
-    /**
-     * Удвоение награды за партию после подтверждённого rewarded callback.
-     * Идемпотентность держится на persisted FinishedGameRecord (репозиторий, атомарный claim),
-     * а не на in-memory флаге: повторный callback / process death / повторный вход не выдают гемы второй раз.
-     */
     fun grantDoubleReward() {
         val s = _ui.value
         val eff = s.effects ?: return
@@ -444,7 +426,7 @@ class GameViewModel(
     }
 
     private fun persistGame() {
-        if (dailyMode) return
+        if (dailyMode || finishStarted) return
         val s = _ui.value
         writesScope.launch {
             repo.saveGame(
@@ -454,8 +436,38 @@ class GameViewModel(
                     pressure = s.pressure,
                     overdriveRemaining = s.overdriveRemaining,
                     freeUndosLeft = s.freeUndosLeft,
+                    rngDraws = rng.draws,
                 ),
             )
         }
+    }
+}
+
+/**
+ * Маленький детерминированный PRNG с сериализуемой позицией. Random.nextInt/nextDouble строятся поверх
+ * nextBits, поэтому одного счётчика draws достаточно для точного продолжения последовательности.
+ */
+private class ReplayableRandom(
+    private val seed: Long,
+    initialDraws: Long = 0L,
+) : Random() {
+    var draws: Long = initialDraws.coerceIn(0L, 1_000_000L)
+        private set
+
+    override fun nextBits(bitCount: Int): Int {
+        require(bitCount in 0..32)
+        if (bitCount == 0) return 0
+        val index = draws++
+        var z = seed + GOLDEN_GAMMA * (index + 1L)
+        z = (z xor (z ushr 30)) * MIX_1
+        z = (z xor (z ushr 27)) * MIX_2
+        z = z xor (z ushr 31)
+        return (z ushr (64 - bitCount)).toInt()
+    }
+
+    private companion object {
+        const val GOLDEN_GAMMA = -7046029254386353131L
+        const val MIX_1 = -4658895280553007687L
+        const val MIX_2 = -7723592293110705685L
     }
 }
