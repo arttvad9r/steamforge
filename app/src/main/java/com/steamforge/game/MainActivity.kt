@@ -9,6 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
@@ -21,10 +24,12 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private var sessionStartMs: Long = 0L
+    private var storeScreenshotMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as SteamforgeApp).container
+        storeScreenshotMode = BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_STORE_SCREENSHOT, false)
 
         lifecycleScope.launch {
             container.repo.progress
@@ -42,6 +47,8 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        if (storeScreenshotMode) hideSystemBarsForStoreCapture()
+
         setContent {
             SteamforgeTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -62,5 +69,21 @@ class MainActivity : ComponentActivity() {
                 else -> Unit
             }
         })
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && storeScreenshotMode) hideSystemBarsForStoreCapture()
+    }
+
+    private fun hideSystemBarsForStoreCapture() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    private companion object {
+        const val EXTRA_STORE_SCREENSHOT = "store_screenshot"
     }
 }
