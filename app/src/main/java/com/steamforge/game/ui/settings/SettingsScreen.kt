@@ -3,6 +3,7 @@ package com.steamforge.game.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -21,10 +23,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +43,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.Danger
-import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.Recess
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.theme.TealSurface
@@ -54,6 +53,7 @@ import com.steamforge.game.ui.components.MechanicalToggle
 import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
+import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.components.SteamLogoHeader
 import com.steamforge.game.ui.components.SteamPanel
 import com.steamforge.game.ui.components.SteamSectionTitle
@@ -124,28 +124,39 @@ fun SettingsScreen(
     }
 
     if (confirmReset) {
-        AlertDialog(
+        SteamDecisionDialog(
+            title = "СБРОСИТЬ ПРОГРЕСС?",
             onDismissRequest = { confirmReset = false },
-            shape = RoundedCornerShape(18.dp),
-            containerColor = Panel,
-            titleContentColor = BrassBright,
-            textContentColor = TextWarm,
-            title = { Text("СБРОСИТЬ ПРОГРЕСС?") },
-            text = {
+            body = {
                 Text(
                     "Будут удалены очки, гемы, уровень мастерской, достижения, статистика, " +
                         "испытания и сохранённая партия. Настройки и выбор приватности сохранятся. " +
                         "Отменить это нельзя.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted,
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmReset = false
-                    vm.resetProgress()
-                }) { Text("СБРОСИТЬ", color = Danger) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmReset = false }) { Text("ОТМЕНА", color = TealGlow) }
+            actions = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SteamButton(
+                        text = "ОТМЕНА",
+                        onClick = { confirmReset = false },
+                        modifier = Modifier.weight(1f),
+                        style = SteamButtonStyle.Dark,
+                    )
+                    SteamButton(
+                        text = "СБРОСИТЬ",
+                        onClick = {
+                            confirmReset = false
+                            vm.resetProgress()
+                        },
+                        modifier = Modifier.weight(1f),
+                        style = SteamButtonStyle.Danger,
+                    )
+                }
             },
         )
     }
