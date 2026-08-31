@@ -39,6 +39,6 @@ val SteamforgeTypography = Typography(
     labelMedium = TextStyle(
         fontWeight = FontWeight.SemiBold,
         fontSize = 12.sp,
-        letterSpacing = 1.sp,
+        letterSpacing = 0.25.sp,
     ),
 )
