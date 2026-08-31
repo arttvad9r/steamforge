@@ -50,7 +50,7 @@ keyAlias=steamforge
 keyPassword=...
 ```
 
-Production-параметры приложения задавать через `~/.gradle/gradle.properties` или `-P` параметры, а не коммитить в репозиторий:
+Production-параметры приложения задавать через `~/.gradle/gradle.properties`, а не коммитить в репозиторий:
 
 ```properties
 steamforge.appmetricaApiKey=...
@@ -59,11 +59,22 @@ steamforge.interstitialAdUnitId=...
 steamforge.privacyPolicyUrl=https://...
 ```
 
-## 3. Собрать APK
+## 3. Собрать и проверить production APK
+
+Для реального релиза использовать guarded preflight-скрипт:
 
 ```bash
-./gradlew clean testDebugUnitTest lintDebug assembleRelease
+bash tools/build-rustore-release.sh
 ```
+
+Он останавливает сборку, если отсутствует хотя бы один обязательный production-параметр или keystore, а после сборки автоматически проверяет:
+
+- unit tests;
+- Android lint;
+- release APK;
+- 16 KiB zip alignment;
+- APK signature через `apksigner`;
+- SHA-256 итогового APK.
 
 Ожидаемый файл:
 
@@ -71,16 +82,19 @@ steamforge.privacyPolicyUrl=https://...
 app/build/outputs/apk/release/app-release.apk
 ```
 
-## 4. Проверить подпись
+Обычный `./gradlew assembleRelease` намеренно остаётся доступен без production secrets для CI и технической проверки release-конфигурации. **Не использовать такой CI APK для публикации.**
+
+Ручной эквивалент для диагностики:
 
 ```bash
+./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
 apksigner verify --verbose --print-certs \
   app/build/outputs/apk/release/app-release.apk
 ```
 
 Перед первой публикацией отдельно сохранить SHA-256 отпечаток сертификата. Все последующие APK-версии Steamforge должны быть подписаны тем же ключом.
 
-## 5. Финальный smoke-test
+## 4. Финальный smoke-test
 
 Устанавливать на устройство именно production APK, который будет отправлен в RuStore:
 
