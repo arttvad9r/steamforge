@@ -100,14 +100,16 @@ fun SettingsScreen(
             SteamPanel(Modifier.fillMaxWidth()) {
                 SettingToggleRow(
                     "▥",
-                    "Аналитика и персонализация",
-                    "AppMetrica + персонализация рекламы",
+                    "Аналитика и реклама",
+                    "AppMetrica + согласие для рекламного SDK",
                     ui.analyticsConsent == true,
                     vm::setAnalyticsConsent,
                 )
                 SettingDivider()
                 Text(
-                    "При отключении AppMetrica перестаёт отправлять статистику, а реклама остаётся доступной в неперсонализированном режиме.",
+                    "При отключении AppMetrica перестаёт отправлять статистику. Рекламный SDK получает " +
+                        "признак отсутствия согласия; реклама может продолжать показываться с учётом " +
+                        "правил SDK и региона.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
                     modifier = Modifier.padding(vertical = 10.dp),
