@@ -1,75 +1,69 @@
 # Steamforge 1.0 — release status
 
-Актуализировано: 31.08.2026.
+Актуализировано: 01.09.2026.
 
-Этот файл фиксирует текущее состояние первого релиза и отделяет технически завершённые задачи от данных/решений, которые нужны непосредственно перед production build.
+Этот файл фиксирует текущее состояние первого релиза и отделяет технически завершённые задачи от production-данных владельца.
 
 ## Технически готово
 
 - `master` содержит release-hardening и финальную на текущем этапе steampunk UI-систему.
-- Текущий Android-code baseline `47ac981f9f5a33e1ed1406e777c68acf67833684` прошёл Android CI run `33434710890`: unit tests, lint, debug/release build, release-tooling/privacy guards и 16 KiB compatibility check — success.
-- `UI Emulator Smoke` run `33434711051` успешно запускает приложение на Android 36 и проходит обычный и compact layout основных экранов после финального прохода по Workshop, игровому HUD, Achievements и Settings.
-- Compact smoke отдельно подтвердил исправление узкого HUD: значение бесплатной отмены полностью помещается на 360×800 без clipping.
-- Отдельный `RuStore Store Assets` run `33434710945` успешно создаёт placeholder-free набор из трёх реальных вертикальных screenshot-ассетов после актуализации screenshot anchor для нового Achievements UI:
-  - `01-game-1080x1920.png`;
-  - `02-workshop-1080x1920.png`;
-  - `03-achievements-1080x1920.png`.
-- Store pipeline автоматически проверяет PNG-формат, количество файлов и точный размер `1080×1920` (9:16); итоговые кадры дополнительно проверены визуально.
-- Settings сознательно не включён в магазинный набор до появления production Privacy Policy URL: текущий экран иначе показывает placeholder-текст.
-- Yandex Mobile Ads automatic SDK initialization явно отключён в manifest; инициализация выполняется приложением только после privacy-решения пользователя, а CI защищает этот флаг от случайного удаления.
-- Adaptive launcher icon имеет отдельный monochrome drawable для Android themed icons; финальный художественный store/launcher asset ещё должен быть утверждён до публикации.
+- Android CI проверяет unit tests, lint, debug/release build, release-tooling/privacy guards и 16 KiB compatibility.
+- `UI Emulator Smoke` проходит основные экраны в обычном и compact layout.
+- `RuStore Store Assets` создаёт три реальные вертикальные screenshot-ассета 1080×1920: Gameplay, Workshop, Achievements.
+- Yandex Mobile Ads automatic SDK initialization отключён в manifest; SDK и AppMetrica инициализируются приложением в соответствии с privacy-решением пользователя.
 - Подготовлены тексты карточки RuStore: `docs/RUSTORE_LISTING.md`.
 - Подготовлен черновик Privacy Policy: `docs/PRIVACY_POLICY_DRAFT.md`.
-- Подготовлена инструкция по signing первого релиза: `docs/RELEASE_SIGNING.md`.
+- Подготовлена инструкция по signing: `docs/RELEASE_SIGNING.md`.
 - Подготовлены release notes: `docs/RELEASE_NOTES_V1.md`.
-- Для первого релиза выбран production-signed APK; AAB не нужен для V1.
-- Production preflight усилен: он проверяет production credentials, отсутствие секретов в tracked project properties, опубликованную Privacy Policy, signing, 16 KiB compatibility, generated package/version metadata и создаёт отдельный checksum-фиксированный artifact в локальном `dist/`.
+- Для V1 выбран production-signed APK.
+- Production preflight проверяет credentials, Privacy Policy URL, signing, 16 KiB compatibility, package/version metadata и SHA-256 итогового APK.
+- Финальная художественная launcher icon утверждена и интегрирована в Android launcher/adaptive icon. Android CI run `33439826555` на commit `8db851b3bd78c0bf07b0f7aed39f3f1d4fab1901` завершился успешно; `generateLauncherIcon`, `assembleDebug` и `assembleRelease` прошли.
+- Отдельный RuStore store asset подготовлен из того же утверждённого арта: `Steamforge-RuStore-512.png`, 512×512, без новой генерации.
 
-## Решение, которое нельзя оставлять на момент первой публикации
+## Package ID — решение подтверждено
 
-Текущий `applicationId`:
+Владелец подтвердил финальный `applicationId` для первого релиза:
 
 ```text
 com.steamforge.game
 ```
 
-Менять его автоматически нельзя: после первой публикации package ID становится идентичностью приложения. До production build нужно либо оставить его как финальный, либо переименовать до релиза. Чтобы исключить случайную публикацию, preflight требует локальное явное подтверждение:
+До production build в локальный `~/.gradle/gradle.properties` нужно добавить явное подтверждение:
 
 ```properties
 steamforge.confirmApplicationId=com.steamforge.game
 ```
 
+После первой публикации package ID считается идентичностью приложения и не должен меняться.
+
 ## Перед production build нужны данные владельца
 
 Обязательные:
 
-- `steamforge.confirmApplicationId` после финального решения по package ID;
 - `steamforge.appmetricaApiKey`;
 - `steamforge.rewardedAdUnitId`;
 - `steamforge.interstitialAdUnitId`;
 - публичный HTTPS URL Privacy Policy (`steamforge.privacyPolicyUrl`);
 - имя/наименование владельца для Privacy Policy;
 - support/privacy e-mail;
-- release keystore + пароли и независимый backup ключа;
-- финальная store/launcher-иконка 512×512.
+- release keystore + пароли и независимый backup ключа.
 
-Секретные значения и keystore не должны коммититься в репозиторий.
+Секретные значения, keystore и пароли не должны коммититься в репозиторий.
 
 ## Финальный production gate
 
 После получения production-данных:
 
-1. Принять окончательное решение по `applicationId` и записать `steamforge.confirmApplicationId`.
+1. Добавить локально `steamforge.confirmApplicationId=com.steamforge.game`.
 2. Заполнить и опубликовать Privacy Policy по постоянному HTTPS URL.
-3. Создать/подключить release keystore и сделать независимые резервные копии.
-4. Запустить `bash tools/build-rustore-release.sh` с production AppMetrica/Yandex Ads IDs.
-5. Использовать только созданный preflight-файл `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
-6. Установить именно этот production APK на реальное устройство и/или чистый emulator.
-7. Пройти smoke: первый запуск/consent, обычная партия, сохранение/восстановление, Daily, rewarded, interstitial, reset progress, offline запуск и открытие Privacy Policy.
-8. Проверить, что AppMetrica не отправляет события до разрешения и начинает работать после разрешения.
-9. Проверить production rewarded/interstitial на естественных точках показа и отсутствие блокировки игры при недоступной сети.
-10. Подготовить финальную store/launcher-иконку и проверить читаемость в маленьком размере.
-11. Повторно сверить SHA-256 production APK и загрузить именно проверенный файл вместе с карточкой и тремя store-скриншотами; для первого релиза использовать ручную публикацию после модерации.
+3. Создать/подключить release keystore и сделать минимум две независимые резервные копии.
+4. Добавить локально production AppMetrica/Yandex Ads IDs и Privacy Policy URL.
+5. Запустить `bash tools/build-rustore-release.sh`.
+6. Использовать только созданный preflight-файл `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
+7. Установить именно этот production APK и пройти smoke: consent, партия, save/restore, Daily, rewarded, interstitial, reset progress, offline и Privacy Policy.
+8. Проверить AppMetrica до/после consent и production rewarded/interstitial.
+9. Повторно сверить SHA-256 и загрузить проверенный APK, финальную store-иконку и три store-скриншота в RuStore.
+10. Для первого релиза использовать ручную публикацию после модерации.
 
 ## Не является blocker для V1
 
@@ -79,14 +73,8 @@ steamforge.confirmApplicationId=com.steamforge.game
 - покупки/подписки;
 - кросс-игровая валюта;
 - multiplayer;
-- выделение общего `game-kit` — делать после подтверждения повторного использования во второй игре.
+- выделение общего `game-kit`.
 
 ## Текущее решение
 
-Не расширять scope Steamforge 1.0 новыми системами. До первого релиза допустимы только:
-
-- исправления реальных багов;
-- release/privacy/signing работа;
-- финальные store assets;
-- package-name/иконка перед первой публикацией;
-- минимальные изменения, подтверждённые smoke/CI.
+Не расширять scope Steamforge 1.0 новыми системами. До первого релиза допустимы только реальные bug fixes, release/privacy/signing работа, финальные store assets и минимальный polish, подтверждённый smoke/CI.
