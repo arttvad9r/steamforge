@@ -76,9 +76,11 @@ steamforge.interstitialAdUnitId=...
 steamforge.privacyPolicyUrl=https://...
 ```
 
-`steamforge.confirmApplicationId` не является секретом; остальные значения всё равно рекомендуется хранить только локально. Keystore и generated release artifacts исключены из git.
+`steamforge.confirmApplicationId` не является секретом. Production AppMetrica/Ads/Privacy параметры preflight запрещает хранить в отслеживаемом project-level `gradle.properties`; используйте локальный `~/.gradle/gradle.properties`. Keystore и generated release artifacts исключены из git.
 
 ### 4. Собрать и проверить production APK
+
+Перед запуском preflight рабочая копия должна быть чистой: все изменения исходников должны быть закоммичены, а ненужные untracked-файлы удалены или исключены через `.gitignore`. Это позволяет однозначно связать APK с конкретным git commit.
 
 Для реального релиза использовать guarded preflight-скрипт:
 
@@ -88,13 +90,17 @@ bash tools/build-rustore-release.sh
 
 До сборки он проверяет:
 
+- чистое состояние git working tree и фиксирует `HEAD` commit;
 - явное совпадение `steamforge.confirmApplicationId` с текущим `applicationId`;
+- отсутствие production AppMetrica/Ads/Privacy значений в отслеживаемом `gradle.properties`;
 - наличие keystore и всех signing-полей;
 - что keystore не отслеживается git, если расположен внутри репозитория;
 - наличие production AppMetrica/Yandex Ads параметров;
 - отсутствие очевидных `demo`/`placeholder` значений;
 - HTTPS Privacy Policy URL;
 - что опубликованная Privacy Policy реально открывается и не содержит типовых placeholder-маркеров.
+
+До начала production-проверок preflight удаляет старый одноимённый `dist/Steamforge-<version>-vc<code>-rustore.apk` и его metadata/checksum. Поэтому неудачная новая сборка не оставляет старый APK, который можно случайно принять за свежий.
 
 После этого preflight автоматически выполняет:
 
@@ -104,7 +110,9 @@ bash tools/build-rustore-release.sh
 - сверку `applicationId`, `versionCode` и `versionName` с generated release metadata;
 - 16 KiB ZIP/ELF compatibility check;
 - APK signature verification через `apksigner`;
-- SHA-256 итогового APK.
+- SHA-256 итогового APK;
+- извлечение SHA-256 сертификата подписи;
+- фиксацию source commit/package/version/hash в отдельном metadata-файле.
 
 Рабочий Gradle output остаётся здесь:
 
@@ -117,13 +125,25 @@ app/build/outputs/apk/release/app-release.apk
 ```text
 dist/Steamforge-1.0-vc1-rustore.apk
 dist/Steamforge-1.0-vc1-rustore.apk.sha256
+dist/Steamforge-1.0-vc1-rustore.apk.metadata.txt
+```
+
+Metadata содержит:
+
+```text
+sourceCommit=...
+applicationId=com.steamforge.game
+versionCode=1
+versionName=1.0
+apkSha256=...
+certificateSha256=...
 ```
 
 `dist/` исключён из git. После успешного preflight не пересобирать APK между smoke-test и загрузкой в RuStore: использовать один и тот же файл из `dist/`.
 
 Обычный `./gradlew assembleRelease` намеренно остаётся доступен без production secrets для CI и технической проверки release-конфигурации. **Не использовать такой CI APK для публикации.**
 
-Перед первой публикацией отдельно сохранить SHA-256 отпечаток сертификата. Все последующие APK-версии Steamforge должны быть подписаны тем же ключом.
+Перед первой публикацией сохранить `.metadata.txt`, `.sha256`, keystore и независимый backup ключа. Все последующие APK-версии Steamforge должны быть подписаны тем же ключом.
 
 ### 5. Финальный smoke-test
 
@@ -147,7 +167,7 @@ adb install -r dist/Steamforge-1.0-vc1-rustore.apk
 - отсутствие demo/test identifiers в production flow;
 - открытие Privacy Policy по production URL.
 
-После smoke-test повторно проверить SHA-256 файла и загружать именно его.
+После smoke-test повторно проверить SHA-256 файла и убедиться, что он совпадает со значением из `.sha256`/`.metadata.txt`. В RuStore загружать именно этот APK.
 
 ## AAB — если решим использовать позже
 
