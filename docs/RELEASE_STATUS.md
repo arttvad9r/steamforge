@@ -7,10 +7,10 @@
 ## Технически готово
 
 - `master` содержит release-hardening и финальную на текущем этапе steampunk UI-систему.
-- Последний Android-code baseline `d966216c2ac771e686e3a808d9391251a715caa1` прошёл Android CI run `33421038939`: unit tests, lint, debug/release build, release-tooling/privacy guards и 16 KiB compatibility check — success.
-- Последующие commits до текущего `master` меняют только privacy/release-документацию и не меняют Android-код приложения.
-- `UI Emulator Smoke` run `33415341176` успешно запускает приложение на Android 36 и проходит обычный и compact layout основных экранов.
-- Отдельный `RuStore Store Assets` run `33416313529` успешно создаёт placeholder-free набор из трёх реальных вертикальных screenshot-ассетов:
+- Текущий Android-code baseline `47ac981f9f5a33e1ed1406e777c68acf67833684` прошёл Android CI run `33434710890`: unit tests, lint, debug/release build, release-tooling/privacy guards и 16 KiB compatibility check — success.
+- `UI Emulator Smoke` run `33434711051` успешно запускает приложение на Android 36 и проходит обычный и compact layout основных экранов после финального прохода по Workshop, игровому HUD, Achievements и Settings.
+- Compact smoke отдельно подтвердил исправление узкого HUD: значение бесплатной отмены полностью помещается на 360×800 без clipping.
+- Отдельный `RuStore Store Assets` run `33434710945` успешно создаёт placeholder-free набор из трёх реальных вертикальных screenshot-ассетов после актуализации screenshot anchor для нового Achievements UI:
   - `01-game-1080x1920.png`;
   - `02-workshop-1080x1920.png`;
   - `03-achievements-1080x1920.png`.
