@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APK="${1:-app/build/outputs/apk/release/app-release.apk}"
+if [[ $# -gt 0 ]]; then
+  APK="$1"
+else
+  mapfile -t release_apks < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
+  if [[ ${#release_apks[@]} -ne 1 ]]; then
+    echo "ERROR: expected exactly one release APK, found ${#release_apks[@]}" >&2
+    printf '  %s\n' "${release_apks[@]:-}" >&2
+    exit 1
+  fi
+  APK="${release_apks[0]}"
+fi
+
 [[ -s "$APK" ]] || { echo "ERROR: APK not found: $APK" >&2; exit 1; }
 
 ZIPALIGN="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools/36.0.0/zipalign"
