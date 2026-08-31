@@ -48,7 +48,7 @@ jobs:
             -k 'system-images;android-36;google_apis;x86_64' \
             -d pixel_6 \
             --force
-          nohup emulator \
+          nohup "$ANDROID_HOME/emulator/emulator" \
             -avd steamforge_ci \
             -no-window \
             -noaudio \
