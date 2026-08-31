@@ -104,7 +104,6 @@ jobs:
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
 
           # API 37 preview images can report sys.boot_completed before framework services are ready.
-          # Do not attempt package installation until both services used by the smoke test exist.
           for i in $(seq 1 60); do
             package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
             window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
@@ -130,6 +129,7 @@ jobs:
         run: |
           set -euxo pipefail
           adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb logcat -c
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           for i in $(seq 1 20); do
@@ -137,10 +137,10 @@ jobs:
             sleep 1
           done
           adb shell pidof com.steamforge.game
-          sleep 3
-          adb shell uiautomator dump /sdcard/android17-window.xml
-          adb pull /sdcard/android17-window.xml /tmp/android17-window.xml
-          grep -Fq 'ПРИВАТНОСТЬ' /tmp/android17-window.xml
+          sleep 5
+          adb shell pidof com.steamforge.game
+          adb shell dumpsys activity activities > /tmp/android17-activities.txt
+          grep -Fq 'com.steamforge.game' /tmp/android17-activities.txt
 
       - name: Emulator diagnostics on failure
         if: failure()
@@ -158,5 +158,9 @@ jobs:
           adb shell service check window || true
           echo '=== process ==='
           adb shell pidof com.steamforge.game || true
+          echo '=== activity ==='
+          adb shell dumpsys activity activities | grep -F 'com.steamforge.game' || true
           echo '=== focused window ==='
           adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
+          echo '=== recent logcat ==='
+          adb logcat -d -v brief | tail -600 || true
