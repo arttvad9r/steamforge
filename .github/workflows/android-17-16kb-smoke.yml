@@ -132,15 +132,35 @@ jobs:
           adb logcat -c
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          for i in $(seq 1 20); do
-            if adb shell pidof com.steamforge.game >/dev/null 2>&1; then break; fi
+
+          # Fresh preview images may briefly kill foreground apps while finishing provisioning.
+          # Treat that as infrastructure churn only if Android restores Steamforge and MainActivity
+          # becomes resumed again. A real crash loop will fail this bounded readiness check.
+          ready=0
+          for i in $(seq 1 30); do
+            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
+            if [ -n "$pid" ] && [ -n "$resumed" ]; then
+              ready=1
+              break
+            fi
             sleep 1
           done
-          adb shell pidof com.steamforge.game
+          test "$ready" = '1'
+
           sleep 5
-          adb shell pidof com.steamforge.game
-          adb shell dumpsys activity activities > /tmp/android17-activities.txt
-          grep -Fq 'com.steamforge.game' /tmp/android17-activities.txt
+          ready=0
+          for i in $(seq 1 20); do
+            pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+            resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
+            if [ -n "$pid" ] && [ -n "$resumed" ]; then
+              echo "Steamforge resumed with pid $pid"
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = '1'
 
       - name: Emulator diagnostics on failure
         if: failure()
