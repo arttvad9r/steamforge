@@ -1,13 +1,14 @@
 package com.steamforge.game
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -25,8 +26,12 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.ui.achievements.AchievementsScreen
 import com.steamforge.game.ui.achievements.AchievementsViewModel
+import com.steamforge.game.ui.components.SteamButton
+import com.steamforge.game.ui.components.SteamButtonStyle
+import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.game.GameScreen
 import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.settings.SettingsScreen
@@ -125,41 +130,57 @@ private fun ConsentDialog(
     onDecide: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    AlertDialog(
+    SteamDecisionDialog(
+        title = "ПРИВАТНОСТЬ",
         onDismissRequest = { /* решение обязательно; до него SDK не активируются */ },
-        title = { Text("Приватность") },
-        text = {
+        body = {
             Column {
                 Text(
                     "Игра хранит прогресс на устройстве. Для статистики (AppMetrica) и рекламы " +
                         "(Яндекс) могут передаваться технические данные об использовании. " +
                         "Отказ отключит AppMetrica и персонализацию рекламы; игра останется полной.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 if (privacyPolicyUrl.isNotBlank()) {
-                    TextButton(
+                    SteamButton(
+                        text = "ОТКРЫТЬ ПОЛИТИКУ",
                         onClick = {
                             runCatching {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri()))
                             }
                         },
-                    ) {
-                        Text("Открыть политику конфиденциальности")
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                        style = SteamButtonStyle.Dark,
+                    )
                 } else {
                     Text(
                         "Политика конфиденциальности будет доступна до production-релиза.",
                         style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
                     )
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = { onDecide(true) }) { Text("Разрешить") }
-        },
-        dismissButton = {
-            TextButton(onClick = { onDecide(false) }) { Text("Отключить") }
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SteamButton(
+                    text = "ОТКЛЮЧИТЬ",
+                    onClick = { onDecide(false) },
+                    modifier = Modifier.weight(1f),
+                    style = SteamButtonStyle.Dark,
+                )
+                SteamButton(
+                    text = "РАЗРЕШИТЬ",
+                    onClick = { onDecide(true) },
+                    modifier = Modifier.weight(1f),
+                    style = SteamButtonStyle.Teal,
+                )
+            }
         },
     )
 }

@@ -3,10 +3,12 @@ name: Android CI
 on:
   push:
     branches:
+      - master
       - fix/release-hardening
   pull_request:
     branches:
       - master
+      - fix/release-hardening
 
 permissions:
   contents: read

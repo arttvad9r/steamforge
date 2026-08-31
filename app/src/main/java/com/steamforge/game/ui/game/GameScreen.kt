@@ -4,13 +4,10 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,14 +26,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,7 +49,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
@@ -64,7 +59,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -81,24 +78,32 @@ import com.steamforge.game.progression.DailyChallenge
 import com.steamforge.game.progression.DailyGoalType
 import com.steamforge.game.sound.Sfx
 import com.steamforge.game.sound.SfxPlayer
-import com.steamforge.game.theme.Background
 import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
+import com.steamforge.game.theme.BrassDark
 import com.steamforge.game.theme.Copper
 import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.Recess
+import com.steamforge.game.theme.TealGlow
+import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 import com.steamforge.game.theme.tileBevel
 import com.steamforge.game.theme.tileColors
+import com.steamforge.game.ui.components.BrassRoundButton
+import com.steamforge.game.ui.components.PressureDial
+import com.steamforge.game.ui.components.StatPlate
+import com.steamforge.game.ui.components.SteamBackdrop
+import com.steamforge.game.ui.components.SteamButton
+import com.steamforge.game.ui.components.SteamButtonStyle
+import com.steamforge.game.ui.components.SteamLogoHeader
+import com.steamforge.game.ui.components.SteamPanel
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 private const val MOVE_MS = 110
 private const val POP_MS = 140
 private const val SPAWN_MS = 130
-
-private val OutlineDim = Color(0xFF5A4632)
 
 @Composable
 fun GameScreen(
@@ -157,15 +162,13 @@ fun GameScreen(
             exitHandled = true
             vm.exit()
             onExit()
-            if (ui.finished && context is Activity) {
-                ads.maybeShowInterstitial(context)
-            }
+            if (ui.finished && context is Activity) ads.maybeShowInterstitial(context)
         }
     }
 
     BackHandler { leave() }
 
-    Scaffold(
+    SteamBackdrop(
         modifier = modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
@@ -179,33 +182,64 @@ fun GameScreen(
                 }
                 true
             },
-        containerColor = Background,
-    ) { padding ->
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .statusBarsPadding()
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .widthIn(max = 560.dp)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(4.dp))
-            GameTopBar(
-                score = ui.state.score,
-                best = ui.best,
-                gems = ui.gems,
-                daily = ui.daily,
-                dailySatisfied = ui.dailySatisfied,
-                onExit = { leave() },
+            Spacer(Modifier.height(6.dp))
+            SteamLogoHeader(
+                compact = true,
+                leading = { BrassRoundButton("←", "В мастерскую", ::leave) },
             )
-            Spacer(Modifier.height(10.dp))
-            PressureGauge(
-                pressure = ui.pressure,
-                overdriveRemaining = ui.overdriveRemaining,
-                animationsActive = ui.animationsActive,
-            )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+
+            Row(Modifier.fillMaxWidth()) {
+                StatPlate("СЧЁТ", ui.state.score.toString(), Modifier.weight(1f), BrassBright)
+                Spacer(Modifier.width(8.dp))
+                StatPlate("ЛУЧШИЙ", ui.best.toString(), Modifier.weight(1f), TextWarm)
+                Spacer(Modifier.width(8.dp))
+                StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
+            }
+            Spacer(Modifier.height(8.dp))
+
+            SteamPanel(Modifier.fillMaxWidth(), highlighted = ui.overdriveRemaining > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatPlate("ХОДЫ", ui.state.moves.toString(), Modifier.weight(0.78f), BrassBright)
+                    Spacer(Modifier.width(8.dp))
+                    PressureGauge(
+                        pressure = ui.pressure,
+                        overdriveRemaining = ui.overdriveRemaining,
+                        animationsActive = ui.animationsActive,
+                        modifier = Modifier.size(130.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    StatPlate(
+                        "ОТМЕНА",
+                        if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
+                        Modifier.weight(0.9f),
+                        if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
+                    )
+                }
+                val daily = ui.daily
+                if (daily != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (ui.dailySatisfied) TealGlow else TextMuted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
             BoardView(
                 state = ui.state,
                 lastResult = ui.lastResult,
@@ -215,33 +249,36 @@ fun GameScreen(
                 canRemove = vm::canRemoveTile,
                 onTileClick = vm::removeTile,
                 onSwipe = vm::onMove,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = vm::undo,
-                    enabled = ui.canUndo && !ui.finished && (ui.freeUndosLeft > 0 || ui.gems >= UNDO_COST_PLACEHOLDER),
-                ) {
-                    Text(if (ui.freeUndosLeft > 0) "Отменить (${ui.freeUndosLeft})" else "Отменить · 5 гемов")
-                }
-                OutlinedButton(
-                    onClick = vm::toggleRemovingMode,
-                    enabled = !ui.finished,
-                ) {
-                    Text(if (ui.removingMode) "Ключ: выбери плитку" else "Ключ · 10 гемов")
+            Spacer(Modifier.height(9.dp))
+
+            SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ToolButton(
+                        symbol = "↶",
+                        label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
+                        active = ui.canUndo && !ui.finished,
+                        onClick = vm::undo,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ToolButton(
+                        symbol = "⚒",
+                        label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
+                        active = !ui.finished,
+                        selected = ui.removingMode,
+                        onClick = vm::toggleRemovingMode,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(7.dp))
             Text(
-                text = "Свайпы или стрелки · одинаковые детали объединяются",
+                "Свайпните по полю · одинаковые детали объединяются",
                 style = MaterialTheme.typography.labelMedium,
                 color = TextMuted,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(8.dp))
         }
     }
 
@@ -251,73 +288,16 @@ fun GameScreen(
             ui = ui,
             rewardedAvailable = rewardedReady && (ui.effects?.gemsGained ?: 0) > 0 && !ui.rewardDoubled,
             onRewarded = {
-                if (activity != null) {
-                    ads.showRewarded(activity) { vm.grantDoubleReward() }
-                }
+                if (activity != null) ads.showRewarded(activity) { vm.grantDoubleReward() }
             },
             onRestart = {
                 if (activity != null) ads.maybeShowInterstitial(activity)
                 vm.restart()
             },
-            onExit = { leave() },
+            onExit = ::leave,
         )
     } else if (ui.winCelebrated && !ui.winBannerShown) {
-        OverlayPanel {
-            Text(
-                "CORE ONLINE",
-                style = MaterialTheme.typography.displaySmall,
-                color = BrassBright,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Механическое ядро собрано — лампы горят, пар шумит. Мастерская ожила!",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(14.dp))
-            Button(onClick = vm::markWinBannerShown) { Text("Продолжить смену") }
-        }
-    }
-}
-
-private const val UNDO_COST_PLACEHOLDER = 5
-
-@Composable
-private fun GameTopBar(
-    score: Int,
-    best: Int,
-    gems: Int,
-    daily: DailyChallenge?,
-    dailySatisfied: Boolean,
-    onExit: () -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onExit) { Text("Выход") }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                if (daily != null) "Испытание дня" else "Смена",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f),
-            )
-            ScoreChip("Гемы", gems, icon = true)
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ScoreChip("Счёт", score)
-            Spacer(Modifier.width(6.dp))
-            ScoreChip("Рекорд", best)
-            if (daily != null) {
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = dailyGoalText(daily) + if (dailySatisfied) " — выполнено!" else "",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (dailySatisfied) BrassBright else TextMuted,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
+        CoreOnlineOverlay(onContinue = vm::markWinBannerShown, onExit = ::leave)
     }
 }
 
@@ -328,95 +308,13 @@ fun dailyGoalText(daily: DailyChallenge): String = when (daily.type) {
 }
 
 @Composable
-private fun ScoreChip(label: String, value: Int, icon: Boolean = false) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Panel)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-            .semantics { contentDescription = "$label: $value" },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (icon) {
-            com.steamforge.game.ui.workshop.GemIcon()
-        } else {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = TextMuted)
-        }
-        Text(
-            value.toString(),
-            style = MaterialTheme.typography.titleMedium,
-            color = if (label == "\u2726") BrassBright else TextWarm,
-        )
-    }
-}
-
-@Composable
 fun PressureGauge(
     pressure: Int,
     overdriveRemaining: Int,
     animationsActive: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val overdrive = overdriveRemaining > 0
-    val glow = if (animationsActive && overdrive) {
-        val pulse = rememberInfiniteTransition(label = "overdrive")
-        val g by pulse.animateFloat(
-            initialValue = 0.92f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(420), RepeatMode.Reverse),
-            label = "glow",
-        )
-        g
-    } else {
-        1f
-    }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
-                contentDescription = if (overdrive) "Overdrive активно" else "Давление пара: $pressure процентов"
-            },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (overdrive) "OVERDRIVE \u00d72" else "ДАВЛЕНИЕ ПАРА",
-                style = MaterialTheme.typography.labelLarge,
-                color = if (overdrive) BrassBright else TextMuted,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                if (overdrive) "осталось объединений: $overdriveRemaining" else "$pressure%",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (overdrive) BrassBright else TextMuted,
-            )
-        }
-        Spacer(Modifier.height(4.dp))
-        val shape = RoundedCornerShape(8.dp)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(14.dp)
-                .clip(shape)
-                .background(Recess)
-                .border(1.dp, OutlineDim, shape),
-        ) {
-            val fraction = if (overdrive) 1f else pressure / 100f
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                    .height(14.dp)
-                    .graphicsLayer {
-                        scaleX = glow
-                        transformOrigin = TransformOrigin(0f, 0.5f)
-                    }
-                    .clip(shape)
-                    .background(
-                        if (overdrive) Brush.horizontalGradient(listOf(Copper, BrassBright))
-                        else Brush.horizontalGradient(listOf(Copper, Brass)),
-                    ),
-            )
-        }
-    }
+    PressureDial(pressure, overdriveRemaining, modifier)
 }
 
 @Composable
@@ -434,7 +332,7 @@ fun BoardView(
     val shape = RoundedCornerShape(18.dp)
     BoxWithConstraints(modifier) {
         val board = maxWidth
-        val gap = board * 0.022f
+        val gap = board * 0.021f
         val cell = (board - gap * 5f) / 4f
 
         fun cellOffset(row: Int, col: Int): Dp2 = Dp2(gap + (cell + gap) * col, gap + (cell + gap) * row)
@@ -442,9 +340,12 @@ fun BoardView(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .shadow(14.dp, shape)
                 .clip(shape)
-                .background(Recess)
-                .border(1.5.dp, OutlineDim, shape)
+                .background(Brush.verticalGradient(listOf(Color(0xFF2A1B10), Recess)))
+                .border(3.dp, Brass, shape)
+                .padding(2.dp)
+                .border(1.dp, BrassBright.copy(alpha = 0.28f), RoundedCornerShape(15.dp))
                 .swipeDetector(onSwipe),
         ) {
             for (r in 0 until state.size) {
@@ -455,7 +356,8 @@ fun BoardView(
                             .offset(off.x, off.y)
                             .size(cell)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Panel.copy(alpha = 0.55f)),
+                            .background(Panel.copy(alpha = 0.68f))
+                            .border(1.dp, BrassDark.copy(alpha = 0.55f), RoundedCornerShape(10.dp)),
                     )
                 }
             }
@@ -468,9 +370,7 @@ fun BoardView(
                     return@LaunchedEffect
                 }
                 val targetById = res.merges.flatMap { m -> m.consumedIds.map { it to m.tile } }.toMap()
-                ghosts = previousTiles
-                    .filter { targetById.containsKey(it.id) }
-                    .map { it to targetById.getValue(it.id) }
+                ghosts = previousTiles.filter { targetById.containsKey(it.id) }.map { it to targetById.getValue(it.id) }
                 if (animationsActive) delay(MOVE_MS.toLong() + 30L)
                 ghosts = emptyList()
             }
@@ -562,25 +462,29 @@ private fun TileView(
         modifier = Modifier
             .offset { IntOffset(x.roundToPx(), y.roundToPx()) }
             .size(cell)
-            .graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-            }
+            .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
             .then(
-                if (colors.glow) {
-                    Modifier.shadow(10.dp, shape, ambientColor = BrassBright, spotColor = BrassBright)
-                } else {
-                    Modifier
-                },
+                if (colors.glow) Modifier.shadow(12.dp, shape, ambientColor = BrassBright, spotColor = TealGlow)
+                else Modifier.shadow(3.dp, shape),
             )
             .clip(shape)
             .background(tileBevel(tile.level))
-            .then(if (removable) Modifier.border(2.dp, BrassBright, shape).clickable(onClick = onClick) else Modifier)
+            .border(if (colors.glow) 2.dp else 1.dp, if (colors.glow) BrassBright else BrassDark, shape)
+            .then(if (removable) Modifier.border(3.dp, TealGlow, shape).clickable(onClick = onClick) else Modifier)
             .semantics { contentDescription = "${Elements.name(tile.level)}, ${tile.value}" },
         contentAlignment = Alignment.Center,
     ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val r = 2.dp.toPx()
+            val p = 7.dp.toPx()
+            val rivet = if (tile.level >= 7) BrassBright.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.28f)
+            drawCircle(rivet, r, Offset(p, p))
+            drawCircle(rivet, r, Offset(size.width - p, p))
+            drawCircle(rivet, r, Offset(p, size.height - p))
+            drawCircle(rivet, r, Offset(size.width - p, size.height - p))
+        }
         Text(
-            text = tile.value.toString(),
+            tile.value.toString(),
             style = if (tile.value >= 1024) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
             color = colors.content,
         )
@@ -615,11 +519,47 @@ private fun GhostTileView(
             .background(colors.background),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = from.value.toString(),
-            style = MaterialTheme.typography.headlineSmall,
-            color = colors.content,
-        )
+        Text(from.value.toString(), style = MaterialTheme.typography.headlineSmall, color = colors.content)
+    }
+}
+
+@Composable
+private fun ToolButton(
+    symbol: String,
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Row(
+        modifier = modifier
+            .height(58.dp)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    if (selected) listOf(TealSurface, Color(0xFF102B29)) else listOf(Color(0xFF4A311A), Recess),
+                ),
+            )
+            .border(2.dp, if (selected) TealGlow else Brass, shape)
+            .clickable(enabled = active, onClick = onClick)
+            .padding(horizontal = 10.dp)
+            .semantics { role = Role.Button; contentDescription = label },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (selected) TealSurface else Panel)
+                .border(1.dp, if (selected) TealGlow else BrassDark, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(symbol, color = if (active) BrassBright else TextMuted, style = MaterialTheme.typography.titleLarge)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(label, modifier = Modifier.weight(1f), color = if (active) TextWarm else TextMuted, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
     }
 }
 
@@ -631,86 +571,119 @@ private fun GameOverOverlay(
     onRestart: () -> Unit,
     onExit: () -> Unit,
 ) {
-    OverlayPanel {
-        Text(
-            if (ui.state.won) "ЯДРО В СБОРЕ!" else "СМЕНА ОКОНЧЕНА",
-            style = MaterialTheme.typography.displaySmall,
-            color = BrassBright,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Счёт: ${ui.state.score}" + if (ui.effects?.newBest == true) "  ·  НОВЫЙ РЕКОРД!" else "",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        val eff = ui.effects
-        if (eff != null) {
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "+${eff.xpGained} XP  ·  +${eff.gemsGained} ",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Brass,
-                )
-                com.steamforge.game.ui.workshop.GemIcon()
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.80f)).padding(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        SteamPanel(Modifier.fillMaxWidth().widthIn(max = 500.dp), highlighted = true) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("ИГРА ОКОНЧЕНА", style = MaterialTheme.typography.displaySmall, color = BrassBright, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(12.dp))
+                ResultRow("★", "ИТОГОВЫЙ СЧЁТ", ui.state.score.toString(), if (ui.effects?.newBest == true) TealGlow else TextWarm)
+                ResultRow("▣", "ЛУЧШАЯ ПЛИТКА", if (ui.state.maxLevel > 0) (1 shl ui.state.maxLevel).toString() else "—", TextWarm)
+                ResultRow("↔", "ВСЕГО ХОДОВ", ui.state.moves.toString(), TextWarm)
+                ResultRow("◆", "ПОЛУЧЕНО ГЕМОВ", "+${ui.effects?.gemsGained ?: 0}", TealGlow)
+                ResultRow("XP", "ПОЛУЧЕНО ОПЫТА", "+${ui.effects?.xpGained ?: 0}", TealGlow)
+
+                if (ui.effects?.levelUps?.isNotEmpty() == true) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("Мастерская: уровень ${ui.effects.levelUps.last()}!", color = BrassBright, style = MaterialTheme.typography.bodyLarge)
+                }
+                if (ui.effects?.newAchievements?.isNotEmpty() == true) {
+                    Text(
+                        "Открыто: " + ui.effects.newAchievements.joinToString { it.title },
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (ui.rewardDoubled) {
+                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+                        Text("◆ ГЕМЫ УДВОЕНЫ", modifier = Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                    }
+                } else if (rewardedAvailable) {
+                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+                        Text("УДВОИТЬ ГЕМЫ?", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = TextWarm, textAlign = TextAlign.Center)
+                        Text("Видео необязательно · награда +${ui.effects?.gemsGained ?: 0} гемов", modifier = Modifier.fillMaxWidth(), color = TextMuted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(8.dp))
+                        SteamButton("СМОТРЕТЬ И УДВОИТЬ", onRewarded, Modifier.fillMaxWidth(), style = SteamButtonStyle.Teal, icon = "▶")
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    SteamButton("СЫГРАТЬ СНОВА", onRestart, Modifier.weight(1f), style = SteamButtonStyle.Teal)
+                    Spacer(Modifier.width(8.dp))
+                    SteamButton("В МАСТЕРСКУЮ", onExit, Modifier.weight(1f), style = SteamButtonStyle.Brass)
+                }
             }
-            if (eff.levelUps.isNotEmpty()) {
-                Text("Мастерская: уровень ${eff.levelUps.last()}!", color = BrassBright)
-            }
-            if (eff.newAchievements.isNotEmpty()) {
-                Text(
-                    "Достижения: " + eff.newAchievements.joinToString { it.title },
-                    color = TextMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-        if (ui.rewardDoubled) {
-            Text(
-                "Гемы удвоены: +${ui.effects?.gemsGained ?: 0}",
-                color = BrassBright,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Spacer(Modifier.height(8.dp))
-        } else if (rewardedAvailable) {
-            Button(
-                onClick = onRewarded,
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = com.steamforge.game.theme.Patina,
-                    contentColor = com.steamforge.game.theme.Background,
-                ),
-            ) {
-                Text("Удвоить гемы (+${ui.effects?.gemsGained ?: 0}) за рекламу")
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onRestart) { Text("Заново") }
-            OutlinedButton(onClick = onExit) { Text("В мастерскую") }
         }
     }
 }
 
 @Composable
-private fun OverlayPanel(content: @Composable () -> Unit) {
+private fun ResultRow(icon: String, label: String, value: String, valueColor: Color) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(38.dp).clip(CircleShape).background(TealSurface.copy(alpha = 0.55f)).border(1.dp, Brass, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(icon, color = BrassBright, style = MaterialTheme.typography.labelLarge)
+        }
+        Spacer(Modifier.width(9.dp))
+        Text(label, modifier = Modifier.weight(1f), color = TextMuted, style = MaterialTheme.typography.labelMedium)
+        Text(value, color = valueColor, style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+private fun CoreOnlineOverlay(onContinue: () -> Unit, onExit: () -> Unit) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.72f)),
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)).padding(20.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            modifier = Modifier
-                .padding(24.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Panel)
-                .border(1.5.dp, OutlineDim, RoundedCornerShape(18.dp))
-                .padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            content()
+        SteamPanel(Modifier.fillMaxWidth().widthIn(max = 500.dp), highlighted = true) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("CORE ONLINE", style = MaterialTheme.typography.displaySmall, color = BrassBright, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    Modifier
+                        .size(150.dp)
+                        .clip(CircleShape)
+                        .background(Brush.radialGradient(listOf(TealGlow.copy(alpha = 0.42f), TealSurface, Recess)))
+                        .border(4.dp, Brass, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("ВЫ СОЗДАЛИ", style = MaterialTheme.typography.labelMedium, color = TextWarm)
+                        Text("2048", style = MaterialTheme.typography.displaySmall, color = BrassBright)
+                        Text("CORE", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("ПОЗДРАВЛЯЕМ!", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
+                Text(
+                    "Механическое ядро собрано. Мастерская ожила: давление стабильно, лампы горят, механизмы запущены.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                SteamPanel(Modifier.fillMaxWidth()) {
+                    Text("ДОСТИЖЕНИЕ РАЗБЛОКИРОВАНО", modifier = Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                    Text("Механическое ядро · 2048", modifier = Modifier.fillMaxWidth(), color = TextWarm, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    SteamButton("ПРОДОЛЖИТЬ", onContinue, Modifier.weight(1f), style = SteamButtonStyle.Teal)
+                    Spacer(Modifier.width(8.dp))
+                    SteamButton("В МАСТЕРСКУЮ", onExit, Modifier.weight(1f), style = SteamButtonStyle.Brass)
+                }
+            }
         }
     }
 }

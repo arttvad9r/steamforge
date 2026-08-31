@@ -1,0 +1,245 @@
+name: UI Emulator Smoke
+
+on:
+  pull_request:
+    branches:
+      - master
+      - fix/release-hardening
+    paths:
+      - 'app/src/main/java/com/steamforge/game/MainActivity.kt'
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
+      - 'app/src/main/java/com/steamforge/game/theme/**'
+      - 'app/src/main/java/com/steamforge/game/ui/**'
+      - '.github/workflows/ui-emulator-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install emulator packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platform-tools' \
+            'emulator' \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            'system-images;android-36;google_apis;x86_64'
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Create and boot emulator
+        run: |
+          set -euxo pipefail
+          ls -l /dev/kvm
+          sudo chmod 666 /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          AVDMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/avdmanager"
+          test -x "$AVDMANAGER"
+          echo no | "$AVDMANAGER" create avd \
+            -n steamforge_ci \
+            -k 'system-images;android-36;google_apis;x86_64' \
+            -d pixel_6 \
+            --force
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" "$ANDROID_HOME/emulator/emulator" -list-avds
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd steamforge_ci \
+            -no-window \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -accel on \
+            -camera-back none \
+            -camera-front none \
+            > emulator.log 2>&1 &
+          echo $! > emulator.pid
+          adb start-server
+          for i in $(seq 1 120); do
+            if adb devices | grep -q '^emulator-'; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          adb devices | grep '^emulator-'
+          for i in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          adb shell input keyevent 82 || true
+          adb shell settings put global window_animation_scale 0.5
+          adb shell settings put global transition_animation_scale 0.5
+          adb shell settings put global animator_duration_scale 0.5
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+
+      - name: Install and launch Steamforge
+        run: |
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          sleep 5
+          adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
+
+      - name: Capture real UI screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-screenshots
+
+          shot() {
+            adb exec-out screencap -p > "ci-screenshots/$1"
+            test -s "ci-screenshots/$1"
+          }
+
+          dump_ui() {
+            local label="${1:-window}"
+            for i in $(seq 1 15); do
+              adb shell rm -f /sdcard/window.xml >/dev/null 2>&1 || true
+              rm -f /tmp/window.xml /tmp/ui-dump.log
+              if adb shell uiautomator dump /sdcard/window.xml > /tmp/ui-dump.log 2>&1 && adb pull /sdcard/window.xml /tmp/window.xml >/dev/null 2>&1 && [ -s /tmp/window.xml ]; then
+                cp /tmp/window.xml "ci-screenshots/${label}.xml"
+                return 0
+              fi
+              echo "UI dump attempt $i failed"
+              cat /tmp/ui-dump.log || true
+              sleep 2
+            done
+            return 1
+          }
+
+          wait_for_text() {
+            local needle="$1"
+            local label="$2"
+            for i in $(seq 1 15); do
+              if dump_ui "$label" && grep -Fqi "$needle" /tmp/window.xml; then return 0; fi
+              sleep 2
+            done
+            echo "Text not found: $needle"
+            cat /tmp/window.xml || true
+            return 1
+          }
+
+          wait_for_tile() {
+            local label="${1:-02-game-window}"
+            for i in $(seq 1 15); do
+              if dump_ui "$label" && grep -Eqi 'content-desc="(Уголь|Медная шестерня),' /tmp/window.xml; then return 0; fi
+              sleep 2
+            done
+            echo 'Initial game tile not found'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
+          tap_node() {
+            local needle="$1"
+            local label="tap-${2:-node}"
+            dump_ui "$label"
+            python3 -c 'import re,sys,xml.etree.ElementTree as ET; n=sys.argv[1].casefold(); root=ET.parse("/tmp/window.xml").getroot(); parents={c:p for p in root.iter() for c in p}; matches=[x for x in root.iter("node") if n in (((x.attrib.get("text") or "")+" "+(x.attrib.get("content-desc") or "")).casefold())]; assert matches, "node not found: "+n; original=matches[0]; node=original; node=next((a for a in [node, parents.get(node), parents.get(parents.get(node)) if parents.get(node) is not None else None] if a is not None and a.attrib.get("clickable")=="true"), original); m=re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", "")); assert m, "bounds missing"; a=list(map(int,m.groups())); print((a[0]+a[2])//2,(a[1]+a[3])//2)' "$needle" > /tmp/tap.txt
+            read -r x y < /tmp/tap.txt
+            echo "Tap '$needle' at $x,$y"
+            adb shell input tap "$x" "$y"
+            sleep 2
+          }
+
+          # Standard phone (~411 x 914 dp)
+          wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
+          shot '00-consent.png'
+          if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
+          wait_for_text 'ИГРАТЬ' '01-workshop-window'
+          sleep 1
+          shot '01-workshop.png'
+
+          tap_node 'ИГРАТЬ' 'play'
+          wait_for_tile '02-game-window'
+          shot '02-game.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'ДОСТИЖЕНИЯ' '02-back-to-workshop-window'
+
+          tap_node 'ДОСТИЖЕНИЯ' 'achievements'
+          sleep 2
+          shot '03-achievements.png'
+          dump_ui '03-achievements-window' || true
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'НАСТРОЙКИ' '03-back-to-workshop-window'
+
+          tap_node 'НАСТРОЙКИ' 'settings'
+          sleep 2
+          shot '04-settings.png'
+          dump_ui '04-settings-window'
+          tap_node 'СБРОСИТЬ' 'reset-open'
+          wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
+          shot '05-reset-confirmation.png'
+          tap_node 'ОТМЕНА' 'reset-cancel'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'ИГРАТЬ' '05-back-to-workshop-window'
+
+          # Compact phone (360 x 800 dp): catches vertical and narrow-width regressions.
+          adb shell wm size 720x1600
+          adb shell wm density 320
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_text 'ИГРАТЬ' '10-compact-workshop-window'
+          shot '10-compact-workshop.png'
+
+          tap_node 'ИГРАТЬ' 'compact-play'
+          wait_for_tile '11-compact-game-window'
+          shot '11-compact-game.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'НАСТРОЙКИ' '11-compact-back-window'
+          tap_node 'НАСТРОЙКИ' 'compact-settings'
+          sleep 2
+          shot '12-compact-settings.png'
+          dump_ui '12-compact-settings-window' || true
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-real-ui
+          path: ci-screenshots/
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Emulator diagnostics on failure
+        if: failure()
+        run: |
+          echo '=== emulator.log ==='
+          tail -400 emulator.log || true
+          echo '=== adb devices ==='
+          adb devices -l || true
+          echo '=== window ==='
+          adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
+          adb shell uiautomator dump /sdcard/failure-window.xml || true
+          adb pull /sdcard/failure-window.xml /tmp/failure-window.xml || true
+          cat /tmp/failure-window.xml || true
