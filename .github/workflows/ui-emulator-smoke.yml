@@ -17,6 +17,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply visual fixes under test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ui_path = Path('app/src/main/java/com/steamforge/game/ui/components/SteamUi.kt')
+          ui = ui_path.read_text()
+          marker = 'fun SteamPanel('
+          start = ui.index(marker)
+          box_at = ui.index('    Box(\n', start)
+          ui = ui[:box_at] + ui[box_at:].replace('    Box(\n', '    Column(\n', 1)
+          old_value = '            Text(value, style = MaterialTheme.typography.titleLarge, color = accent)'
+          new_value = '''            Text(\n                value,\n                style = if (value.length > 7) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,\n                color = accent,\n                maxLines = 1,\n            )'''
+          if old_value not in ui:
+              raise SystemExit('StatPlate value anchor not found')
+          ui = ui.replace(old_value, new_value, 1)
+          ui_path.write_text(ui)
+
+          activity_path = Path('app/src/main/java/com/steamforge/game/MainActivity.kt')
+          activity = activity_path.read_text()
+          if 'import androidx.activity.SystemBarStyle' not in activity:
+              activity = activity.replace(
+                  'import androidx.activity.ComponentActivity\n',
+                  'import androidx.activity.ComponentActivity\nimport androidx.activity.SystemBarStyle\n',
+                  1,
+              )
+          old_edge = '        enableEdgeToEdge()\n'
+          new_edge = '''        enableEdgeToEdge(\n            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),\n            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),\n        )\n'''
+          if old_edge not in activity:
+              raise SystemExit('enableEdgeToEdge anchor not found')
+          activity = activity.replace(old_edge, new_edge, 1)
+          activity_path.write_text(activity)
+          PY
+
+          git diff --check
+          git diff -- app/src/main/java/com/steamforge/game/ui/components/SteamUi.kt app/src/main/java/com/steamforge/game/MainActivity.kt
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -100,6 +137,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf ci-screenshots
           mkdir -p ci-screenshots
 
           shot() {
@@ -135,6 +173,16 @@ jobs:
             return 1
           }
 
+          wait_for_game_tiles() {
+            for i in $(seq 1 15); do
+              if dump_ui '02-game-window' && grep -Eqi 'Уголь|Медная шестерня' /tmp/window.xml; then return 0; fi
+              sleep 2
+            done
+            echo 'Initial game tiles did not become ready'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           tap_node() {
             local needle="$1"
             local label="tap-${2:-node}"
@@ -148,14 +196,15 @@ jobs:
 
           shot '00-launch.png'
           wait_for_text 'Приватность' '00-launch-window'
+          shot '00-consent.png'
           if grep -Fqi 'Отключить' /tmp/window.xml; then tap_node 'Отключить' 'privacy-disable'; fi
           wait_for_text 'ИГРАТЬ' '01-workshop-window'
           shot '01-workshop.png'
 
           tap_node 'ИГРАТЬ' 'play'
-          sleep 2
+          wait_for_game_tiles
+          sleep 1
           shot '02-game.png'
-          dump_ui '02-game-window' || true
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           wait_for_text 'ДОСТИЖЕНИЯ' '02-back-to-workshop-window'
@@ -186,11 +235,12 @@ jobs:
         if: always()
         run: |
           if [ ! -d ci-screenshots ] || [ -z "$(find ci-screenshots -type f -print -quit)" ]; then exit 0; fi
+          git restore app/src/main/java/com/steamforge/game/ui/components/SteamUi.kt app/src/main/java/com/steamforge/game/MainActivity.kt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci-screenshots/
           if ! git diff --cached --quiet; then
-            git commit -m 'ci: capture real emulator UI screenshots'
+            git commit -m 'ci: capture patched emulator UI screenshots'
             git push
           fi
 
