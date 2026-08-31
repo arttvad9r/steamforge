@@ -156,8 +156,8 @@ jobs:
             sleep 2
           }
 
-          shot '00-launch.png'
-          wait_for_text 'Приватность' '00-launch-window'
+          wait_for_text 'Приватность' '00-consent-window'
+          shot '00-consent.png'
           if grep -Fqi 'Отключить' /tmp/window.xml; then tap_node 'Отключить' 'privacy-disable'; fi
           wait_for_text 'ИГРАТЬ' '01-workshop-window'
           sleep 1
