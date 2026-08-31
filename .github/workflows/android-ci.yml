@@ -56,7 +56,9 @@ jobs:
           bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
           python3 - <<'PY'
+          import re
           import xml.etree.ElementTree as ET
+          from pathlib import Path
 
           android = '{http://schemas.android.com/apk/res/android}'
           root = ET.parse('app/src/main/AndroidManifest.xml').getroot()
@@ -66,6 +68,20 @@ jobs:
           ]
           if len(matches) != 1 or matches[0].get(android + 'value') != 'false':
               raise SystemExit('Yandex Mobile Ads automatic initialization must stay disabled')
+
+          tracked_gradle = Path('gradle.properties').read_text(encoding='utf-8')
+          sensitive = (
+              'steamforge.appmetricaApiKey',
+              'steamforge.privacyPolicyUrl',
+              'steamforge.rewardedAdUnitId',
+              'steamforge.interstitialAdUnitId',
+          )
+          leaked = [
+              key for key in sensitive
+              if re.search(rf'^\s*{re.escape(key)}\s*=', tracked_gradle, re.MULTILINE)
+          ]
+          if leaked:
+              raise SystemExit('Production properties must not be committed: ' + ', '.join(leaked))
           PY
 
       - name: Verify
