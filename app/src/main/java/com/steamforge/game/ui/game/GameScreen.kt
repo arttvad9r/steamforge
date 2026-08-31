@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -417,7 +418,7 @@ fun BoardView(
             }
 
             var ghosts by remember { mutableStateOf<List<Pair<Tile, Tile>>>(emptyList()) }
-            LaunchedEffect(lastResult) {
+            LaunchedEffect(lastResult, animationsActive) {
                 val res = lastResult
                 if (res == null || previousTiles.isEmpty()) {
                     ghosts = emptyList()
@@ -425,30 +426,34 @@ fun BoardView(
                 }
                 val targetById = res.merges.flatMap { m -> m.consumedIds.map { it to m.tile } }.toMap()
                 ghosts = previousTiles.filter { targetById.containsKey(it.id) }.map { it to targetById.getValue(it.id) }
-                if (animationsActive) delay(MOVE_MS.toLong() + 30L)
+                if (animationsActive) delay(MOVE_MS.toLong() + 16L)
                 ghosts = emptyList()
             }
             ghosts.forEach { (from, target) ->
-                GhostTileView(from, target, ::cellOffset, cell, animationsActive)
+                key(from.id, target.id) {
+                    GhostTileView(from, target, ::cellOffset, cell, animationsActive)
+                }
             }
 
             val spawnedId = lastResult?.spawned?.id
             val mergedIds = lastResult?.merges?.map { it.tile.id }?.toSet() ?: emptySet()
             for (tile in state.tiles) {
-                val appear = when (tile.id) {
-                    spawnedId -> Appear.SPAWN
-                    in mergedIds -> Appear.MERGE
-                    else -> Appear.NONE
+                key(tile.id) {
+                    val appear = when (tile.id) {
+                        spawnedId -> Appear.SPAWN
+                        in mergedIds -> Appear.MERGE
+                        else -> Appear.NONE
+                    }
+                    TileView(
+                        tile = tile,
+                        target = cellOffset(tile.row, tile.col),
+                        cell = cell,
+                        appear = appear,
+                        animationsActive = animationsActive,
+                        removable = removingMode && canRemove(tile),
+                        onClick = { onTileClick(tile) },
+                    )
                 }
-                TileView(
-                    tile = tile,
-                    target = cellOffset(tile.row, tile.col),
-                    cell = cell,
-                    appear = appear,
-                    animationsActive = animationsActive,
-                    removable = removingMode && canRemove(tile),
-                    onClick = { onTileClick(tile) },
-                )
             }
         }
     }
@@ -458,27 +463,33 @@ private data class Dp2(val x: Dp, val y: Dp)
 private enum class Appear { NONE, SPAWN, MERGE }
 
 private fun Modifier.swipeDetector(onSwipe: (Move) -> Unit): Modifier =
-    pointerInput(Unit) {
+    pointerInput(onSwipe) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
-            val threshold = 24.dp.toPx()
+            val threshold = viewConfiguration.touchSlop
             var total = Offset.Zero
-            var pressed = true
-            while (pressed) {
+            var dispatched = false
+            while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull() ?: break
-                if (!change.isConsumed) total += change.positionChange()
-                change.consume()
-                if (!change.pressed) pressed = false
-            }
-            if (abs(total.x) < threshold && abs(total.y) < threshold) return@awaitEachGesture
-            onSwipe(
-                if (abs(total.x) > abs(total.y)) {
-                    if (total.x > 0) Move.RIGHT else Move.LEFT
+                if (!dispatched) {
+                    total += change.positionChange()
+                    if (abs(total.x) >= threshold || abs(total.y) >= threshold) {
+                        dispatched = true
+                        onSwipe(
+                            if (abs(total.x) > abs(total.y)) {
+                                if (total.x > 0) Move.RIGHT else Move.LEFT
+                            } else {
+                                if (total.y > 0) Move.DOWN else Move.UP
+                            },
+                        )
+                        change.consume()
+                    }
                 } else {
-                    if (total.y > 0) Move.DOWN else Move.UP
-                },
-            )
+                    change.consume()
+                }
+                if (!change.pressed) break
+            }
         }
     }
 
@@ -495,19 +506,30 @@ private fun TileView(
     val spec = tween<Dp>(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing)
     val x by animateDpAsState(target.x, spec, label = "x${tile.id}")
     val y by animateDpAsState(target.y, spec, label = "y${tile.id}")
-    val scale = remember(tile.id) { Animatable(if (appear == Appear.NONE) 1f else 0.35f) }
-    LaunchedEffect(tile.id, appear) {
+    val scale = remember(tile.id) { Animatable(if (animationsActive && appear != Appear.NONE) 0f else 1f) }
+    LaunchedEffect(tile.id, appear, animationsActive) {
         when {
-            appear == Appear.NONE -> if (scale.value < 1f) scale.snapTo(1f)
             !animationsActive -> scale.snapTo(1f)
-            appear == Appear.SPAWN -> scale.animateTo(1f, tween(SPAWN_MS, easing = LinearOutSlowInEasing))
-            else -> scale.animateTo(
-                1f,
-                keyframes {
-                    durationMillis = POP_MS
-                    1.18f at POP_MS / 2
-                },
-            )
+            appear == Appear.NONE -> scale.snapTo(1f)
+            appear == Appear.SPAWN -> {
+                scale.snapTo(0f)
+                delay(MOVE_MS.toLong())
+                scale.animateTo(1f, tween(SPAWN_MS, easing = LinearOutSlowInEasing))
+            }
+            else -> {
+                scale.snapTo(0f)
+                delay(MOVE_MS.toLong())
+                scale.snapTo(1f)
+                scale.animateTo(
+                    1f,
+                    keyframes {
+                        durationMillis = POP_MS
+                        1f at 0
+                        1.18f at POP_MS / 2
+                        1f at POP_MS
+                    },
+                )
+            }
         }
     }
     val colors = tileColors(tile.level)
@@ -579,15 +601,16 @@ private fun GhostTileView(
     cell: Dp,
     animationsActive: Boolean,
 ) {
-    var current by remember { mutableStateOf(cellOffset(from.row, from.col)) }
-    val x by animateDpAsState(current.x, tween(MOVE_MS, easing = LinearOutSlowInEasing), label = "gx")
-    val y by animateDpAsState(current.y, tween(MOVE_MS, easing = LinearOutSlowInEasing), label = "gy")
-    val alpha = remember { Animatable(1f) }
-    LaunchedEffect(Unit) {
-        if (!animationsActive) return@LaunchedEffect
+    var current by remember(from.id, target.id) { mutableStateOf(cellOffset(from.row, from.col)) }
+    val x by animateDpAsState(current.x, tween(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing), label = "gx${from.id}")
+    val y by animateDpAsState(current.y, tween(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing), label = "gy${from.id}")
+    LaunchedEffect(from.id, target.id, animationsActive) {
+        if (!animationsActive) {
+            current = cellOffset(target.row, target.col)
+            return@LaunchedEffect
+        }
         withFrameNanos { }
         current = cellOffset(target.row, target.col)
-        alpha.animateTo(0.1f, tween(MOVE_MS))
     }
     val colors = tileColors(from.level)
     val shape = RoundedCornerShape(10.dp)
@@ -595,7 +618,6 @@ private fun GhostTileView(
         modifier = Modifier
             .offset { IntOffset(x.roundToPx(), y.roundToPx()) }
             .size(cell)
-            .graphicsLayer { this.alpha = alpha.value }
             .clip(shape)
             .background(tileBevel(from.level))
             .border(1.dp, BrassDark.copy(alpha = 0.65f), shape),
