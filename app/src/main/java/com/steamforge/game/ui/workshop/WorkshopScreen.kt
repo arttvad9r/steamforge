@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -56,7 +57,6 @@ import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.Copper
 import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.Recess
-import com.steamforge.game.theme.Steel
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
@@ -116,11 +116,11 @@ fun WorkshopScreen(
             Spacer(Modifier.height(14.dp))
 
             Row(Modifier.fillMaxWidth()) {
-                MenuCard("⚒", "ИГРАТЬ", TealSurface, onPlay, Modifier.weight(1f))
+                MenuCard("⚒", "ИГРАТЬ", TealSurface, onPlay, Modifier.weight(1f), accent = TealGlow)
                 Spacer(Modifier.width(8.dp))
-                MenuCard("★", "ДОСТИЖЕНИЯ", Color(0xFF70451F), onAchievements, Modifier.weight(1f))
+                MenuCard("★", "ДОСТИЖЕНИЯ", Color(0xFF6A3F20), onAchievements, Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
-                MenuCard("⚙", "НАСТРОЙКИ", Color(0xFF4C3B45), onSettings, Modifier.weight(1f))
+                MenuCard("⚙", "НАСТРОЙКИ", Color(0xFF2C3436), onSettings, Modifier.weight(1f))
             }
             Spacer(Modifier.height(14.dp))
 
@@ -345,29 +345,78 @@ private fun MenuCard(
     color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    accent: Color = BrassBright,
 ) {
     val shape = RoundedCornerShape(14.dp)
-    Column(
+    val innerShape = RoundedCornerShape(11.dp)
+    val outline = if (accent == TealGlow) TealGlow.copy(alpha = 0.78f) else Brass.copy(alpha = 0.90f)
+
+    Box(
         modifier = modifier
             .height(104.dp)
+            .shadow(8.dp, shape)
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.95f), Recess)))
-            .border(2.dp, Brass, shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        color.copy(alpha = 0.90f),
+                        Panel.copy(alpha = 0.98f),
+                        Recess,
+                    ),
+                ),
+            )
+            .border(2.dp, outline, shape)
             .clickable(onClick = onClick)
-            .padding(8.dp)
+            .padding(3.dp)
+            .border(1.dp, BrassBright.copy(alpha = 0.13f), innerShape)
             .semantics { role = Role.Button; contentDescription = label },
-        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(6.dp))
-        Text(icon, style = MaterialTheme.typography.headlineSmall, color = BrassBright)
-        Spacer(Modifier.weight(1f))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = TextWarm,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-        )
+        Canvas(Modifier.fillMaxSize()) {
+            val inset = 8.dp.toPx()
+            val r = 1.45.dp.toPx()
+            val rivet = accent.copy(alpha = if (accent == TealGlow) 0.34f else 0.26f)
+            val centers = listOf(
+                Offset(inset, inset),
+                Offset(size.width - inset, inset),
+                Offset(inset, size.height - inset),
+                Offset(size.width - inset, size.height - inset),
+            )
+            centers.forEach { center ->
+                drawCircle(Color.Black.copy(alpha = 0.42f), r * 1.35f, center + Offset(0.6.dp.toPx(), 0.6.dp.toPx()))
+                drawCircle(rivet, r, center)
+                drawCircle(Color.White.copy(alpha = 0.14f), r * 0.35f, center - Offset(0.35.dp.toPx(), 0.35.dp.toPx()))
+            }
+            drawLine(
+                Color.White.copy(alpha = 0.07f),
+                Offset(inset * 1.8f, 5.dp.toPx()),
+                Offset(size.width - inset * 1.8f, 5.dp.toPx()),
+                1.dp.toPx(),
+            )
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.28f), Recess)))
+                    .border(1.dp, accent.copy(alpha = 0.72f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(icon, style = MaterialTheme.typography.titleLarge, color = accent)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextWarm,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
     }
 }
