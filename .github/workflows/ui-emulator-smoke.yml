@@ -1,6 +1,15 @@
 name: UI Emulator Smoke
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'app/src/main/java/com/steamforge/game/MainActivity.kt'
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
+      - 'app/src/main/java/com/steamforge/game/theme/**'
+      - 'app/src/main/java/com/steamforge/game/ui/**'
+      - '.github/workflows/ui-emulator-smoke.yml'
   pull_request:
     branches:
       - master
@@ -111,11 +120,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ci-screenshots
+          mkdir -p ci-screenshots store-screenshots
 
           shot() {
             adb exec-out screencap -p > "ci-screenshots/$1"
             test -s "ci-screenshots/$1"
+          }
+
+          store_shot() {
+            adb exec-out screencap -p > "store-screenshots/$1"
+            test -s "store-screenshots/$1"
+            file "store-screenshots/$1"
           }
 
           dump_ui() {
@@ -222,6 +237,42 @@ jobs:
           shot '12-compact-settings.png'
           dump_ui '12-compact-settings-window' || true
 
+          # Reproducible RuStore assets: exact 9:16 screenshots with Android system bars hidden.
+          # This is still the real debug app rendered by Android; only system chrome is hidden.
+          adb shell settings put global policy_control immersive.full=com.steamforge.game || true
+          adb shell wm size 1080x1920
+          adb shell wm density 420
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_text 'ИГРАТЬ' '20-store-workshop-window'
+          sleep 1
+          store_shot '01-workshop-1080x1920.png'
+
+          tap_node 'ИГРАТЬ' 'store-play'
+          wait_for_tile '21-store-game-window'
+          store_shot '02-game-1080x1920.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'ДОСТИЖЕНИЯ' '21-store-back-window'
+          tap_node 'ДОСТИЖЕНИЯ' 'store-achievements'
+          sleep 2
+          store_shot '03-achievements-1080x1920.png'
+
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+
+          expected = (1080, 1920)
+          for path in sorted(Path('store-screenshots').glob('*.png')):
+              data = path.read_bytes()
+              if data[:8] != b'\x89PNG\r\n\x1a\n':
+                  raise SystemExit(f'{path}: not a PNG')
+              width, height = struct.unpack('>II', data[16:24])
+              print(f'{path}: {width}x{height}')
+              if (width, height) != expected:
+                  raise SystemExit(f'{path}: expected {expected[0]}x{expected[1]}')
+          PY
+
       - name: Upload screenshot artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -230,6 +281,15 @@ jobs:
           path: ci-screenshots/
           if-no-files-found: warn
           retention-days: 3
+
+      - name: Upload RuStore screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-rustore-screenshots
+          path: store-screenshots/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Emulator diagnostics on failure
         if: failure()
