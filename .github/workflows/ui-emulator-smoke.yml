@@ -59,7 +59,7 @@ jobs:
             --force
 
           echo '=== AVD files ==='
-          find "$ANDROID_AVD_HOME" -maxdepth 2 -type f -o -type d | sort
+          find "$ANDROID_AVD_HOME" -maxdepth 2 \( -type f -o -type d \) | sort
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" "$ANDROID_HOME/emulator/emulator" -list-avds
 
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
@@ -114,7 +114,7 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          sleep 4
+          sleep 5
           adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
 
       - name: Capture real UI screens
@@ -123,59 +123,126 @@ jobs:
           set -euo pipefail
           mkdir -p ci-screenshots
 
+          shot() {
+            adb exec-out screencap -p > "ci-screenshots/$1"
+            test -s "ci-screenshots/$1"
+          }
+
           dump_ui() {
-            adb shell uiautomator dump /sdcard/window.xml >/dev/null
-            adb pull /sdcard/window.xml /tmp/window.xml >/dev/null
+            local label="${1:-window}"
+            for i in $(seq 1 15); do
+              adb shell rm -f /sdcard/window.xml >/dev/null 2>&1 || true
+              rm -f /tmp/window.xml /tmp/ui-dump.log
+              if adb shell uiautomator dump /sdcard/window.xml > /tmp/ui-dump.log 2>&1 && \
+                 adb pull /sdcard/window.xml /tmp/window.xml >/dev/null 2>&1 && \
+                 [ -s /tmp/window.xml ]; then
+                cp /tmp/window.xml "ci-screenshots/${label}.xml"
+                return 0
+              fi
+              echo "UI dump attempt $i failed"
+              cat /tmp/ui-dump.log || true
+              sleep 2
+            done
+            echo "Unable to obtain UI hierarchy for $label"
+            return 1
+          }
+
+          wait_for_text() {
+            local needle="$1"
+            local label="$2"
+            for i in $(seq 1 15); do
+              if dump_ui "$label" && grep -Fqi "$needle" /tmp/window.xml; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo "Text not found: $needle"
+            cat /tmp/window.xml || true
+            return 1
           }
 
           tap_node() {
             local needle="$1"
-            dump_ui
-            python3 -c 'import re,sys,xml.etree.ElementTree as ET; n=sys.argv[1].casefold(); nodes=[x for x in ET.parse("/tmp/window.xml").getroot().iter("node") if n in (((x.attrib.get("text") or "")+" "+(x.attrib.get("content-desc") or "")).casefold())]; assert nodes, "node not found: "+n; m=re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", nodes[0].attrib.get("bounds", "")); assert m, "bounds missing"; a=list(map(int,m.groups())); print((a[0]+a[2])//2, (a[1]+a[3])//2)' "$needle" > /tmp/tap.txt
+            local label="tap-${2:-node}"
+            dump_ui "$label"
+            python3 - "$needle" <<'PY' > /tmp/tap.txt
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+needle = sys.argv[1].casefold()
+root = ET.parse('/tmp/window.xml').getroot()
+parent = {child: p for p in root.iter() for child in p}
+match = None
+for node in root.iter('node'):
+    hay = ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
+    if needle in hay:
+        match = node
+        break
+if match is None:
+    raise SystemExit('node not found: ' + needle)
+node = match
+while node.attrib.get('clickable') != 'true' and node in parent:
+    node = parent[node]
+bounds = node.attrib.get('bounds') or match.attrib.get('bounds') or ''
+m = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', bounds)
+if not m:
+    raise SystemExit('bounds missing for: ' + needle)
+x1, y1, x2, y2 = map(int, m.groups())
+print((x1 + x2) // 2, (y1 + y2) // 2)
+PY
             read -r x y < /tmp/tap.txt
+            echo "Tap '$needle' at $x,$y"
             adb shell input tap "$x" "$y"
             sleep 2
           }
 
-          shot() {
-            adb exec-out screencap -p > "ci-screenshots/$1.png"
-          }
-
-          dump_ui
-          cp /tmp/window.xml ci-screenshots/00-launch-window.xml
+          # A raw screenshot does not depend on accessibility readiness.
           shot '00-launch.png'
+          wait_for_text 'Приватность' '00-launch-window'
 
-          if grep -qi 'Отключить' /tmp/window.xml; then
-            tap_node 'Отключить'
+          if grep -Fqi 'Отключить' /tmp/window.xml; then
+            tap_node 'Отключить' 'privacy-disable'
           fi
+          wait_for_text 'ИГРАТЬ' '01-workshop-window'
           shot '01-workshop.png'
 
-          tap_node 'ИГРАТЬ'
+          tap_node 'ИГРАТЬ' 'play'
+          sleep 2
           shot '02-game.png'
+          dump_ui '02-game-window' || true
           adb shell input keyevent KEYCODE_BACK
           sleep 2
+          wait_for_text 'ДОСТИЖЕНИЯ' '02-back-to-workshop-window'
 
-          tap_node 'ДОСТИЖЕНИЯ'
+          tap_node 'ДОСТИЖЕНИЯ' 'achievements'
+          sleep 2
           shot '03-achievements.png'
+          dump_ui '03-achievements-window' || true
           adb shell input keyevent KEYCODE_BACK
           sleep 2
+          wait_for_text 'НАСТРОЙКИ' '03-back-to-workshop-window'
 
-          tap_node 'НАСТРОЙКИ'
+          tap_node 'НАСТРОЙКИ' 'settings'
+          sleep 2
           shot '04-settings.png'
-
-          dump_ui
-          cp /tmp/window.xml ci-screenshots/last-window.xml
+          dump_ui '04-settings-window'
 
       - name: Upload screenshot artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: steamforge-real-ui
           path: ci-screenshots/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 3
 
       - name: Publish screenshots to smoke branch
+        if: always()
         run: |
+          if [ ! -d ci-screenshots ] || [ -z "$(find ci-screenshots -type f -print -quit)" ]; then
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci-screenshots/
@@ -193,7 +260,9 @@ jobs:
           adb devices -l || true
           echo '=== process ==='
           ps aux | grep '[e]mulator' || true
+          echo '=== window ==='
+          adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
           echo '=== UI hierarchy ==='
-          adb shell uiautomator dump /sdcard/window.xml || true
-          adb pull /sdcard/window.xml /tmp/failure-window.xml || true
+          adb shell uiautomator dump /sdcard/failure-window.xml || true
+          adb pull /sdcard/failure-window.xml /tmp/failure-window.xml || true
           cat /tmp/failure-window.xml || true
