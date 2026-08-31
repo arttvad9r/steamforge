@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ui-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   visual-smoke:
     runs-on: ubuntu-latest
@@ -136,8 +140,9 @@ jobs:
           }
 
           wait_for_tile() {
+            local label="${1:-02-game-window}"
             for i in $(seq 1 15); do
-              if dump_ui '02-game-window' && grep -Eqi 'content-desc="(Уголь|Медная шестерня),' /tmp/window.xml; then return 0; fi
+              if dump_ui "$label" && grep -Eqi 'content-desc="(Уголь|Медная шестерня),' /tmp/window.xml; then return 0; fi
               sleep 2
             done
             echo 'Initial game tile not found'
@@ -156,15 +161,16 @@ jobs:
             sleep 2
           }
 
-          wait_for_text 'Приватность' '00-consent-window'
+          # Standard phone (~411 x 914 dp)
+          wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
           shot '00-consent.png'
-          if grep -Fqi 'Отключить' /tmp/window.xml; then tap_node 'Отключить' 'privacy-disable'; fi
+          if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
           wait_for_text 'ИГРАТЬ' '01-workshop-window'
           sleep 1
           shot '01-workshop.png'
 
           tap_node 'ИГРАТЬ' 'play'
-          wait_for_tile
+          wait_for_tile '02-game-window'
           shot '02-game.png'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
@@ -182,6 +188,32 @@ jobs:
           sleep 2
           shot '04-settings.png'
           dump_ui '04-settings-window'
+          tap_node 'СБРОСИТЬ' 'reset-open'
+          wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
+          shot '05-reset-confirmation.png'
+          tap_node 'ОТМЕНА' 'reset-cancel'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'ИГРАТЬ' '05-back-to-workshop-window'
+
+          # Compact phone (360 x 800 dp): catches vertical and narrow-width regressions.
+          adb shell wm size 720x1600
+          adb shell wm density 320
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_text 'ИГРАТЬ' '10-compact-workshop-window'
+          shot '10-compact-workshop.png'
+
+          tap_node 'ИГРАТЬ' 'compact-play'
+          wait_for_tile '11-compact-game-window'
+          shot '11-compact-game.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'НАСТРОЙКИ' '11-compact-back-window'
+          tap_node 'НАСТРОЙКИ' 'compact-settings'
+          sleep 2
+          shot '12-compact-settings.png'
+          dump_ui '12-compact-settings-window' || true
 
       - name: Upload screenshot artifact
         if: always()
