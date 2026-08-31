@@ -116,7 +116,6 @@ jobs:
           adb shell service check window | grep -q 'found'
 
           # Fresh preview images continue first-boot provisioning after framework services appear.
-          # Wait for the setup flags, then leave enough time for GMS/system startup pressure to settle.
           for i in $(seq 1 30); do
             device_provisioned="$(adb shell settings get global device_provisioned 2>/dev/null | tr -d '\r' || true)"
             user_setup_complete="$(adb shell settings get secure user_setup_complete 2>/dev/null | tr -d '\r' || true)"
@@ -126,7 +125,6 @@ jobs:
           done
           sleep 45
           adb shell df -h /data
-          adb shell dumpsys meminfo | head -40 || true
 
       - name: Verify Android 17 and 16 KB runtime
         run: |
@@ -141,7 +139,48 @@ jobs:
       - name: Install and launch Steamforge
         run: |
           set -euxo pipefail
-          adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+          wait_for_framework() {
+            local stable=0
+            for i in $(seq 1 90); do
+              package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
+              window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
+              activity_service="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
+              if [[ "$package_service" == *found* && "$window_service" == *found* && "$activity_service" == *found* ]]; then
+                stable=$((stable + 1))
+                if [ "$stable" -ge 5 ]; then
+                  echo 'Android framework services stable for 10 seconds.'
+                  return 0
+                fi
+              else
+                stable=0
+              fi
+              if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then
+                cat emulator-android17.log
+                return 1
+              fi
+              sleep 2
+            done
+            echo 'Android framework services did not reach a stable state.'
+            return 1
+          }
+
+          wait_for_framework
+
+          install_output=''
+          if ! install_output="$(adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1)"; then
+            echo "$install_output"
+            if grep -Fq "Can't find service: package" <<< "$install_output"; then
+              echo 'Package service restarted during install; waiting for framework recovery and retrying once.'
+              wait_for_framework
+              adb install -r app/build/outputs/apk/debug/app-debug.apk
+            else
+              exit 1
+            fi
+          else
+            echo "$install_output"
+          fi
+
           adb logcat -c
 
           wait_for_resumed() {
@@ -164,17 +203,15 @@ jobs:
           }
 
           if ! launch_once; then
-            echo 'First launch was interrupted; allowing preview provisioning to settle before one retry.'
-            sleep 15
+            echo 'First launch was interrupted; waiting for framework stability before one retry.'
+            wait_for_framework
             launch_once
           fi
 
-          # Require the process/activity to remain healthy after launch. If preview provisioning interrupts
-          # the first stable state, permit one final explicit restart, then require stability again.
           sleep 5
           if ! wait_for_resumed; then
             echo 'Foreground process was interrupted after launch; performing final bounded restart.'
-            sleep 10
+            wait_for_framework
             launch_once
             sleep 5
             wait_for_resumed
@@ -204,6 +241,7 @@ jobs:
           echo '=== services ==='
           adb shell service check package || true
           adb shell service check window || true
+          adb shell service check activity || true
           echo '=== process ==='
           adb shell pidof com.steamforge.game || true
           echo '=== activity ==='
