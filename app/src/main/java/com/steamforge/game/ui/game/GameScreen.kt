@@ -206,29 +206,38 @@ fun GameScreen(
                 Spacer(Modifier.width(8.dp))
                 StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(7.dp))
 
-            SteamPanel(Modifier.fillMaxWidth(), highlighted = ui.overdriveRemaining > 0) {
+            SteamPanel(
+                modifier = Modifier.fillMaxWidth(),
+                highlighted = ui.overdriveRemaining > 0,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatPlate("ХОДЫ", ui.state.moves.toString(), Modifier.weight(0.78f), BrassBright)
-                    Spacer(Modifier.width(8.dp))
+                    HudMetric(
+                        label = "ХОДЫ",
+                        value = ui.state.moves.toString(),
+                        accent = BrassBright,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(6.dp))
                     PressureGauge(
                         pressure = ui.pressure,
                         overdriveRemaining = ui.overdriveRemaining,
                         animationsActive = ui.animationsActive,
-                        modifier = Modifier.size(130.dp),
+                        modifier = Modifier.size(112.dp),
                     )
-                    Spacer(Modifier.width(8.dp))
-                    StatPlate(
-                        "ОТМЕНА",
-                        if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
-                        Modifier.weight(0.9f),
-                        if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
+                    Spacer(Modifier.width(6.dp))
+                    HudMetric(
+                        label = "ОТМЕНА",
+                        value = if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
+                        accent = if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 val daily = ui.daily
                 if (daily != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
                         modifier = Modifier.fillMaxWidth(),
@@ -238,7 +247,7 @@ fun GameScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(7.dp))
 
             BoardView(
                 state = ui.state,
@@ -298,6 +307,38 @@ fun GameScreen(
         )
     } else if (ui.winCelebrated && !ui.winBannerShown) {
         CoreOnlineOverlay(onContinue = vm::markWinBannerShown, onExit = ::leave)
+    }
+}
+
+@Composable
+private fun HudMetric(
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    val valueStyle = if (value.length <= 5) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelLarge
+    Column(
+        modifier = modifier.semantics { contentDescription = "$label: $value" },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = TextMuted,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = value,
+            modifier = Modifier.fillMaxWidth(),
+            style = valueStyle,
+            color = accent,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
