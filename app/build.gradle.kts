@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -9,6 +10,30 @@ plugins {
 val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
+}
+
+val generatedLauncherResDir = layout.buildDirectory.dir("generated/steamforgeLauncher/res")
+val launcherIconParts = fileTree("src/main/icon-assets") {
+    include("steamforge-launcher-*.b64")
+}
+val generateLauncherIcon by tasks.registering {
+    val outputFile = generatedLauncherResDir.map { it.file("drawable-nodpi/ic_launcher_art.webp") }
+    inputs.files(launcherIconParts)
+    outputs.file(outputFile)
+
+    doLast {
+        val encoded = launcherIconParts.files
+            .sortedBy { it.name }
+            .joinToString(separator = "") { it.readText().trim() }
+        val decoded = Base64.getDecoder().decode(encoded)
+        check(decoded.size == 44_702) { "Unexpected launcher icon size: ${decoded.size}" }
+        check(decoded.copyOfRange(0, 4).contentEquals("RIFF".toByteArray())) { "Launcher icon is not RIFF" }
+        check(decoded.copyOfRange(8, 12).contentEquals("WEBP".toByteArray())) { "Launcher icon is not WebP" }
+
+        val target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.writeBytes(decoded)
+    }
 }
 
 android {
@@ -60,11 +85,17 @@ android {
       shaders = false
     }
 
+    sourceSets["main"].res.srcDir(generatedLauncherResDir.get().asFile)
+
     packaging {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+}
+
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Resources") }.configureEach {
+    dependsOn(generateLauncherIcon)
 }
 
 fun prop(name: String, fallback: String): String =
