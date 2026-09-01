@@ -130,7 +130,7 @@ fun EventScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Объединения плиток 64+ дают по 25 Steam Pressure. Событие использует обычные партии — отдельного event-режима доски нет.",
+                    "Объединения плиток 64+ дают по 25 Steam Pressure. Давление копится в обычных партиях до конца события.",
                     modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
@@ -209,10 +209,10 @@ fun EventScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
             ) {
-                Text("LIVEOPS FRAMEWORK V1", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+                Text("ПРАВИЛА СОБЫТИЯ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Foundry Week описан данными: сроки, правило счёта, milestones, rewards, theme, collection и feature flags. Следующее событие может заменить эти параметры без отдельной gameplay-ветки.",
+                    "Играйте обычные партии и повышайте Steam Pressure объединениями 64+. Достигнутые рубежи можно забрать один раз до ротации события.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
                 )
