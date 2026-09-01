@@ -3,10 +3,10 @@ package com.steamforge.game.config
 import com.steamforge.game.progression.ContractType
 import com.steamforge.game.progression.EventDefinition
 import com.steamforge.game.progression.EventMilestone
+import com.steamforge.game.progression.EventMetric
 import com.steamforge.game.progression.EventReward
 import com.steamforge.game.progression.EventScoringRule
 import com.steamforge.game.progression.EventTheme
-import com.steamforge.game.progression.EventMetric
 import com.steamforge.game.progression.ProgressionConfig
 
 /**
@@ -58,6 +58,7 @@ data class ContractTuning(
 }
 
 data class FeatureFlags(
+    val dailyChallenge: Boolean = true,
     val dailyContracts: Boolean = true,
     val weeklyChallenge: Boolean = true,
     val liveOps: Boolean = true,
@@ -81,7 +82,7 @@ data class EventTemplateConfig(
             .filter { it.targetPoints > 0 }
             .distinctBy { it.id }
             .sortedBy { it.targetPoints }
-            .ifEmpty { LocalDefaultConfig.foundryTemplate.milestones }
+            .ifEmpty { LocalDefaultConfig.foundryMilestones }
         return EventDefinition(
             id = "$idPrefix-$start",
             startEpochDay = start,
@@ -108,6 +109,11 @@ data class RemoteGameConfig(
 
     fun progressionConfig(): ProgressionConfig = economy.applyTo()
 
+    fun scaleReward(base: Int): Int =
+        ((base.coerceAtLeast(0).toLong() * safeRewardMultiplierPercent) / 100L)
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
+
     fun activeEvent(epochDay: Long): EventDefinition? {
         if (!features.liveOps) return null
         return scheduledEvents.firstOrNull { it.isActive(epochDay) } ?: fallbackEvent.instantiateForEpochDay(epochDay)
@@ -115,17 +121,19 @@ data class RemoteGameConfig(
 }
 
 object LocalDefaultConfig {
+    val foundryMilestones = listOf(
+        EventMilestone("pressure-100", 100, EventReward(gems = 5)),
+        EventMilestone("pressure-250", 250, EventReward(gems = 8)),
+        EventMilestone("pressure-500", 500, EventReward(gems = 12)),
+        EventMilestone("pressure-900", 900, EventReward(gems = 18)),
+        EventMilestone("pressure-1500", 1500, EventReward(gems = 30, blueprintPieces = 1)),
+    )
+
     val foundryTemplate = EventTemplateConfig(
         idPrefix = "foundry-week",
         durationDays = 7,
         scoringRule = EventScoringRule(EventMetric.HIGH_MERGES, pointsPerUnit = 25),
-        milestones = listOf(
-            EventMilestone("pressure-100", 100, EventReward(gems = 5)),
-            EventMilestone("pressure-250", 250, EventReward(gems = 8)),
-            EventMilestone("pressure-500", 500, EventReward(gems = 12)),
-            EventMilestone("pressure-900", 900, EventReward(gems = 18)),
-            EventMilestone("pressure-1500", 1500, EventReward(gems = 30, blueprintPieces = 1)),
-        ),
+        milestones = foundryMilestones,
         theme = EventTheme(
             id = "foundry",
             title = "FOUNDRY WEEK",
