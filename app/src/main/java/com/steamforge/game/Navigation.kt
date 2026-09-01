@@ -27,6 +27,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.progression.Onboarding
 import com.steamforge.game.progression.WeeklyChallenges
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.ui.achievements.AchievementsScreen
@@ -44,6 +45,8 @@ import com.steamforge.game.ui.game.GameScreen
 import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.home.HomeScreen
 import com.steamforge.game.ui.home.HomeViewModel
+import com.steamforge.game.ui.onboarding.OnboardingGameScreen
+import com.steamforge.game.ui.onboarding.OnboardingWorkshopScreen
 import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
 import com.steamforge.game.ui.weekly.WeeklyScreen
@@ -80,17 +83,59 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
         container.repo.progress.map { it.analyticsConsent }
     }
     val consent by consentFlow.collectAsStateWithLifecycle(initialValue = null as Boolean?)
-    val consentScope = rememberCoroutineScope()
+    val onboardingStep by container.onboarding.step.collectAsStateWithLifecycle(initialValue = null as Int?)
+    val shellScope = rememberCoroutineScope()
+
     if (consent == null) {
         ConsentDialog(
             privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL,
             onDecide = { granted ->
-                consentScope.launch { container.repo.updateProgress { it.copy(analyticsConsent = granted) } }
+                shellScope.launch { container.repo.updateProgress { it.copy(analyticsConsent = granted) } }
             },
         )
     }
 
     fun back() = backStack.removeLastOrNull()
+
+    // Пока fresh-vs-legacy решение не записано, не показываем случайный meta screen под будущим onboarding.
+    if (onboardingStep == null) return
+
+    if (consent != null && onboardingStep == Onboarding.CORE) {
+        val vm: GameViewModel = viewModel(key = "onboarding-core") {
+            GameViewModel(
+                repo = container.repo,
+                analytics = container.analytics,
+                systemAnimationsEnabled = systemAnimationsEnabled,
+            )
+        }
+        OnboardingGameScreen(
+            vm = vm,
+            sfx = container.sfx,
+            onOpenWorkshop = {
+                vm.exit()
+                container.analytics.logEvent("onboarding_core_completed", mapOf("moves" to vm.ui.value.state.moves))
+                shellScope.launch { container.onboarding.setStep(Onboarding.WORKSHOP) }
+            },
+            modifier = modifier,
+        )
+        return
+    }
+
+    if (consent != null && onboardingStep == Onboarding.WORKSHOP) {
+        val vm: WorkshopViewModel = viewModel(key = "onboarding-workshop") { WorkshopViewModel(container.repo) }
+        OnboardingWorkshopScreen(
+            vm = vm,
+            onOpenContracts = {
+                shellScope.launch {
+                    container.onboarding.setStep(Onboarding.COMPLETE)
+                    container.analytics.logEvent("onboarding_completed")
+                    backStack.add(Contracts)
+                }
+            },
+            modifier = modifier,
+        )
+        return
+    }
 
     NavDisplay(
         backStack = backStack,
