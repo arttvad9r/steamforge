@@ -68,7 +68,7 @@ class WorkshopViewModel(
             dailyRewardAvailable = plan.canClaim,
             dailyRewardStreak = plan.visibleStreak,
             dailyRewardDay = plan.rewardDay,
-            dailyRewardGems = cfg.dailyRewardGems(plan.rewardDay),
+            dailyRewardGems = remote.scaleReward(cfg.dailyRewardGems(plan.rewardDay)),
             dailyRewardUsesGrace = plan.usesGrace,
             dailyRewardGraceAvailable = !p.dailyRewardGraceUsed,
             goldGaugeCosmetic = "gold_gauge" in p.unlockedCosmetics,
@@ -81,7 +81,8 @@ class WorkshopViewModel(
 
     fun claimDailyReward() {
         viewModelScope.launch {
-            val cfg = configProvider.config.value.economy.applyTo(baseCfg)
+            val remote = configProvider.config.value
+            val cfg = remote.economy.applyTo(baseCfg)
             repo.updateProgress { p ->
                 val todayDay = today()
                 val plan = ReturnLoop.dailyRewardPlan(
@@ -93,7 +94,7 @@ class WorkshopViewModel(
                 )
                 if (!plan.canClaim) return@updateProgress p
 
-                val reward = cfg.dailyRewardGems(plan.rewardDay)
+                val reward = remote.scaleReward(cfg.dailyRewardGems(plan.rewardDay))
                 val cosmetics = if (plan.rewardDay == cfg.dailyRewardCycle) {
                     p.unlockedCosmetics + "gold_gauge"
                 } else {
