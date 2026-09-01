@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +29,15 @@ class RemoteGameConfigTest {
     @Test
     fun `failed remote fetch never clears defaults`() {
         val provider = FallbackGameConfigProvider(RemoteConfigSource { error("offline") })
+        assertFalse(runBlocking { provider.refresh() })
+        assertEquals(LocalDefaultConfig.value, provider.config.value)
+    }
+
+    @Test
+    fun `unsupported schema never replaces known snapshot`() {
+        val incompatible = LocalDefaultConfig.value.copy(schemaVersion = 999, rewardMultiplierPercent = 500)
+        val provider = FallbackGameConfigProvider(RemoteConfigSource { incompatible })
+
         assertFalse(runBlocking { provider.refresh() })
         assertEquals(LocalDefaultConfig.value, provider.config.value)
     }
@@ -97,6 +107,7 @@ class RemoteGameConfigTest {
         assertEquals(250, RemoteGameConfig(rewardMultiplierPercent = 500).scaleReward(50))
         assertEquals(250, RemoteGameConfig(rewardMultiplierPercent = 900).scaleReward(50))
         assertEquals(0, RemoteGameConfig(rewardMultiplierPercent = 100).scaleReward(-50))
+        assertEquals(Int.MAX_VALUE, RemoteGameConfig(rewardMultiplierPercent = 500).scaleReward(Int.MAX_VALUE))
     }
 
     @Test
@@ -132,6 +143,22 @@ class RemoteGameConfigTest {
     }
 
     @Test
+    fun `event template sanitizes duplicate ids and targets`() {
+        val template = LocalDefaultConfig.foundryTemplate.copy(
+            milestones = listOf(
+                EventMilestone("a", 200, EventReward(gems = 1)),
+                EventMilestone("a", 100, EventReward(gems = 2)),
+                EventMilestone("b", 200, EventReward(gems = 3)),
+                EventMilestone("c", 300, EventReward(gems = 4)),
+            ),
+        )
+        val event = template.instantiateForEpochDay(25_000L)
+
+        assertEquals(listOf(200, 300), event.milestones.map { it.targetPoints })
+        assertEquals(listOf("a", "c"), event.milestones.map { it.id })
+    }
+
+    @Test
     fun `scheduled event overrides fallback while active`() {
         val day = 25_000L
         val scheduled = LocalDefaultConfig.foundryTemplate.instantiateForEpochDay(day).copy(
@@ -151,7 +178,7 @@ class RemoteGameConfigTest {
     @Test
     fun `liveops feature flag disables active event`() {
         val config = RemoteGameConfig(features = FeatureFlags(liveOps = false))
-        assertEquals(null, config.activeEvent(25_000L))
+        assertNull(config.activeEvent(25_000L))
     }
 
     @Test
