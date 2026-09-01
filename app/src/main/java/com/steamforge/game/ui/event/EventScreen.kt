@@ -202,16 +202,7 @@ fun EventScreen(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-            ) {
-                Text("ПРАВИЛА СОБЫТИЯ", style = MaterialTheme.typography.labelLarge, color = visual.secondary)
-                Spacer(Modifier.height(4.dp))
-                Text(theme.rulesText, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
-            }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(14.dp))
         }
     }
 }
