@@ -149,6 +149,7 @@ data class PlayerProgress(
     val dailyRewardDay: Long = -1L,
     val dailyRewardStreak: Int = 0,
     val dailyRewardGraceUsed: Boolean = false,
+    val onboardingStep: Int = Onboarding.CORE,
     val contracts: ContractLedger = ContractLedger(),
     val weekly: WeeklyRecord = WeeklyRecord(),
     val liveOps: LiveOpsLedger = LiveOpsLedger(),
