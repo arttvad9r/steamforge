@@ -164,8 +164,15 @@ object LiveOpsProgression {
         runSeed: Long,
         counters: EventRunCounters,
     ): LiveOpsLedger {
-        val updated = recordLiveSnapshot(ledger, event, runSeed, counters)
-        return updated.copy(activeRunSeed = null, activeRunPoints = 0)
+        val current = normalized(ledger, event)
+        val preservedSeed = current.activeRunSeed?.takeIf { it != runSeed }
+        val preservedPoints = if (preservedSeed != null) current.activeRunPoints else 0
+        val updated = recordLiveSnapshot(current, event, runSeed, counters)
+        return if (preservedSeed != null) {
+            updated.copy(activeRunSeed = preservedSeed, activeRunPoints = preservedPoints)
+        } else {
+            updated.copy(activeRunSeed = null, activeRunPoints = 0)
+        }
     }
 
     fun canClaim(ledger: LiveOpsLedger, event: EventDefinition, milestone: EventMilestone): Boolean {
