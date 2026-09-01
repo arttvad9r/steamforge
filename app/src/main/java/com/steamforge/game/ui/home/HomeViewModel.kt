@@ -72,7 +72,7 @@ class HomeViewModel(
             eventPoints = eventLedger.totalPoints,
             eventRewardAvailable = event.milestones.any { LiveOpsProgression.canClaim(eventLedger, event, it) },
             eventDaysRemaining = (event.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt(),
-            dailyEnabled = remote.features.dailyContracts,
+            dailyEnabled = remote.features.dailyChallenge,
             contractsEnabled = remote.features.dailyContracts,
             weeklyEnabled = remote.features.weeklyChallenge,
             eventEnabled = remote.features.liveOps,
