@@ -82,6 +82,7 @@ data class EventTemplateConfig(
             .filter { it.targetPoints > 0 }
             .distinctBy { it.id }
             .sortedBy { it.targetPoints }
+            .distinctBy { it.targetPoints }
             .ifEmpty { LocalDefaultConfig.foundryMilestones }
         return EventDefinition(
             id = "$idPrefix-$start",
