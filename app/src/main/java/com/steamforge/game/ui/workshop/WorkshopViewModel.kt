@@ -6,7 +6,9 @@ import com.steamforge.game.config.FallbackGameConfigProvider
 import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
+import com.steamforge.game.progression.EventTheme
 import com.steamforge.game.progression.LevelInfo
+import com.steamforge.game.progression.LiveOpsCatalog
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.ReturnLoop
@@ -33,6 +35,7 @@ data class WorkshopUiState(
     val dailyRewardGraceAvailable: Boolean = true,
     val goldGaugeCosmetic: Boolean = false,
     val steamEngineUnlocked: Boolean = false,
+    val seasonalTheme: EventTheme? = null,
     val animationsEnabled: Boolean = true,
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
@@ -73,6 +76,7 @@ class WorkshopViewModel(
             dailyRewardGraceAvailable = !p.dailyRewardGraceUsed,
             goldGaugeCosmetic = "gold_gauge" in p.unlockedCosmetics,
             steamEngineUnlocked = Blueprints.STEAM_ENGINE_UNLOCK in p.unlockedCosmetics,
+            seasonalTheme = LiveOpsCatalog.activeForEpochDay(todayDay).theme.takeIf { remote.features.liveOps },
             animationsEnabled = p.animationsEnabled,
             soundEnabled = p.soundEnabled,
             hapticsEnabled = p.hapticsEnabled,
