@@ -22,6 +22,8 @@ import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.TileMilestone
+import com.steamforge.game.progression.TileMilestones
 import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.applyGameFinished
 import java.util.UUID
@@ -49,6 +51,7 @@ data class GameUiState(
     val dailySatisfied: Boolean = false,
     val weekly: WeeklyChallenge? = null,
     val weeklySubmissionAccepted: Boolean? = null,
+    val tileMilestone: TileMilestone? = null,
     val winCelebrated: Boolean = false,
     val winBannerShown: Boolean = false,
     val removingMode: Boolean = false,
@@ -99,6 +102,7 @@ class GameViewModel(
         },
     )
     private var dailyCompletedToday = false
+    private var knownMaxTileLevel = 0
     private val weeklyMoves = mutableListOf<Move>()
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -168,6 +172,7 @@ class GameViewModel(
                     p.dailyChallengeDay == LocalDay.todayEpochDay() &&
                     p.dailyChallengeDone
                 dailyCompletedToday = completedToday
+                knownMaxTileLevel = maxOf(knownMaxTileLevel, p.stats.maxTileLevel)
                 val modeBest = if (competitiveMode && p.weekly.challengeId == weeklyChallenge?.id) {
                     p.weekly.bestScore
                 } else {
@@ -274,6 +279,7 @@ class GameViewModel(
         }
         undoSnapshot = snapshot
 
+        maybeRevealTileMilestone(result)
         if (daily != null && !_ui.value.dailySatisfied) checkDailyGoal(result.state)
         if (result.state.status == GameStatus.GAME_OVER) finishGame() else persistGame()
     }
@@ -380,6 +386,37 @@ class GameViewModel(
         _ui.update { it.copy(winBannerShown = true) }
     }
 
+    fun dismissTileMilestone() {
+        val milestone = _ui.value.tileMilestone
+        _ui.update {
+            it.copy(
+                tileMilestone = null,
+                winBannerShown = it.winBannerShown || milestone?.level == GameRules().winLevel,
+            )
+        }
+    }
+
+    private fun maybeRevealTileMilestone(result: MoveResult) {
+        if (competitiveMode) return
+        val newMaxLevel = result.merges.maxOfOrNull { it.tile.level } ?: return
+        val milestone = TileMilestones.newlyReached(knownMaxTileLevel, newMaxLevel) ?: return
+        knownMaxTileLevel = maxOf(knownMaxTileLevel, newMaxLevel)
+        _ui.update { it.copy(tileMilestone = milestone) }
+        analytics.logEvent(
+            "tile_milestone_unlocked",
+            mapOf("level" to milestone.level, "value" to milestone.value),
+        )
+        writesScope.launch {
+            repo.updateProgress { progress ->
+                if (progress.stats.maxTileLevel >= newMaxLevel) {
+                    progress
+                } else {
+                    progress.copy(stats = progress.stats.copy(maxTileLevel = newMaxLevel))
+                }
+            }
+        }
+    }
+
     private fun newGameInternal() {
         finishStarted = false
         discardFinishedRecord = false
@@ -403,6 +440,7 @@ class GameViewModel(
                 rewardDoubled = false,
                 effects = null,
                 weeklySubmissionAccepted = null,
+                tileMilestone = null,
                 freeUndosLeft = if (competitiveMode) 0 else cfg.freeUndosPerGame,
                 winBannerShown = competitiveMode,
                 lastResult = null,

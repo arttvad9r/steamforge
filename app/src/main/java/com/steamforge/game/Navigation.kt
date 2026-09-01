@@ -41,8 +41,8 @@ import com.steamforge.game.ui.contracts.ContractsScreen
 import com.steamforge.game.ui.contracts.ContractsViewModel
 import com.steamforge.game.ui.event.EventScreen
 import com.steamforge.game.ui.event.EventViewModel
-import com.steamforge.game.ui.game.GameScreen
 import com.steamforge.game.ui.game.GameViewModel
+import com.steamforge.game.ui.game.MilestoneGameScreen
 import com.steamforge.game.ui.home.HomeScreen
 import com.steamforge.game.ui.home.HomeViewModel
 import com.steamforge.game.ui.onboarding.OnboardingGameScreen
@@ -210,7 +210,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
                 }
-                GameScreen(
+                MilestoneGameScreen(
                     vm = vm,
                     sfx = container.sfx,
                     ads = container.ads,
@@ -238,7 +238,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
                 }
-                GameScreen(
+                MilestoneGameScreen(
                     vm = vm,
                     sfx = container.sfx,
                     ads = container.ads,
