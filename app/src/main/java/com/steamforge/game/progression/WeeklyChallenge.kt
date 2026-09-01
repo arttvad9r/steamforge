@@ -48,6 +48,36 @@ object WeeklyChallenges {
         (challenge.endEpochDayExclusive - epochDay).coerceIn(0L, DAYS_PER_WEEK).toInt()
 }
 
+object WeeklyProgression {
+    fun normalized(record: WeeklyRecord, challenge: WeeklyChallenge): WeeklyRecord =
+        if (record.challengeId == challenge.id) record else WeeklyRecord(challengeId = challenge.id)
+
+    fun recordVerified(
+        record: WeeklyRecord,
+        challenge: WeeklyChallenge,
+        result: WeeklyVerifiedResult,
+    ): WeeklyRecord {
+        require(result.challengeId == challenge.id)
+        val current = normalized(record, challenge)
+        return if (result.score > current.bestScore) {
+            current.copy(bestScore = result.score, bestMoves = result.replay)
+        } else {
+            current
+        }
+    }
+
+    fun canClaimReward(record: WeeklyRecord, challenge: WeeklyChallenge): Boolean {
+        val current = normalized(record, challenge)
+        return current.bestScore > 0 && !current.rewardClaimed
+    }
+
+    fun markRewardClaimed(record: WeeklyRecord, challenge: WeeklyChallenge): WeeklyRecord? {
+        val current = normalized(record, challenge)
+        if (!canClaimReward(current, challenge)) return null
+        return current.copy(rewardClaimed = true)
+    }
+}
+
 object WeeklyReplayCodec {
     fun encode(moves: List<Move>): String = buildString(moves.size) {
         moves.forEach { move ->
