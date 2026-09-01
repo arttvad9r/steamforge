@@ -105,6 +105,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             GameViewModel(
                 repo = container.repo,
                 analytics = container.analytics,
+                cfg = container.config.config.value.progressionConfig(),
                 systemAnimationsEnabled = systemAnimationsEnabled,
             )
         }
@@ -122,7 +123,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
     }
 
     if (consent != null && onboardingStep == Onboarding.WORKSHOP) {
-        val vm: WorkshopViewModel = viewModel(key = "onboarding-workshop") { WorkshopViewModel(container.repo) }
+        val vm: WorkshopViewModel = viewModel(key = "onboarding-workshop") {
+            WorkshopViewModel(container.repo, configProvider = container.config)
+        }
         OnboardingWorkshopScreen(
             vm = vm,
             onOpenContracts = {
@@ -147,7 +150,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
         ),
         entryProvider = entryProvider {
             entry<Home> {
-                val vm: HomeViewModel = viewModel { HomeViewModel(container.repo) }
+                val vm: HomeViewModel = viewModel {
+                    HomeViewModel(container.repo, configProvider = container.config)
+                }
                 HomeScreen(
                     vm = vm,
                     onPlay = { backStack.add(Game(daily = false)) },
@@ -161,7 +166,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<Workshop> {
-                val vm: WorkshopViewModel = viewModel { WorkshopViewModel(container.repo) }
+                val vm: WorkshopViewModel = viewModel {
+                    WorkshopViewModel(container.repo, configProvider = container.config)
+                }
                 WorkshopScreen(
                     vm = vm,
                     sfx = container.sfx,
@@ -194,6 +201,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         repo = container.repo,
                         analytics = container.analytics,
                         ads = container.ads,
+                        cfg = container.config.config.value.progressionConfig(),
                         weeklyChallenge = challenge,
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
@@ -220,6 +228,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         repo = container.repo,
                         analytics = container.analytics,
                         ads = container.ads,
+                        cfg = container.config.config.value.progressionConfig(),
                         dailyMode = key.daily,
                         dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
                         systemAnimationsEnabled = systemAnimationsEnabled,
