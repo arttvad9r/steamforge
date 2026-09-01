@@ -48,7 +48,6 @@ data class ProgressionConfig(
     val xpScoreDivisor: Int = 20,
     val xpPerMaxTileLevel: Int = 10,
     val winBonusXp: Int = 60,
-    /** Daily bonus выдаётся атомарно при claimDailyChallenge; здесь оставлен для совместимости конфигурации. */
     val dailyBonusXp: Int = 60,
     val baseXpToLevel: Int = 120,
     val xpGrowthPerLevel: Int = 40,
@@ -152,6 +151,7 @@ data class PlayerProgress(
     val dailyRewardGraceUsed: Boolean = false,
     val contracts: ContractLedger = ContractLedger(),
     val weekly: WeeklyRecord = WeeklyRecord(),
+    val liveOps: LiveOpsLedger = LiveOpsLedger(),
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
