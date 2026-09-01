@@ -6,6 +6,7 @@ import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.WeeklyChallenges
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -20,6 +21,9 @@ data class HomeUiState(
     val blueprintsTotal: Int = Blueprints.steamEngine.pieces.size,
     val dailyDone: Boolean = false,
     val dailyRewardStreak: Int = 0,
+    val weeklyBestScore: Int = 0,
+    val weeklyRewardAvailable: Boolean = false,
+    val weeklyDaysRemaining: Int = 0,
     val hasSavedRun: Boolean = false,
 )
 
@@ -31,6 +35,8 @@ class HomeViewModel(
 
     val ui: StateFlow<HomeUiState> = combine(repo.progress, repo.savedGame) { progress, savedGame ->
         val todayDay = today()
+        val weekly = WeeklyChallenges.forEpochDay(todayDay)
+        val weeklyRecord = progress.weekly.takeIf { it.challengeId == weekly.id }
         HomeUiState(
             loaded = true,
             gems = progress.gems,
@@ -44,6 +50,9 @@ class HomeViewModel(
             } else {
                 0
             },
+            weeklyBestScore = weeklyRecord?.bestScore ?: 0,
+            weeklyRewardAvailable = weeklyRecord?.let { it.bestScore > 0 && !it.rewardClaimed } ?: false,
+            weeklyDaysRemaining = WeeklyChallenges.daysRemaining(weekly, todayDay),
             hasSavedRun = savedGame != null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
