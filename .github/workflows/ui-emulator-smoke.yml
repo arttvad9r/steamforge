@@ -157,6 +157,19 @@ jobs:
             return 1
           }
 
+          wait_for_shell() {
+            local label="$1"
+            for i in $(seq 1 15); do
+              if dump_ui "$label" && { grep -Fqi 'MECHANICAL 2048' /tmp/window.xml || grep -Fqi 'ИГРАТЬ' /tmp/window.xml; }; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo 'Home or Workshop shell not found'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           wait_for_tile() {
             local label="${1:-02-game-window}"
             for i in $(seq 1 15); do
@@ -177,6 +190,22 @@ jobs:
             echo "Tap '$needle' at $x,$y"
             adb shell input tap "$x" "$y"
             sleep 2
+          }
+
+          open_workshop_from_shell() {
+            local label="$1"
+            for i in $(seq 1 10); do
+              dump_ui "$label"
+              if grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then return 0; fi
+              if grep -Fqi 'content-desc="Мастерская.' /tmp/window.xml; then
+                tap_node 'Мастерская.' "${label}-open-workshop"
+                if wait_for_text 'ИГРАТЬ' "${label}-workshop"; then return 0; fi
+              fi
+              sleep 2
+            done
+            echo 'Workshop not reachable from app shell'
+            cat /tmp/window.xml || true
+            return 1
           }
 
           assert_toggle_accessibility() {
@@ -224,13 +253,11 @@ jobs:
           PY
           }
 
-          # Standard phone (~411 x 914 dp)
+          # Standard phone (~411 x 914 dp). A clean install goes Privacy -> Onboarding -> Home.
           wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
           shot '00-consent.png'
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
 
-          # A fresh install enters the board-first onboarding before Workshop. Skip it for the
-          # generic visual matrix while still capturing the onboarding surface as smoke evidence.
           for i in $(seq 1 15); do
             dump_ui '01-post-consent-window'
             if grep -Fqi 'ПРОПУСТИТЬ ОБУЧЕНИЕ' /tmp/window.xml; then
@@ -238,12 +265,14 @@ jobs:
               tap_node 'ПРОПУСТИТЬ ОБУЧЕНИЕ' 'onboarding-skip'
               break
             fi
-            if grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then break; fi
+            if grep -Fqi 'MECHANICAL 2048' /tmp/window.xml || grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then break; fi
             sleep 2
           done
 
+          wait_for_shell '01-shell-window'
+          shot '01-shell.png'
+          open_workshop_from_shell '01-shell-window'
           wait_for_text 'ИГРАТЬ' '01-workshop-window'
-          sleep 1
           shot '01-workshop.png'
 
           tap_node 'ИГРАТЬ' 'play'
@@ -274,11 +303,14 @@ jobs:
           sleep 2
           wait_for_text 'ИГРАТЬ' '05-back-to-workshop-window'
 
-          # Compact phone (360 x 800 dp): catches vertical and narrow-width regressions.
+          # Compact phone (360 x 800 dp): verify Home/Workshop routing and narrow layouts.
           adb shell wm size 720x1600
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_shell '10-compact-shell-window'
+          shot '10-compact-shell.png'
+          open_workshop_from_shell '10-compact-shell-window'
           wait_for_text 'ИГРАТЬ' '10-compact-workshop-window'
           shot '10-compact-workshop.png'
 
@@ -293,12 +325,15 @@ jobs:
           shot '12-compact-settings.png'
           dump_ui '12-compact-settings-window' || true
 
-          # Large text on a standard phone. Functional navigation must remain reachable at 1.3x font scale.
+          # Large text on a standard phone. Navigation must remain reachable at 1.3x font scale.
           adb shell wm size 1080x2400
           adb shell wm density 420
           adb shell settings put system font_scale 1.3
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_shell '20-large-text-shell-window'
+          shot '20-large-text-shell.png'
+          open_workshop_from_shell '20-large-text-shell-window'
           wait_for_text 'ИГРАТЬ' '20-large-text-workshop-window'
           shot '20-large-text-workshop.png'
           tap_node 'ИГРАТЬ' 'large-text-play'
@@ -311,12 +346,15 @@ jobs:
           wait_for_text 'Звук' '22-large-text-settings-window'
           shot '22-large-text-settings.png'
 
-          # Expanded portrait surface (~800 x 1280 dp): catches width assumptions on tablets/large windows.
+          # Expanded portrait surface (~800 x 1280 dp): catch width assumptions on large windows.
           adb shell settings put system font_scale 1.0
           adb shell wm size 1600x2560
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          wait_for_shell '30-expanded-shell-window'
+          shot '30-expanded-shell.png'
+          open_workshop_from_shell '30-expanded-shell-window'
           wait_for_text 'ИГРАТЬ' '30-expanded-workshop-window'
           shot '30-expanded-workshop.png'
           tap_node 'ИГРАТЬ' 'expanded-play'
