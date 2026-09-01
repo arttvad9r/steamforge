@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.steamforge.game.progression.Achievements
+import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.ContractCounters
 import com.steamforge.game.progression.ContractLedger
 import com.steamforge.game.progression.DailyContracts
@@ -23,10 +24,6 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "steamforge")
 
-/**
- * Единая точка локального persistence поверх Preferences DataStore.
- * Все наградные операции, которым нужна идемпотентность, выполняются внутри одного dataStore.edit.
- */
 class SteamforgeRepository(private val context: Context) : DataRepo {
 
     private object Keys {
@@ -47,6 +44,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val achievements = stringSetPreferencesKey("achievements")
         val achievementDays = stringSetPreferencesKey("achievement_days")
         val cosmetics = stringSetPreferencesKey("cosmetics")
+        val blueprintPieces = stringSetPreferencesKey("blueprint_pieces")
         val dailyChallengeDay = longPreferencesKey("daily_challenge_day")
         val dailyChallengeDone = booleanPreferencesKey("daily_challenge_done")
         val dailyRewardDay = longPreferencesKey("daily_reward_day")
@@ -74,14 +72,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
     }
 
     override val progress: Flow<PlayerProgress> = context.dataStore.data.map(::mapProgress)
-
-    override val savedGame: Flow<SavedGame?> = context.dataStore.data.map { prefs ->
-        prefs[Keys.game]?.let(GameSaveCodec::decode)
-    }
-
-    override val finishedGame: Flow<FinishedGameRecord?> = context.dataStore.data.map { prefs ->
-        prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
-    }
+    override val savedGame: Flow<SavedGame?> = context.dataStore.data.map { prefs -> prefs[Keys.game]?.let(GameSaveCodec::decode) }
+    override val finishedGame: Flow<FinishedGameRecord?> = context.dataStore.data.map { prefs -> prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode) }
 
     override suspend fun saveGame(state: SavedGame) {
         context.dataStore.edit { prefs ->
@@ -90,14 +82,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
             if (runSeed == null) return@edit
-
             val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                snapshot = state.toContractCounters(),
-            )
+            val updated = DailyContracts.recordLiveSnapshot(base, day, runSeed, state.toContractCounters())
             writeProgress(prefs, updated)
         }
     }
@@ -108,14 +94,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
             if (runSeed == null) return@edit
-
             val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                snapshot = state.toContractCounters(),
-            )
+            val updated = DailyContracts.recordLiveSnapshot(base, day, runSeed, state.toContractCounters())
             writeProgress(prefs, updated)
         }
     }
@@ -137,12 +117,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val finalSaved = GameSaveCodec.decode(record.state)
             val baseProgress = contractBaseForDay(mapProgress(prefs), record.day, previousSaved)
             val base = if (finalSaved?.seed != null) {
-                DailyContracts.recordFinishedRun(
-                    progress = baseProgress,
-                    day = record.day,
-                    runSeed = finalSaved.seed,
-                    summary = finalSaved.toSummary(record.daily),
-                )
+                DailyContracts.recordFinishedRun(baseProgress, record.day, finalSaved.seed, finalSaved.toSummary(record.daily))
             } else {
                 baseProgress
             }
@@ -163,12 +138,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { prefs ->
             val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
             val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val withContracts = DailyContracts.recordFinishedRun(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                summary = summary,
-            )
+            val withContracts = DailyContracts.recordFinishedRun(base, day, runSeed, summary)
             val (updated, effects) = finisher(withContracts)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
@@ -203,7 +173,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { prefs ->
             val progress = mapProgress(prefs)
             if (progress.dailyChallengeDay == day && progress.dailyChallengeDone) return@edit
-
             val baseStats = progress.stats.copy(dailyCompleted = progress.stats.dailyCompleted + 1)
             val unlocked = Achievements.newlyUnlocked(baseStats, progress.unlockedAchievements)
             val unlockedGems = unlocked.sumOf { it.gemReward }
@@ -231,10 +200,24 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return@edit
             if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) return@edit
 
+            val firstContractClaimToday = ledger.claimedIds.isEmpty()
+            val piece = if (firstContractClaimToday) {
+                Blueprints.nextMissingPiece(
+                    set = Blueprints.steamEngine,
+                    owned = progress.blueprintPieces,
+                    seed = day xor contract.id.hashCode().toLong(),
+                )
+            } else {
+                null
+            }
+            val pieces = if (piece != null) progress.blueprintPieces + piece.id else progress.blueprintPieces
+            val workshopUnlocks = Blueprints.workshopUnlocks(pieces)
             val reward = contract.rewardGems
             val updated = progress.copy(
                 gems = progress.gems + reward,
                 stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + reward),
+                blueprintPieces = pieces,
+                unlockedCosmetics = progress.unlockedCosmetics + workshopUnlocks,
                 contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
             )
             writeProgress(prefs, updated)
@@ -247,10 +230,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { it.remove(Keys.finishedGame) }
     }
 
-    /**
-     * Сбрасывает только игровые данные. Privacy-выбор и пользовательские настройки сохраняются,
-     * поэтому reset progression не возвращает приложение в промежуточное consent-состояние.
-     */
     override suspend fun resetGameProgress() {
         context.dataStore.edit { prefs ->
             val sound = prefs[Keys.soundEnabled]
@@ -284,13 +263,12 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 gemsEarned = prefs[Keys.gemsEarned] ?: 0L,
             ),
             unlockedAchievements = prefs[Keys.achievements] ?: emptySet(),
-            achievementDays = (prefs[Keys.achievementDays] ?: emptySet())
-                .mapNotNull { entry ->
-                    val i = entry.indexOf(':')
-                    if (i <= 0) null else entry.take(i) to (entry.substring(i + 1).toLongOrNull() ?: 0L)
-                }
-                .toMap(),
+            achievementDays = (prefs[Keys.achievementDays] ?: emptySet()).mapNotNull { entry ->
+                val i = entry.indexOf(':')
+                if (i <= 0) null else entry.take(i) to (entry.substring(i + 1).toLongOrNull() ?: 0L)
+            }.toMap(),
             unlockedCosmetics = prefs[Keys.cosmetics] ?: emptySet(),
+            blueprintPieces = prefs[Keys.blueprintPieces] ?: emptySet(),
             dailyChallengeDay = prefs[Keys.dailyChallengeDay] ?: -1L,
             dailyChallengeDone = prefs[Keys.dailyChallengeDone] ?: false,
             dailyRewardDay = prefs[Keys.dailyRewardDay] ?: -1L,
@@ -338,6 +316,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.achievements] = p.unlockedAchievements
         prefs[Keys.achievementDays] = p.achievementDays.map { (id, day) -> "$id:$day" }.toSet()
         prefs[Keys.cosmetics] = p.unlockedCosmetics
+        prefs[Keys.blueprintPieces] = p.blueprintPieces
         prefs[Keys.dailyChallengeDay] = p.dailyChallengeDay
         prefs[Keys.dailyChallengeDone] = p.dailyChallengeDone
         prefs[Keys.dailyRewardDay] = p.dailyRewardDay
@@ -351,11 +330,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.contractMaxTile] = p.contracts.totals.maxTileLevel
         prefs[Keys.contractOverdrives] = p.contracts.totals.overdrives
         prefs[Keys.contractClaimed] = p.contracts.claimedIds
-        if (p.contracts.activeRunSeed != null) {
-            prefs[Keys.contractActiveSeed] = p.contracts.activeRunSeed
-        } else {
-            prefs.remove(Keys.contractActiveSeed)
-        }
+        if (p.contracts.activeRunSeed != null) prefs[Keys.contractActiveSeed] = p.contracts.activeRunSeed else prefs.remove(Keys.contractActiveSeed)
         prefs[Keys.contractActiveScore] = p.contracts.activeRun.score
         prefs[Keys.contractActiveMerges] = p.contracts.activeRun.merges
         prefs[Keys.contractActiveMoves] = p.contracts.activeRun.moves
@@ -368,10 +343,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         if (p.analyticsConsent != null) prefs[Keys.analyticsConsent] = p.analyticsConsent else prefs.remove(Keys.analyticsConsent)
     }
 
-    /**
-     * При смене календарного дня старый прогресс Contracts обнуляется. Если обычная партия уже была
-     * сохранена до полуночи, её последний snapshot становится baseline нового дня и не добавляется повторно.
-     */
     private fun contractBaseForDay(progress: PlayerProgress, day: Long, previousSaved: SavedGame?): PlayerProgress {
         if (progress.contracts.day == day) return progress
         val savedSeed = previousSaved?.seed
