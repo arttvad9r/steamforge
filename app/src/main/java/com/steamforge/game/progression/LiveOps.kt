@@ -48,6 +48,11 @@ data class EventTheme(
     val title: String,
     val subtitle: String,
     val accent: String,
+    val scoreLabel: String = "EVENT SCORE",
+    val compactUnit: String = "очков",
+    val milestoneUnit: String = "POINTS",
+    val milestonesTitle: String = "РУБЕЖИ СОБЫТИЯ",
+    val rulesText: String = "Играйте обычные партии и набирайте очки события. Достигнутые рубежи можно забрать один раз до ротации события.",
 )
 
 data class EventDefinition(
@@ -119,6 +124,11 @@ object LiveOpsCatalog {
             title = "FOUNDRY WEEK",
             subtitle = "Поддерживайте давление литейной",
             accent = "forge-orange",
+            scoreLabel = "STEAM PRESSURE",
+            compactUnit = "pressure",
+            milestoneUnit = "PRESSURE",
+            milestonesTitle = "РУБЕЖИ ЛИТЕЙНОЙ",
+            rulesText = "Объединения плиток 64+ дают по 25 Steam Pressure. Давление копится в обычных партиях до конца события. Достигнутые рубежи можно забрать один раз до ротации события.",
         ),
         collection = "steam_engine",
         featureFlags = setOf("event_milestones", "high_merge_scoring"),
