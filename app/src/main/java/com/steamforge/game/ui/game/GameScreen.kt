@@ -320,7 +320,7 @@ fun GameScreen(
             val activity = context as? Activity
             GameOverOverlay(
                 ui = ui,
-                rewardedAvailable = rewardedReady && (ui.effects?.gemsGained ?: 0) > 0 && !ui.rewardDoubled,
+                rewardedAvailable = rewardedReady && (ui.effects?.xpGained ?: 0) > 0 && !ui.rewardDoubled,
                 onRewarded = { if (activity != null) ads.showRewarded(activity) { vm.grantDoubleReward() } },
                 onRestart = {
                     if (activity != null) ads.maybeShowInterstitial(activity)
@@ -579,13 +579,31 @@ private fun GameOverOverlay(ui: GameUiState, rewardedAvailable: Boolean, onRewar
                 if (ui.effects?.newAchievements?.isNotEmpty() == true) Text("Открыто: " + ui.effects.newAchievements.joinToString { it.title }, color = TextMuted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(12.dp))
                 if (ui.rewardDoubled) {
-                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) { Text("◆ ГЕМЫ УДВОЕНЫ", Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center) }
+                    val bonus = ui.rewardedBonus
+                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+                        Text("XP МАСТЕРСКОЙ ×2", Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                        Text(
+                            when {
+                                bonus == null || bonus.xpGained <= 0 -> "Rewarded-бонус уже получен"
+                                bonus.gemsGained > 0 -> "Ещё +${bonus.xpGained} XP · +${bonus.gemsGained} гемов за уровни"
+                                else -> "Ещё +${bonus.xpGained} XP начислено"
+                            },
+                            Modifier.fillMaxWidth(),
+                            color = TextMuted,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                        if (bonus?.levelUps?.isNotEmpty() == true) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Мастерская: уровень ${bonus.levelUps.last()}", Modifier.fillMaxWidth(), color = BrassBright, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                        }
+                    }
                 } else if (rewardedAvailable) {
                     SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
-                        Text("УДВОИТЬ ГЕМЫ?", Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = TextWarm, textAlign = TextAlign.Center)
-                        Text("Видео необязательно · награда +${ui.effects?.gemsGained ?: 0} гемов", Modifier.fillMaxWidth(), color = TextMuted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                        Text("XP МАСТЕРСКОЙ ×2?", Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = TextWarm, textAlign = TextAlign.Center)
+                        Text("Видео необязательно · ещё +${ui.effects?.xpGained ?: 0} XP к результату партии", Modifier.fillMaxWidth(), color = TextMuted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(8.dp))
-                        SteamButton("СМОТРЕТЬ И УДВОИТЬ", onRewarded, Modifier.fillMaxWidth(), style = SteamButtonStyle.Teal, icon = "▶")
+                        SteamButton("СМОТРЕТЬ И УСИЛИТЬ", onRewarded, Modifier.fillMaxWidth(), style = SteamButtonStyle.Teal, icon = "▶")
                     }
                 }
                 Spacer(Modifier.height(12.dp))
