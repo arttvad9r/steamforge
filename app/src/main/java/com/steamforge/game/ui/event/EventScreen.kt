@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.PanelRaised
 import com.steamforge.game.theme.Recess
 import com.steamforge.game.theme.SeasonalVisuals
@@ -52,6 +51,7 @@ fun EventScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val visual = SeasonalVisuals.resolve(ui.event.theme)
+    val theme = ui.event.theme
     val next = ui.nextTarget
     val progress = if (next == null) 1f else (ui.points.toFloat() / next).coerceIn(0f, 1f)
 
@@ -72,8 +72,8 @@ fun EventScreen(
                 BrassRoundButton("←", "Назад", onBack)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(ui.event.theme.title, style = MaterialTheme.typography.headlineSmall, color = visual.accent)
-                    Text(ui.event.theme.subtitle, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                    Text(theme.title, style = MaterialTheme.typography.headlineSmall, color = visual.accent)
+                    Text(theme.subtitle, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
                 }
                 Text("${ui.daysRemaining} дн.", style = MaterialTheme.typography.labelLarge, color = visual.secondary)
             }
@@ -102,7 +102,7 @@ fun EventScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("STEAM PRESSURE", style = MaterialTheme.typography.labelLarge, color = TextMuted)
+                        Text(theme.scoreLabel, style = MaterialTheme.typography.labelLarge, color = TextMuted)
                         Text(ui.points.toString(), style = MaterialTheme.typography.displaySmall, color = visual.accent)
                         Text(
                             if (next == null) "ВСЕ РУБЕЖИ ДОСТИГНУТЫ" else "СЛЕДУЮЩИЙ РУБЕЖ · $next",
@@ -128,7 +128,7 @@ fun EventScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Объединения плиток 64+ дают по 25 Steam Pressure. Давление копится в обычных партиях до конца события.",
+                    theme.rulesText,
                     modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
@@ -145,7 +145,7 @@ fun EventScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("РУБЕЖИ ЛИТЕЙНОЙ", style = MaterialTheme.typography.labelLarge, color = visual.secondary, modifier = Modifier.fillMaxWidth())
+            Text(theme.milestonesTitle, style = MaterialTheme.typography.labelLarge, color = visual.secondary, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
 
             ui.milestones.forEach { item ->
@@ -172,7 +172,7 @@ fun EventScreen(
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("${milestone.targetPoints} PRESSURE", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+                            Text("${milestone.targetPoints} ${theme.milestoneUnit}", style = MaterialTheme.typography.titleMedium, color = TextWarm)
                             val rewardText = buildString {
                                 if (milestone.reward.gems > 0) append("+${milestone.reward.gems} гемов")
                                 if (milestone.reward.blueprintPieces > 0) {
@@ -202,20 +202,7 @@ fun EventScreen(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-            ) {
-                Text("ПРАВИЛА СОБЫТИЯ", style = MaterialTheme.typography.labelLarge, color = visual.secondary)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Играйте обычные партии и повышайте Steam Pressure объединениями 64+. Достигнутые рубежи можно забрать один раз до ротации события.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted,
-                )
-            }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(14.dp))
         }
     }
 }
