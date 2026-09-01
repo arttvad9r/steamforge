@@ -224,7 +224,7 @@ jobs:
               wait_for_framework
 
               if package_manager_responding && \
-                 adb install -r app/build/outputs/apk/debug/app-debug.apk; then
+                 adb install --no-streaming -r app/build/outputs/apk/debug/app-debug.apk; then
                 if wait_for_package; then
                   echo 'Steamforge APK installed and visible to PackageManager.'
                   return 0
