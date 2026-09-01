@@ -5,6 +5,8 @@ import com.steamforge.game.progression.EventDefinition
 import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.PlayerProgress
+import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.RewardedWorkshopBonus
 import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.WeeklyVerifiedResult
 import kotlinx.coroutines.flow.Flow
@@ -37,7 +39,12 @@ interface DataRepo {
         applyGameFinish(record, finisher)
     }
 
-    suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean
+    /**
+     * Atomically grants one optional post-run Workshop XP bonus. Implementations must derive the bonus
+     * amount from the persisted finished-game record instead of trusting an amount supplied by UI.
+     */
+    suspend fun claimDoubleReward(gameResultId: String, cfg: ProgressionConfig): RewardedWorkshopBonus?
+
     suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean
     suspend fun claimContract(day: Long, contractId: String): Boolean = false
 
