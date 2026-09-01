@@ -38,6 +38,8 @@ import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.contracts.ContractsScreen
 import com.steamforge.game.ui.contracts.ContractsViewModel
+import com.steamforge.game.ui.event.EventScreen
+import com.steamforge.game.ui.event.EventViewModel
 import com.steamforge.game.ui.game.GameScreen
 import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.home.HomeScreen
@@ -54,6 +56,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
+@Serializable data object FoundryEvent : NavKey
 @Serializable data object Weekly : NavKey
 @Serializable data object WeeklyGame : NavKey
 @Serializable data object Contracts : NavKey
@@ -104,6 +107,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     vm = vm,
                     onPlay = { backStack.add(Game(daily = false)) },
                     onWorkshop = { backStack.add(Workshop) },
+                    onEvent = { backStack.add(FoundryEvent) },
                     onWeekly = { backStack.add(Weekly) },
                     onContracts = { backStack.add(Contracts) },
                     onBlueprints = { backStack.add(Blueprints) },
@@ -120,6 +124,14 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onDaily = { backStack.add(Game(daily = true)) },
                     onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
+                )
+            }
+            entry<FoundryEvent> {
+                val vm: EventViewModel = viewModel { EventViewModel(container.repo) }
+                EventScreen(
+                    vm = vm,
+                    onBack = { back() },
+                    onPlay = { backStack.add(Game(daily = false)) },
                 )
             }
             entry<Weekly> {

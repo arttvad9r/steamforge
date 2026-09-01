@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
+import com.steamforge.game.progression.LiveOpsCatalog
+import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.ReturnLoop
@@ -25,6 +27,9 @@ data class HomeUiState(
     val weeklyBestScore: Int = 0,
     val weeklyRewardAvailable: Boolean = false,
     val weeklyDaysRemaining: Int = 0,
+    val eventPoints: Int = 0,
+    val eventRewardAvailable: Boolean = false,
+    val eventDaysRemaining: Int = 0,
     val hasSavedRun: Boolean = false,
 )
 
@@ -38,6 +43,8 @@ class HomeViewModel(
         val todayDay = today()
         val weekly = WeeklyChallenges.forEpochDay(todayDay)
         val weeklyRecord = progress.weekly.takeIf { it.challengeId == weekly.id }
+        val event = LiveOpsCatalog.activeForEpochDay(todayDay)
+        val eventLedger = LiveOpsProgression.normalized(progress.liveOps, event)
         HomeUiState(
             loaded = true,
             gems = progress.gems,
@@ -56,6 +63,9 @@ class HomeViewModel(
             weeklyBestScore = weeklyRecord?.bestScore ?: 0,
             weeklyRewardAvailable = weeklyRecord?.let { it.bestScore > 0 && !it.rewardClaimed } ?: false,
             weeklyDaysRemaining = WeeklyChallenges.daysRemaining(weekly, todayDay),
+            eventPoints = eventLedger.totalPoints,
+            eventRewardAvailable = event.milestones.any { LiveOpsProgression.canClaim(eventLedger, event, it) },
+            eventDaysRemaining = (event.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt(),
             hasSavedRun = savedGame != null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

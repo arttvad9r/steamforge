@@ -64,11 +64,14 @@ import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamPanel
 
+private val EventOrange = Color(0xFFE08A3A)
+
 @Composable
 fun HomeScreen(
     vm: HomeViewModel,
     onPlay: () -> Unit,
     onWorkshop: () -> Unit,
+    onEvent: () -> Unit,
     onWeekly: () -> Unit,
     onContracts: () -> Unit,
     onBlueprints: () -> Unit,
@@ -131,6 +134,18 @@ fun HomeScreen(
             Spacer(Modifier.height(14.dp))
 
             HomeEntryCard("⚒", "Мастерская", "Ядро · уровень ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}", onWorkshop, Modifier.fillMaxWidth(), primary = true)
+            Spacer(Modifier.height(8.dp))
+            HomeEntryCard(
+                icon = if (ui.eventRewardAvailable) "◆" else "F",
+                title = "Foundry Week",
+                subtitle = when {
+                    ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} pressure"
+                    else -> "${ui.eventPoints} pressure · ${ui.eventDaysRemaining} дн. осталось"
+                },
+                onClick = onEvent,
+                modifier = Modifier.fillMaxWidth(),
+                accent = if (ui.eventRewardAvailable) TealGlow else EventOrange,
+            )
             Spacer(Modifier.height(8.dp))
             HomeEntryCard(
                 icon = if (ui.weeklyRewardAvailable) "◆" else "W",

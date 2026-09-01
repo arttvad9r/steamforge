@@ -16,7 +16,12 @@ import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.ContractCounters
 import com.steamforge.game.progression.ContractLedger
 import com.steamforge.game.progression.DailyContracts
+import com.steamforge.game.progression.EventDefinition
+import com.steamforge.game.progression.EventRunCounters
 import com.steamforge.game.progression.GameSummary
+import com.steamforge.game.progression.LiveOpsCatalog
+import com.steamforge.game.progression.LiveOpsLedger
+import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
@@ -76,6 +81,12 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val weeklyBestMoves = stringPreferencesKey("weekly_best_moves")
         val weeklyRewardClaimed = booleanPreferencesKey("weekly_reward_claimed")
 
+        val liveOpsEventId = stringPreferencesKey("liveops_event_id")
+        val liveOpsPoints = intPreferencesKey("liveops_points")
+        val liveOpsClaimed = stringSetPreferencesKey("liveops_claimed")
+        val liveOpsActiveSeed = longPreferencesKey("liveops_active_seed")
+        val liveOpsActivePoints = intPreferencesKey("liveops_active_points")
+
         val soundEnabled = booleanPreferencesKey("sound_enabled")
         val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
         val animationsEnabled = booleanPreferencesKey("animations_enabled")
@@ -93,9 +104,22 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
             if (runSeed == null) return@edit
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(base, day, runSeed, state.toContractCounters())
-            writeProgress(prefs, updated)
+
+            val withContracts = DailyContracts.recordLiveSnapshot(
+                contractBaseForDay(mapProgress(prefs), day, previousSaved),
+                day,
+                runSeed,
+                state.toContractCounters(),
+            )
+            val event = LiveOpsCatalog.activeForEpochDay(day)
+            val eventBase = liveOpsBaseForEvent(withContracts, event, previousSaved)
+            val eventLedger = LiveOpsProgression.recordLiveSnapshot(
+                eventBase.liveOps,
+                event,
+                runSeed,
+                state.toEventCounters(),
+            )
+            writeProgress(prefs, eventBase.copy(liveOps = eventLedger))
         }
     }
 
@@ -105,9 +129,22 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
             if (runSeed == null) return@edit
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(base, day, runSeed, state.toContractCounters())
-            writeProgress(prefs, updated)
+
+            val withContracts = DailyContracts.recordLiveSnapshot(
+                contractBaseForDay(mapProgress(prefs), day, previousSaved),
+                day,
+                runSeed,
+                state.toContractCounters(),
+            )
+            val event = LiveOpsCatalog.activeForEpochDay(day)
+            val eventBase = liveOpsBaseForEvent(withContracts, event, previousSaved)
+            val eventLedger = LiveOpsProgression.recordLiveSnapshot(
+                eventBase.liveOps,
+                event,
+                runSeed,
+                state.toEventCounters(),
+            )
+            writeProgress(prefs, eventBase.copy(liveOps = eventLedger))
         }
     }
 
@@ -127,12 +164,26 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
             val finalSaved = GameSaveCodec.decode(record.state)
             val baseProgress = contractBaseForDay(mapProgress(prefs), record.day, previousSaved)
-            val base = if (finalSaved?.seed != null) {
+            val withContracts = if (finalSaved?.seed != null) {
                 DailyContracts.recordFinishedRun(baseProgress, record.day, finalSaved.seed, finalSaved.toSummary(record.daily))
             } else {
                 baseProgress
             }
-            val (updated, effects) = finisher(base)
+            val event = LiveOpsCatalog.activeForEpochDay(record.day)
+            val eventBase = liveOpsBaseForEvent(withContracts, event, previousSaved)
+            val withLiveOps = if (finalSaved?.seed != null) {
+                eventBase.copy(
+                    liveOps = LiveOpsProgression.recordFinishedRun(
+                        eventBase.liveOps,
+                        event,
+                        finalSaved.seed,
+                        finalSaved.toEventCounters(),
+                    ),
+                )
+            } else {
+                eventBase
+            }
+            val (updated, effects) = finisher(withLiveOps)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
             writeProgress(prefs, updated)
@@ -148,9 +199,30 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
     ) {
         context.dataStore.edit { prefs ->
             val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val withContracts = DailyContracts.recordFinishedRun(base, day, runSeed, summary)
-            val (updated, effects) = finisher(withContracts)
+            val finalSaved = GameSaveCodec.decode(record.state)
+            val withContracts = DailyContracts.recordFinishedRun(
+                contractBaseForDay(mapProgress(prefs), day, previousSaved),
+                day,
+                runSeed,
+                summary,
+            )
+            val event = LiveOpsCatalog.activeForEpochDay(day)
+            val eventBase = liveOpsBaseForEvent(withContracts, event, previousSaved)
+            val finalCounters = finalSaved?.toEventCounters() ?: EventRunCounters(
+                score = summary.score,
+                merges = summary.merges,
+                moves = summary.moves,
+                overdrives = summary.overdrives,
+            )
+            val withLiveOps = eventBase.copy(
+                liveOps = LiveOpsProgression.recordFinishedRun(
+                    eventBase.liveOps,
+                    event,
+                    runSeed,
+                    finalCounters,
+                ),
+            )
+            val (updated, effects) = finisher(withLiveOps)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
             writeProgress(prefs, updated)
@@ -230,6 +302,43 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 blueprintPieces = pieces,
                 unlockedCosmetics = progress.unlockedCosmetics + workshopUnlocks,
                 contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
+            )
+            writeProgress(prefs, updated)
+            granted = true
+        }
+        return granted
+    }
+
+    override suspend fun claimEventMilestone(event: EventDefinition, milestoneId: String): Boolean {
+        if (!event.isActive(LocalDay.todayEpochDay())) return false
+        val milestone = event.milestones.firstOrNull { it.id == milestoneId } ?: return false
+        var granted = false
+        context.dataStore.edit { prefs ->
+            val progress = mapProgress(prefs)
+            val ledger = LiveOpsProgression.normalized(progress.liveOps, event)
+            val claimed = LiveOpsProgression.markClaimed(ledger, event, milestone) ?: return@edit
+
+            var pieces = progress.blueprintPieces
+            repeat(milestone.reward.blueprintPieces) { index ->
+                val piece = Blueprints.nextMissingPiece(
+                    set = Blueprints.steamEngine,
+                    owned = pieces,
+                    seed = event.startEpochDay xor milestone.id.hashCode().toLong() xor index.toLong(),
+                )
+                if (piece != null) pieces = pieces + piece.id
+            }
+            val cosmetics = buildSet {
+                addAll(progress.unlockedCosmetics)
+                milestone.reward.cosmeticId?.let(::add)
+                addAll(Blueprints.workshopUnlocks(pieces))
+            }
+            val gems = milestone.reward.gems
+            val updated = progress.copy(
+                gems = progress.gems + gems,
+                stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + gems),
+                blueprintPieces = pieces,
+                unlockedCosmetics = cosmetics,
+                liveOps = claimed,
             )
             writeProgress(prefs, updated)
             granted = true
@@ -359,6 +468,13 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 bestMoves = prefs[Keys.weeklyBestMoves] ?: "",
                 rewardClaimed = prefs[Keys.weeklyRewardClaimed] ?: false,
             ),
+            liveOps = LiveOpsLedger(
+                eventId = prefs[Keys.liveOpsEventId] ?: "",
+                totalPoints = prefs[Keys.liveOpsPoints] ?: 0,
+                claimedMilestones = prefs[Keys.liveOpsClaimed] ?: emptySet(),
+                activeRunSeed = prefs[Keys.liveOpsActiveSeed],
+                activeRunPoints = prefs[Keys.liveOpsActivePoints] ?: 0,
+            ),
             soundEnabled = prefs[Keys.soundEnabled] ?: true,
             hapticsEnabled = prefs[Keys.hapticsEnabled] ?: true,
             animationsEnabled = prefs[Keys.animationsEnabled] ?: true,
@@ -409,6 +525,12 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.weeklyBestMoves] = p.weekly.bestMoves
         prefs[Keys.weeklyRewardClaimed] = p.weekly.rewardClaimed
 
+        prefs[Keys.liveOpsEventId] = p.liveOps.eventId
+        prefs[Keys.liveOpsPoints] = p.liveOps.totalPoints
+        prefs[Keys.liveOpsClaimed] = p.liveOps.claimedMilestones
+        if (p.liveOps.activeRunSeed != null) prefs[Keys.liveOpsActiveSeed] = p.liveOps.activeRunSeed else prefs.remove(Keys.liveOpsActiveSeed)
+        prefs[Keys.liveOpsActivePoints] = p.liveOps.activeRunPoints
+
         prefs[Keys.soundEnabled] = p.soundEnabled
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
         prefs[Keys.animationsEnabled] = p.animationsEnabled
@@ -427,11 +549,40 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         )
     }
 
+    private fun liveOpsBaseForEvent(
+        progress: PlayerProgress,
+        event: EventDefinition,
+        previousSaved: SavedGame?,
+    ): PlayerProgress {
+        if (progress.liveOps.eventId == event.id) return progress
+        val savedSeed = previousSaved?.seed
+        val baseline = if (savedSeed != null) {
+            LiveOpsProgression.pointsFor(event.scoringRule, previousSaved.toEventCounters())
+        } else {
+            0
+        }
+        return progress.copy(
+            liveOps = LiveOpsLedger(
+                eventId = event.id,
+                activeRunSeed = savedSeed,
+                activeRunPoints = baseline,
+            ),
+        )
+    }
+
     private fun SavedGame.toContractCounters(): ContractCounters = ContractCounters(
         score = state.score,
         merges = mergesTotal,
         moves = state.moves,
         maxTileLevel = state.maxLevel,
+        overdrives = overdrivesSession,
+    )
+
+    private fun SavedGame.toEventCounters(): EventRunCounters = EventRunCounters(
+        score = state.score,
+        merges = mergesTotal,
+        moves = state.moves,
+        highMerges = highMergesSession,
         overdrives = overdrivesSession,
     )
 
