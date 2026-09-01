@@ -130,18 +130,22 @@ object DailyContracts {
         runSeed: Long,
         summary: GameSummary,
     ): PlayerProgress {
-        val withSnapshot = recordLiveSnapshot(
-            progress = progress,
-            day = day,
-            runSeed = runSeed,
-            snapshot = ContractCounters.fromSummary(summary),
-        )
-        val ledger = normalized(withSnapshot.contracts, day)
-        return withSnapshot.copy(
+        val ledger = normalized(progress.contracts, day)
+        val snapshot = ContractCounters.fromSummary(summary)
+        val sameAsActiveRun = ledger.activeRunSeed == runSeed
+        val previous = if (sameAsActiveRun) ledger.activeRun else ContractCounters()
+        val highWater = previous.highWater(snapshot)
+        val delta = highWater.positiveDelta(previous)
+        val totals = ledger.totals
+            .plus(delta)
+            .plus(ContractCounters(runs = 1))
+            .copy(maxTileLevel = max(ledger.totals.maxTileLevel, highWater.maxTileLevel))
+
+        return progress.copy(
             contracts = ledger.copy(
-                totals = ledger.totals.plus(ContractCounters(runs = 1)),
-                activeRunSeed = null,
-                activeRun = ContractCounters(),
+                totals = totals,
+                activeRunSeed = if (sameAsActiveRun) null else ledger.activeRunSeed,
+                activeRun = if (sameAsActiveRun) ContractCounters() else ledger.activeRun,
             ),
         )
     }
