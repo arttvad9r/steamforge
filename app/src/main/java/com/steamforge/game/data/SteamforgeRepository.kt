@@ -25,10 +25,13 @@ import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
+import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.RewardedWorkshopBonus
 import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.WeeklyChallengeVerifier
 import com.steamforge.game.progression.WeeklyRecord
 import com.steamforge.game.progression.WeeklyVerifiedResult
+import com.steamforge.game.progression.applyRewardedWorkshopXp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -229,23 +232,25 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         }
     }
 
-    override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
-        if (gems <= 0) return false
-        var granted = false
+    override suspend fun claimDoubleReward(
+        gameResultId: String,
+        cfg: ProgressionConfig,
+    ): RewardedWorkshopBonus? {
+        var granted: RewardedWorkshopBonus? = null
         context.dataStore.edit { prefs ->
-            val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
-            if (record != null && record.id == gameResultId && !record.rewardedClaimed) {
-                prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
-                val progress = mapProgress(prefs)
-                writeProgress(
-                    prefs,
-                    progress.copy(
-                        gems = progress.gems + gems,
-                        stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + gems),
-                    ),
-                )
-                granted = true
-            }
+            val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode) ?: return@edit
+            if (record.id != gameResultId || record.rewardedClaimed || record.xpGained <= 0) return@edit
+
+            val (updated, bonus) = applyRewardedWorkshopXp(
+                progress = mapProgress(prefs),
+                bonusXp = record.xpGained,
+                cfg = cfg,
+            )
+            if (bonus.xpGained <= 0) return@edit
+
+            prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withRewardedBonus(bonus))
+            writeProgress(prefs, updated)
+            granted = bonus
         }
         return granted
     }
