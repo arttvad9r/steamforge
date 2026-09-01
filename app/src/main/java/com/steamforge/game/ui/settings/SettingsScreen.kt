@@ -1,5 +1,6 @@
 package com.steamforge.game.ui.settings
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,12 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.Danger
 import com.steamforge.game.theme.Panel
@@ -61,6 +62,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as? Activity
     var confirmReset by remember { mutableStateOf(false) }
 
     SteamBackdrop(modifier) {
@@ -83,7 +85,7 @@ fun SettingsScreen(
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("Настройки", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
-                    Text("Игра и приватность", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                    Text("Игра, покупки и приватность", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -100,6 +102,16 @@ fun SettingsScreen(
                 SettingDivider()
                 SettingToggleRow("⚙", "Анимации", "Визуальные эффекты и движение", ui.animationsEnabled, vm::setAnimations)
             }
+
+            Spacer(Modifier.height(16.dp))
+            SettingsGroupTitle("ПОКУПКИ")
+            Spacer(Modifier.height(6.dp))
+            RemoveAdsSection(
+                ui = ui,
+                canPurchase = activity != null,
+                onPurchase = { activity?.let(vm::purchaseRemoveAds) },
+                onRefresh = vm::refreshPurchases,
+            )
 
             Spacer(Modifier.height(16.dp))
             SettingsGroupTitle("ПРИВАТНОСТЬ")
@@ -143,7 +155,7 @@ fun SettingsScreen(
             body = {
                 Text(
                     "Будут удалены очки, гемы, уровень мастерской, достижения, статистика, " +
-                        "испытания и сохранённая партия. Настройки и выбор приватности сохранятся. " +
+                        "испытания и сохранённая партия. Настройки, выбор приватности и покупки сохранятся. " +
                         "Отменить это нельзя.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
@@ -172,6 +184,76 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun RemoveAdsSection(
+    ui: SettingsUiState,
+    canPurchase: Boolean,
+    onPurchase: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    SteamPanel(
+        modifier = Modifier.fillMaxWidth(),
+        highlighted = ui.removeAdsOwned,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SettingIcon("◇", ui.removeAdsOwned)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Без рекламы", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+                Text(
+                    "Убирает автоматическую рекламу между партиями. Добровольное видео ×2 XP Мастерской остаётся доступным.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted,
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        when {
+            ui.removeAdsOwned -> SteamButton(
+                text = "БЕЗ РЕКЛАМЫ АКТИВНО",
+                onClick = { },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Teal,
+            )
+            !ui.removeAdsConfigured -> SteamButton(
+                text = "ПОКУПКА ПОКА НЕДОСТУПНА",
+                onClick = { },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Dark,
+            )
+            ui.removeAdsLoading || ui.removeAdsPurchaseInProgress -> SteamButton(
+                text = if (ui.removeAdsPurchaseInProgress) "ОТКРЫВАЕМ ОПЛАТУ…" else "ПРОВЕРЯЕМ ПОКУПКИ…",
+                onClick = { },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Dark,
+            )
+            ui.removeAdsProductAvailable && canPurchase -> SteamButton(
+                text = buildString {
+                    append("УБРАТЬ РЕКЛАМУ")
+                    ui.removeAdsPriceLabel?.let { append(" · ").append(it) }
+                },
+                onClick = onPurchase,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Brass,
+            )
+            else -> SteamButton(
+                text = "ОБНОВИТЬ ПОКУПКИ",
+                onClick = onRefresh,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Dark,
+            )
+        }
+        ui.billingMessage?.let { message ->
+            Spacer(Modifier.height(8.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall, color = TextMuted)
+        }
     }
 }
 
@@ -239,7 +321,7 @@ private fun SettingDivider() {
 
 @Composable
 private fun PrivacyPolicyRow() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val url = com.steamforge.game.BuildConfig.PRIVACY_POLICY_URL
     Row(
         modifier = Modifier
