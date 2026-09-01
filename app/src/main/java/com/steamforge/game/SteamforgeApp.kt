@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import com.steamforge.game.analytics.AppMetricaAnalytics
 import com.steamforge.game.analytics.MutableAnalytics
 import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.data.OnboardingStore
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
@@ -23,6 +24,7 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val isDebug: Boolean = (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val repo = SteamforgeRepository(appContext)
+    val onboarding = OnboardingStore(appContext, repo)
     val sfx = SfxPlayer(appContext)
 
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
@@ -33,6 +35,7 @@ class AppContainer(context: Context) {
     private var appOpenLogged = false
 
     init {
+        appScope.launch { onboarding.ensureInitialized() }
         appScope.launch {
             repo.progress
                 .map { it.soundEnabled }
