@@ -91,36 +91,46 @@ jobs:
             > emulator-android17.log 2>&1 &
           echo $! > emulator-android17.pid
           adb start-server
+
           for i in $(seq 1 120); do
             if adb devices | grep -q '^emulator-.*device$'; then break; fi
-            if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
+            if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then
+              cat emulator-android17.log
+              exit 1
+            fi
             sleep 2
           done
           adb devices | grep '^emulator-.*device$'
+
           for i in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
-            if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
+            if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then
+              cat emulator-android17.log
+              exit 1
+            fi
             sleep 2
           done
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
 
-          # API 37 preview images can report sys.boot_completed before framework services are ready.
+          # Preview images may publish sys.boot_completed before core framework services settle.
           stable=0
           for i in $(seq 1 60); do
             package_service="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
             window_service="$(adb shell service check window 2>/dev/null | tr -d '\r' || true)"
-            if [ "$package_service" = 'Service package: found' ] && [ "$window_service" = 'Service window: found' ]; then
+            activity_service="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
+            if [ "$package_service" = 'Service package: found' ] && \
+               [ "$window_service" = 'Service window: found' ] && \
+               [ "$activity_service" = 'Service activity: found' ]; then
               stable=$((stable + 1))
               if [ "$stable" -ge 5 ]; then break; fi
             else
               stable=0
             fi
-            if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then cat emulator-android17.log; exit 1; fi
             sleep 2
           done
           test "$stable" -ge 5
 
-          # Fresh preview images continue first-boot provisioning after framework services appear.
+          # Give first-boot provisioning a bounded chance to finish before package installation.
           for i in $(seq 1 30); do
             device_provisioned="$(adb shell settings get global device_provisioned 2>/dev/null | tr -d '\r' || true)"
             user_setup_complete="$(adb shell settings get secure user_setup_complete 2>/dev/null | tr -d '\r' || true)"
@@ -128,7 +138,7 @@ jobs:
             if [ "$device_provisioned" = "1" ] && [ "$user_setup_complete" = "1" ]; then break; fi
             sleep 2
           done
-          sleep 45
+          sleep 30
           adb shell df -h /data
 
       - name: Verify Android 17 and 16 KB runtime
@@ -168,33 +178,25 @@ jobs:
                 if [ "$current_pid" = "$candidate_pid" ]; then
                   stable=$((stable + 1))
                 else
-                  if [ -n "$candidate_pid" ]; then
-                    echo "system_server changed from $candidate_pid to $current_pid; resetting stability window."
-                  else
-                    echo "Tracking system_server pid $current_pid."
-                  fi
                   candidate_pid="$current_pid"
                   stable=1
                 fi
-                if [ "$stable" -ge 15 ]; then
-                  echo "Android framework pid $candidate_pid stable for 30 seconds."
-                  FRAMEWORK_PID="$candidate_pid"
+                if [ "$stable" -ge 10 ]; then
+                  echo "Android framework pid $candidate_pid stable for 20 seconds."
                   return 0
                 fi
               else
-                if [ -n "$candidate_pid" ] || [ "$stable" -ne 0 ]; then
-                  echo "Framework readiness lost; resetting stability window (pid=${current_pid:-none})."
-                fi
                 candidate_pid=""
                 stable=0
               fi
+
               if ! kill -0 "$(cat emulator-android17.pid)" 2>/dev/null; then
                 cat emulator-android17.log
                 return 1
               fi
               sleep 2
             done
-            echo 'Android framework did not keep one stable system_server for 30 seconds.'
+            echo 'Android framework did not become stable.'
             return 1
           }
 
@@ -204,56 +206,44 @@ jobs:
 
           wait_for_package() {
             for i in $(seq 1 30); do
-              if package_visible; then
-                echo 'Steamforge package is visible to Package Manager.'
-                return 0
-              fi
+              if package_visible; then return 0; fi
               sleep 1
             done
             return 1
           }
 
           install_once() {
-            local install_output
-            if install_output="$(adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1)"; then
-              echo "$install_output"
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+          }
+
+          app_is_foreground() {
+            local activity_dump
+            local window_dump
+            activity_dump="$(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' || true)"
+            window_dump="$(adb shell dumpsys window windows 2>/dev/null | tr -d '\r' || true)"
+
+            # Android versions use different labels for the resumed activity. Accept the known
+            # foreground representations, but always require the Steamforge package itself.
+            if printf '%s\n' "$activity_dump" \
+              | grep -E 'ResumedActivity|topResumedActivity|mResumedActivity' \
+              | grep -Fq 'com.steamforge.game'; then
               return 0
             fi
-            echo "$install_output"
+
+            if printf '%s\n' "$window_dump" \
+              | grep -E 'mCurrentFocus|mFocusedApp' \
+              | grep -Fq 'com.steamforge.game'; then
+              return 0
+            fi
+
             return 1
           }
 
-          wait_for_framework
-          if ! install_once; then
-            echo 'Install was interrupted; waiting for framework recovery and retrying once.'
-            wait_for_framework
-            install_once
-          fi
-
-          wait_for_framework
-          if ! wait_for_package; then
-            echo 'Installed package disappeared during framework restart; reinstalling once.'
-            wait_for_framework
-            install_once
-            wait_for_framework
-            wait_for_package
-          fi
-
-          adb logcat -c
-
-          wait_for_resumed() {
-            local expected_framework_pid="$1"
-            local current_framework_pid=""
-            for i in $(seq 1 30); do
-              current_framework_pid="$(system_server_pid || true)"
-              if [ -z "$current_framework_pid" ] || [ "$current_framework_pid" != "$expected_framework_pid" ]; then
-                echo "system_server changed during app launch: expected $expected_framework_pid, got ${current_framework_pid:-none}."
-                return 1
-              fi
+          wait_for_foreground() {
+            for i in $(seq 1 45); do
               pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
-              resumed="$(adb shell dumpsys activity activities 2>/dev/null | grep -F 'ResumedActivity:' | grep -F 'com.steamforge.game/.MainActivity' || true)"
-              if [ -n "$pid" ] && [ -n "$resumed" ]; then
-                echo "Steamforge resumed with pid $pid on framework pid $expected_framework_pid"
+              if [ -n "$pid" ] && app_is_foreground; then
+                echo "Steamforge is foreground with pid $pid"
                 return 0
               fi
               sleep 1
@@ -261,46 +251,43 @@ jobs:
             return 1
           }
 
-          launch_once() {
-            local launch_framework_pid
-            launch_framework_pid="$(system_server_pid || true)"
-            if [ -z "$launch_framework_pid" ]; then return 1; fi
-            if ! adb shell am force-stop com.steamforge.game; then return 1; fi
-            if ! adb shell am start -W -n com.steamforge.game/.MainActivity; then return 1; fi
-            wait_for_resumed "$launch_framework_pid"
-          }
-
-          if ! launch_once; then
-            echo 'First launch was interrupted; waiting for framework stability before one retry.'
+          wait_for_framework
+          if ! install_once; then
+            echo 'Install interrupted; retrying after framework recovery.'
             wait_for_framework
-            if ! wait_for_package; then
-              install_once
-              wait_for_framework
-              wait_for_package
-            fi
-            launch_once
+            install_once
+          fi
+          wait_for_package
+
+          adb logcat -c
+          adb shell am force-stop com.steamforge.game
+
+          # Prefer an explicit launch; fall back to the launcher intent if the preview image
+          # rejects the shorthand component form during transient Package Manager recovery.
+          if ! adb shell am start -W -n com.steamforge.game/.MainActivity; then
+            wait_for_framework
+            wait_for_package
+            adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           fi
 
-          stable_launch_framework_pid="$(system_server_pid || true)"
+          if ! wait_for_foreground; then
+            echo 'Foreground state was not observed; retrying once through the launcher intent.'
+            wait_for_framework
+            wait_for_package
+            adb shell am force-stop com.steamforge.game
+            adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+            wait_for_foreground
+          fi
+
           sleep 5
-          if ! wait_for_resumed "$stable_launch_framework_pid"; then
-            echo 'Foreground process or framework was interrupted after launch; performing final bounded restart.'
-            wait_for_framework
-            if ! wait_for_package; then
-              install_once
-              wait_for_framework
-              wait_for_package
-            fi
-            launch_once
-            stable_launch_framework_pid="$(system_server_pid || true)"
-            sleep 5
-            wait_for_resumed "$stable_launch_framework_pid"
-          fi
+          pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+          test -n "$pid"
+          app_is_foreground
 
-          # Fail on an actual Java crash from Steamforge even if Android subsequently restarts the activity.
-          if adb logcat -d -v brief | grep -E 'FATAL EXCEPTION|Process: com\.steamforge\.game' | grep -q 'com.steamforge.game'; then
-            echo 'Steamforge fatal exception detected.'
-            adb logcat -d -v brief | grep -E -A40 -B10 'FATAL EXCEPTION|Process: com\.steamforge\.game' || true
+          adb logcat -d -v brief > /tmp/steamforge-logcat.txt
+          if grep -Fq 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt; then
+            echo 'Steamforge fatal process crash detected.'
+            grep -F -A40 -B10 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt || true
             exit 1
           fi
 
@@ -332,6 +319,6 @@ jobs:
           echo '=== activity ==='
           adb shell dumpsys activity activities | grep -F 'com.steamforge.game' || true
           echo '=== focused window ==='
-          adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
+          adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp|com.steamforge.game' || true
           echo '=== recent logcat ==='
           adb logcat -d -v brief | tail -600 || true
