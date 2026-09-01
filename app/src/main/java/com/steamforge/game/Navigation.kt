@@ -27,6 +27,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.progression.WeeklyChallenges
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.ui.achievements.AchievementsScreen
 import com.steamforge.game.ui.achievements.AchievementsViewModel
@@ -43,6 +44,8 @@ import com.steamforge.game.ui.home.HomeScreen
 import com.steamforge.game.ui.home.HomeViewModel
 import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
+import com.steamforge.game.ui.weekly.WeeklyScreen
+import com.steamforge.game.ui.weekly.WeeklyViewModel
 import com.steamforge.game.ui.workshop.WorkshopScreen
 import com.steamforge.game.ui.workshop.WorkshopViewModel
 import kotlinx.coroutines.flow.map
@@ -51,6 +54,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
+@Serializable data object Weekly : NavKey
+@Serializable data object WeeklyGame : NavKey
 @Serializable data object Contracts : NavKey
 @Serializable data object Blueprints : NavKey
 @Serializable data class Game(val daily: Boolean = false) : NavKey
@@ -99,6 +104,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     vm = vm,
                     onPlay = { backStack.add(Game(daily = false)) },
                     onWorkshop = { backStack.add(Workshop) },
+                    onWeekly = { backStack.add(Weekly) },
                     onContracts = { backStack.add(Contracts) },
                     onBlueprints = { backStack.add(Blueprints) },
                     onDaily = { backStack.add(Game(daily = true)) },
@@ -114,6 +120,33 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onDaily = { backStack.add(Game(daily = true)) },
                     onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
+                )
+            }
+            entry<Weekly> {
+                val vm: WeeklyViewModel = viewModel { WeeklyViewModel(container.repo) }
+                WeeklyScreen(
+                    vm = vm,
+                    onBack = { back() },
+                    onPlay = { backStack.add(WeeklyGame) },
+                )
+            }
+            entry<WeeklyGame> {
+                val challenge = WeeklyChallenges.forEpochDay(LocalDay.todayEpochDay())
+                val vm: GameViewModel = viewModel(key = "weekly-${challenge.id}") {
+                    GameViewModel(
+                        repo = container.repo,
+                        analytics = container.analytics,
+                        ads = container.ads,
+                        weeklyChallenge = challenge,
+                        systemAnimationsEnabled = systemAnimationsEnabled,
+                    )
+                }
+                GameScreen(
+                    vm = vm,
+                    sfx = container.sfx,
+                    ads = container.ads,
+                    onExit = { back() },
+                    modifier = Modifier.navigationBarsPadding(),
                 )
             }
             entry<Contracts> {
@@ -163,7 +196,7 @@ private fun ConsentDialog(
     val context = LocalContext.current
     SteamDecisionDialog(
         title = "ПРИВАТНОСТЬ",
-        onDismissRequest = { /* решение обязательно; до него SDK не активируются */ },
+        onDismissRequest = { },
         body = {
             Column {
                 Text(
