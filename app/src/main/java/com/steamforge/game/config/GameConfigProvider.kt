@@ -25,9 +25,14 @@ class FallbackGameConfigProvider(
     override suspend fun refresh(): Boolean {
         val source = remote ?: return false
         val fetched = runCatching { source.fetch() }.getOrNull() ?: return false
-        // Typed config sanitizes individual values at consumption boundaries. A failed fetch never clears defaults.
+        if (fetched.schemaVersion != SUPPORTED_SCHEMA_VERSION) return false
+        // Typed config sanitizes individual values at consumption boundaries. Failed/unknown fetches never clear defaults.
         mutable.value = fetched
         return true
+    }
+
+    private companion object {
+        const val SUPPORTED_SCHEMA_VERSION = 1
     }
 }
 
