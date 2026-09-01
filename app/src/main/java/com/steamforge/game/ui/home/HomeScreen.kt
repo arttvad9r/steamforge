@@ -54,17 +54,16 @@ import com.steamforge.game.theme.Copper
 import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.PanelRaised
 import com.steamforge.game.theme.Recess
+import com.steamforge.game.theme.SeasonalVisuals
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 import com.steamforge.game.ui.components.BrassRoundButton
-import com.steamforge.game.ui.components.SteamBackdrop
+import com.steamforge.game.ui.components.SeasonalBackdrop
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamPanel
-
-private val EventOrange = Color(0xFFE08A3A)
 
 @Composable
 fun HomeScreen(
@@ -80,8 +79,9 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val seasonal = SeasonalVisuals.resolve(ui.eventTheme)
 
-    SteamBackdrop(modifier) {
+    SeasonalBackdrop(theme = seasonal, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -138,15 +138,15 @@ fun HomeScreen(
 
             if (ui.eventEnabled) {
                 HomeEntryCard(
-                    icon = if (ui.eventRewardAvailable) "◆" else "F",
-                    title = "Foundry Week",
+                    icon = if (ui.eventRewardAvailable) "◆" else seasonal.badge,
+                    title = ui.eventTheme?.title ?: "Событие",
                     subtitle = when {
                         ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} pressure"
                         else -> "${ui.eventPoints} pressure · ${ui.eventDaysRemaining} дн. осталось"
                     },
                     onClick = onEvent,
                     modifier = Modifier.fillMaxWidth(),
-                    accent = if (ui.eventRewardAvailable) TealGlow else EventOrange,
+                    accent = if (ui.eventRewardAvailable) TealGlow else seasonal.accent,
                 )
                 Spacer(Modifier.height(8.dp))
             }

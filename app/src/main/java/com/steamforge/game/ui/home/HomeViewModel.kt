@@ -6,6 +6,7 @@ import com.steamforge.game.config.FallbackGameConfigProvider
 import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
+import com.steamforge.game.progression.EventTheme
 import com.steamforge.game.progression.LiveOpsCatalog
 import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
@@ -31,6 +32,7 @@ data class HomeUiState(
     val eventPoints: Int = 0,
     val eventRewardAvailable: Boolean = false,
     val eventDaysRemaining: Int = 0,
+    val eventTheme: EventTheme? = null,
     val dailyEnabled: Boolean = true,
     val contractsEnabled: Boolean = true,
     val weeklyEnabled: Boolean = true,
@@ -72,6 +74,7 @@ class HomeViewModel(
             eventPoints = eventLedger.totalPoints,
             eventRewardAvailable = event.milestones.any { LiveOpsProgression.canClaim(eventLedger, event, it) },
             eventDaysRemaining = (event.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt(),
+            eventTheme = event.theme.takeIf { remote.features.liveOps },
             dailyEnabled = remote.features.dailyChallenge,
             contractsEnabled = remote.features.dailyContracts,
             weeklyEnabled = remote.features.weeklyChallenge,
