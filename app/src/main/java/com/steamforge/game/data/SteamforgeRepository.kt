@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.steamforge.game.core.Move
 import com.steamforge.game.progression.Achievements
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.ContractCounters
@@ -19,6 +20,10 @@ import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
+import com.steamforge.game.progression.WeeklyChallenge
+import com.steamforge.game.progression.WeeklyChallengeVerifier
+import com.steamforge.game.progression.WeeklyRecord
+import com.steamforge.game.progression.WeeklyVerifiedResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -64,6 +69,11 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val contractActiveMoves = intPreferencesKey("contract_active_moves")
         val contractActiveMaxTile = intPreferencesKey("contract_active_max_tile")
         val contractActiveOverdrives = intPreferencesKey("contract_active_overdrives")
+
+        val weeklyChallengeId = stringPreferencesKey("weekly_challenge_id")
+        val weeklyBestScore = intPreferencesKey("weekly_best_score")
+        val weeklyBestMoves = stringPreferencesKey("weekly_best_moves")
+        val weeklyRewardClaimed = booleanPreferencesKey("weekly_reward_claimed")
 
         val soundEnabled = booleanPreferencesKey("sound_enabled")
         val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
@@ -226,6 +236,54 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         return granted
     }
 
+    override suspend fun submitWeeklyChallenge(
+        challenge: WeeklyChallenge,
+        moves: List<Move>,
+    ): WeeklyVerifiedResult? {
+        val verified = WeeklyChallengeVerifier.verify(challenge, moves) ?: return null
+        context.dataStore.edit { prefs ->
+            val progress = mapProgress(prefs)
+            val current = if (progress.weekly.challengeId == challenge.id) {
+                progress.weekly
+            } else {
+                WeeklyRecord(challengeId = challenge.id)
+            }
+            val updatedRecord = if (verified.score > current.bestScore) {
+                current.copy(bestScore = verified.score, bestMoves = verified.replay)
+            } else {
+                current
+            }
+            writeProgress(prefs, progress.copy(weekly = updatedRecord))
+        }
+        return verified
+    }
+
+    override suspend fun claimWeeklyReward(challenge: WeeklyChallenge): Boolean {
+        var granted = false
+        context.dataStore.edit { prefs ->
+            val progress = mapProgress(prefs)
+            val record = progress.weekly
+            if (record.challengeId != challenge.id || record.bestScore <= 0 || record.rewardClaimed) return@edit
+
+            val piece = Blueprints.nextMissingPiece(
+                set = Blueprints.steamEngine,
+                owned = progress.blueprintPieces,
+                seed = challenge.seed xor 0x57524B4CL,
+            )
+            val pieces = if (piece != null) progress.blueprintPieces + piece.id else progress.blueprintPieces
+            val updated = progress.copy(
+                gems = progress.gems + challenge.rewardGems,
+                stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + challenge.rewardGems),
+                blueprintPieces = pieces,
+                unlockedCosmetics = progress.unlockedCosmetics + Blueprints.workshopUnlocks(pieces),
+                weekly = record.copy(rewardClaimed = true),
+            )
+            writeProgress(prefs, updated)
+            granted = true
+        }
+        return granted
+    }
+
     override suspend fun clearFinishedGame() {
         context.dataStore.edit { it.remove(Keys.finishedGame) }
     }
@@ -293,6 +351,12 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                     overdrives = prefs[Keys.contractActiveOverdrives] ?: 0,
                 ),
             ),
+            weekly = WeeklyRecord(
+                challengeId = prefs[Keys.weeklyChallengeId] ?: "",
+                bestScore = prefs[Keys.weeklyBestScore] ?: 0,
+                bestMoves = prefs[Keys.weeklyBestMoves] ?: "",
+                rewardClaimed = prefs[Keys.weeklyRewardClaimed] ?: false,
+            ),
             soundEnabled = prefs[Keys.soundEnabled] ?: true,
             hapticsEnabled = prefs[Keys.hapticsEnabled] ?: true,
             animationsEnabled = prefs[Keys.animationsEnabled] ?: true,
@@ -336,6 +400,11 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.contractActiveMoves] = p.contracts.activeRun.moves
         prefs[Keys.contractActiveMaxTile] = p.contracts.activeRun.maxTileLevel
         prefs[Keys.contractActiveOverdrives] = p.contracts.activeRun.overdrives
+
+        prefs[Keys.weeklyChallengeId] = p.weekly.challengeId
+        prefs[Keys.weeklyBestScore] = p.weekly.bestScore
+        prefs[Keys.weeklyBestMoves] = p.weekly.bestMoves
+        prefs[Keys.weeklyRewardClaimed] = p.weekly.rewardClaimed
 
         prefs[Keys.soundEnabled] = p.soundEnabled
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
