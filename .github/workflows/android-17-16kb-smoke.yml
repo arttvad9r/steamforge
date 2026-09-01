@@ -156,6 +156,11 @@ jobs:
         run: |
           set -euxo pipefail
 
+          APK='app/build/outputs/apk/debug/app-debug.apk'
+          REMOTE_APK='/data/local/tmp/steamforge-debug.apk'
+          PACKAGE='com.steamforge.game'
+          COMPONENT='com.steamforge.game/.MainActivity'
+
           system_server_pid() {
             adb shell pidof system_server 2>/dev/null | tr -d '\r' | awk '{print $1}'
           }
@@ -207,7 +212,7 @@ jobs:
           }
 
           package_visible() {
-            adb shell pm path com.steamforge.game 2>/dev/null | tr -d '\r' | grep -q '^package:'
+            adb shell pm path "$PACKAGE" 2>/dev/null | tr -d '\r' | grep -q '^package:'
           }
 
           wait_for_package() {
@@ -219,12 +224,15 @@ jobs:
           }
 
           install_with_retry() {
+            test -f "$APK"
+            adb shell rm -f "$REMOTE_APK" || true
+            adb push "$APK" "$REMOTE_APK"
+
             for attempt in 1 2 3; do
-              echo "Steamforge install attempt $attempt/3"
+              echo "Steamforge device-side install attempt $attempt/3"
               wait_for_framework
 
-              if package_manager_responding && \
-                 adb install --no-streaming -r app/build/outputs/apk/debug/app-debug.apk; then
+              if package_manager_responding && adb shell pm install -r "$REMOTE_APK"; then
                 if wait_for_package; then
                   echo 'Steamforge APK installed and visible to PackageManager.'
                   return 0
@@ -239,34 +247,11 @@ jobs:
             return 1
           }
 
-          app_is_foreground() {
-            local activity_dump
-            local window_dump
-            activity_dump="$(adb shell dumpsys activity activities 2>/dev/null | tr -d '\r' || true)"
-            window_dump="$(adb shell dumpsys window windows 2>/dev/null | tr -d '\r' || true)"
-
-            # Android versions use different labels for the resumed activity. Accept the known
-            # foreground representations, but always require the Steamforge package itself.
-            if printf '%s\n' "$activity_dump" \
-              | grep -E 'ResumedActivity|topResumedActivity|mResumedActivity' \
-              | grep -Fq 'com.steamforge.game'; then
-              return 0
-            fi
-
-            if printf '%s\n' "$window_dump" \
-              | grep -E 'mCurrentFocus|mFocusedApp' \
-              | grep -Fq 'com.steamforge.game'; then
-              return 0
-            fi
-
-            return 1
-          }
-
-          wait_for_foreground() {
+          wait_for_process() {
             for i in $(seq 1 45); do
-              pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
-              if [ -n "$pid" ] && app_is_foreground; then
-                echo "Steamforge is foreground with pid $pid"
+              pid="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+              if [ -n "$pid" ]; then
+                echo "Steamforge process is alive with pid $pid"
                 return 0
               fi
               sleep 1
@@ -277,29 +262,22 @@ jobs:
           install_with_retry
 
           adb logcat -c
-          adb shell am force-stop com.steamforge.game
+          adb shell am force-stop "$PACKAGE"
 
-          # Prefer an explicit launch; fall back to the launcher intent if the preview image
-          # rejects the shorthand component form during transient Package Manager recovery.
-          if ! adb shell am start -W -n com.steamforge.game/.MainActivity; then
+          # am start -W verifies ActivityManager accepted the launch. The process/lifecycle
+          # checks below are intentionally independent of dumpsys foreground labels, which
+          # are unstable across Android preview builds.
+          if ! adb shell am start -W -n "$COMPONENT"; then
             wait_for_framework
             wait_for_package
-            adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+            adb shell am start -W -n "$COMPONENT"
           fi
 
-          if ! wait_for_foreground; then
-            echo 'Foreground state was not observed; retrying once through the launcher intent.'
-            wait_for_framework
-            wait_for_package
-            adb shell am force-stop com.steamforge.game
-            adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-            wait_for_foreground
-          fi
-
+          wait_for_process
           sleep 5
-          pid="$(adb shell pidof com.steamforge.game 2>/dev/null | tr -d '\r' || true)"
+
+          pid="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
           test -n "$pid"
-          app_is_foreground
 
           adb logcat -d -v brief > /tmp/steamforge-logcat.txt
           if grep -Fq 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt; then
