@@ -192,6 +192,19 @@ jobs:
             sleep 2
           }
 
+          scroll_until_text() {
+            local needle="$1"
+            local label="$2"
+            for i in $(seq 1 6); do
+              if dump_ui "$label" && grep -Fqi "$needle" /tmp/window.xml; then return 0; fi
+              adb shell input swipe 540 2050 540 850 450
+              sleep 1
+            done
+            echo "Scrollable text not found: $needle"
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           open_workshop_from_shell() {
             local label="$1"
             for i in $(seq 1 10); do
@@ -295,7 +308,8 @@ jobs:
           shot '04-settings.png'
           dump_ui '04-settings-window'
           assert_toggle_accessibility 'Звук' '04-sound-toggle-a11y'
-          tap_node 'СБРОСИТЬ' 'reset-open'
+          scroll_until_text 'СБРОСИТЬ ПРОГРЕСС' '05-reset-scroll-window'
+          tap_node 'СБРОСИТЬ ПРОГРЕСС' 'reset-open'
           wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
           shot '05-reset-confirmation.png'
           tap_node 'ОТМЕНА' 'reset-cancel'
