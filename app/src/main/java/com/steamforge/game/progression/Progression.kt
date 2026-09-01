@@ -149,6 +149,7 @@ data class PlayerProgress(
     val dailyChallengeDone: Boolean = false,
     val dailyRewardDay: Long = -1L,
     val dailyRewardStreak: Int = 0,
+    val dailyRewardGraceUsed: Boolean = false,
     val contracts: ContractLedger = ContractLedger(),
     val weekly: WeeklyRecord = WeeklyRecord(),
     val soundEnabled: Boolean = true,
