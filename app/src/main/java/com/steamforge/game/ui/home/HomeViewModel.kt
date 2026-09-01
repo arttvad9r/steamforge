@@ -6,6 +6,7 @@ import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.ReturnLoop
 import com.steamforge.game.progression.WeeklyChallenges
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,11 +46,13 @@ class HomeViewModel(
             blueprintsCollected = Blueprints.collectedCount(Blueprints.steamEngine, progress.blueprintPieces),
             blueprintsTotal = Blueprints.steamEngine.pieces.size,
             dailyDone = progress.dailyChallengeDay == todayDay && progress.dailyChallengeDone,
-            dailyRewardStreak = if (progress.dailyRewardDay == todayDay || progress.dailyRewardDay == todayDay - 1) {
-                progress.dailyRewardStreak
-            } else {
-                0
-            },
+            dailyRewardStreak = ReturnLoop.visibleStreak(
+                lastClaimDay = progress.dailyRewardDay,
+                streakDay = progress.dailyRewardStreak,
+                graceUsed = progress.dailyRewardGraceUsed,
+                today = todayDay,
+                cycleDays = cfg.dailyRewardCycle,
+            ),
             weeklyBestScore = weeklyRecord?.bestScore ?: 0,
             weeklyRewardAvailable = weeklyRecord?.let { it.bestScore > 0 && !it.rewardClaimed } ?: false,
             weeklyDaysRemaining = WeeklyChallenges.daysRemaining(weekly, todayDay),
