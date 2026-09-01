@@ -85,11 +85,16 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
     override suspend fun saveGame(state: SavedGame) {
         context.dataStore.edit { prefs ->
+            val day = LocalDay.todayEpochDay()
+            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
+            val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
-            val runSeed = state.seed ?: return@edit
+            if (runSeed == null) return@edit
+
+            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
             val updated = DailyContracts.recordLiveSnapshot(
-                progress = mapProgress(prefs),
-                day = LocalDay.todayEpochDay(),
+                progress = base,
+                day = day,
                 runSeed = runSeed,
                 snapshot = state.toContractCounters(),
             )
@@ -99,10 +104,14 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
     override suspend fun saveGameWithContractProgress(state: SavedGame, day: Long) {
         context.dataStore.edit { prefs ->
+            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
+            val runSeed = state.seed
             prefs[Keys.game] = GameSaveCodec.encode(state)
-            val runSeed = state.seed ?: return@edit
+            if (runSeed == null) return@edit
+
+            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
             val updated = DailyContracts.recordLiveSnapshot(
-                progress = mapProgress(prefs),
+                progress = base,
                 day = day,
                 runSeed = runSeed,
                 snapshot = state.toContractCounters(),
@@ -124,16 +133,18 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
     ) {
         context.dataStore.edit { prefs ->
-            val saved = GameSaveCodec.decode(record.state)
-            val base = if (saved?.seed != null) {
+            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
+            val finalSaved = GameSaveCodec.decode(record.state)
+            val baseProgress = contractBaseForDay(mapProgress(prefs), record.day, previousSaved)
+            val base = if (finalSaved?.seed != null) {
                 DailyContracts.recordFinishedRun(
-                    progress = mapProgress(prefs),
+                    progress = baseProgress,
                     day = record.day,
-                    runSeed = saved.seed,
-                    summary = saved.toSummary(record.daily),
+                    runSeed = finalSaved.seed,
+                    summary = finalSaved.toSummary(record.daily),
                 )
             } else {
-                mapProgress(prefs)
+                baseProgress
             }
             val (updated, effects) = finisher(base)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
@@ -150,8 +161,10 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
     ) {
         context.dataStore.edit { prefs ->
+            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
+            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
             val withContracts = DailyContracts.recordFinishedRun(
-                progress = mapProgress(prefs),
+                progress = base,
                 day = day,
                 runSeed = runSeed,
                 summary = summary,
@@ -353,6 +366,22 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
         prefs[Keys.animationsEnabled] = p.animationsEnabled
         if (p.analyticsConsent != null) prefs[Keys.analyticsConsent] = p.analyticsConsent else prefs.remove(Keys.analyticsConsent)
+    }
+
+    /**
+     * При смене календарного дня старый прогресс Contracts обнуляется. Если обычная партия уже была
+     * сохранена до полуночи, её последний snapshot становится baseline нового дня и не добавляется повторно.
+     */
+    private fun contractBaseForDay(progress: PlayerProgress, day: Long, previousSaved: SavedGame?): PlayerProgress {
+        if (progress.contracts.day == day) return progress
+        val savedSeed = previousSaved?.seed
+        return progress.copy(
+            contracts = ContractLedger(
+                day = day,
+                activeRunSeed = savedSeed,
+                activeRun = if (savedSeed != null) previousSaved.toContractCounters() else ContractCounters(),
+            ),
+        )
     }
 
     private fun SavedGame.toContractCounters(): ContractCounters = ContractCounters(
