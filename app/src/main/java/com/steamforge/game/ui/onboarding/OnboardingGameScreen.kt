@@ -50,6 +50,7 @@ fun OnboardingGameScreen(
     vm: GameViewModel,
     sfx: SfxPlayer,
     onOpenWorkshop: () -> Unit,
+    onSkip: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -179,6 +180,13 @@ fun OnboardingGameScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            SteamButton(
+                text = "ПРОПУСТИТЬ ОБУЧЕНИЕ",
+                onClick = onSkip,
+                modifier = Modifier.fillMaxWidth(),
+                style = SteamButtonStyle.Dark,
+            )
             Spacer(Modifier.height(18.dp))
         }
     }
