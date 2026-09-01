@@ -63,7 +63,8 @@ data class ProgressionConfig(
 ) {
     fun pressureGainForMerge(mergedLevel: Int): Int = pressureBaseGain + pressureGainPerLevel * (mergedLevel - 1)
     fun levelUpGems(newLevel: Int): Int = levelUpGemsBase + newLevel * levelUpGemsPerLevel
-    fun dailyRewardGems(day: Int): Int = dailyRewardGemsBase + day * dailyRewardGemsStep
+    fun dailyRewardGems(day: Int): Int =
+        dailyRewardGemsBase + (day.coerceAtLeast(1) - 1) * dailyRewardGemsStep
 }
 
 data class LevelInfo(val level: Int, val xpIntoLevel: Int, val xpToNext: Int) {
