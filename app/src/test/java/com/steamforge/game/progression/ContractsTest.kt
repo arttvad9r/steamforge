@@ -99,4 +99,37 @@ class ContractsTest {
         assertEquals(2, finished.contracts.totals.overdrives)
         assertEquals(null, finished.contracts.activeRunSeed)
     }
+
+    @Test
+    fun `finishing daily run preserves active normal run high water`() {
+        val day = 400L
+        val normalSeed = 101L
+        val dailySeed = 202L
+        val withNormal = DailyContracts.recordLiveSnapshot(
+            progress = PlayerProgress(),
+            day = day,
+            runSeed = normalSeed,
+            snapshot = ContractCounters(score = 600, merges = 10, moves = 20, maxTileLevel = 6),
+        )
+
+        val afterDaily = DailyContracts.recordFinishedRun(
+            progress = withNormal,
+            day = day,
+            runSeed = dailySeed,
+            summary = GameSummary(score = 300, merges = 5, moves = 12, maxTileLevel = 5),
+        )
+
+        assertEquals(normalSeed, afterDaily.contracts.activeRunSeed)
+        assertEquals(600, afterDaily.contracts.activeRun.score)
+        assertEquals(900, afterDaily.contracts.totals.score)
+        assertEquals(1, afterDaily.contracts.totals.runs)
+
+        val resumedNormal = DailyContracts.recordLiveSnapshot(
+            progress = afterDaily,
+            day = day,
+            runSeed = normalSeed,
+            snapshot = ContractCounters(score = 650, merges = 11, moves = 21, maxTileLevel = 6),
+        )
+        assertEquals(950, resumedNormal.contracts.totals.score)
+    }
 }
