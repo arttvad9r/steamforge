@@ -3,6 +3,9 @@ package com.steamforge.game.data
 import com.steamforge.game.progression.Achievements
 import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.PlayerProgress
+import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.RewardedWorkshopBonus
+import com.steamforge.game.progression.applyRewardedWorkshopXp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -53,15 +56,17 @@ class FakeDataRepo(
         currentGame = null
     }
 
-    override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
-        val record = currentFinished ?: return false
-        if (gems <= 0 || record.id != gameResultId || record.rewardedClaimed) return false
-        currentFinished = record.copy(rewardedClaimed = true)
-        currentProgress = currentProgress.copy(
-            gems = currentProgress.gems + gems,
-            stats = currentProgress.stats.copy(gemsEarned = currentProgress.stats.gemsEarned + gems),
-        )
-        return true
+    override suspend fun claimDoubleReward(
+        gameResultId: String,
+        cfg: ProgressionConfig,
+    ): RewardedWorkshopBonus? {
+        val record = currentFinished ?: return null
+        if (record.id != gameResultId || record.rewardedClaimed || record.xpGained <= 0) return null
+        val (updated, bonus) = applyRewardedWorkshopXp(currentProgress, record.xpGained, cfg)
+        if (bonus.xpGained <= 0) return null
+        currentProgress = updated
+        currentFinished = record.withRewardedBonus(bonus)
+        return bonus
     }
 
     override suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean {

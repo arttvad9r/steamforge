@@ -28,6 +28,13 @@ class ProgressionTest {
     }
 
     @Test
+    fun `daily reward starts at base amount on day one`() {
+        assertEquals(cfg.dailyRewardGemsBase, cfg.dailyRewardGems(1))
+        assertEquals(cfg.dailyRewardGemsBase, cfg.dailyRewardGems(0))
+        assertEquals(cfg.dailyRewardGemsBase + cfg.dailyRewardGemsStep, cfg.dailyRewardGems(2))
+    }
+
+    @Test
     fun `xp for game combines score level and win while daily bonus is claimed separately`() {
         val base = WorkshopProgression.xpForGame(GameSummary(score = 2000, maxTileLevel = 8), cfg)
         assertEquals(2000 / 20 + 8 * 10, base)
@@ -56,6 +63,42 @@ class ProgressionTest {
     @Test
     fun `level up gems grow with level`() {
         assertTrue(cfg.levelUpGems(3) > cfg.levelUpGems(2))
+    }
+
+    @Test
+    fun `rewarded workshop xp adds only xp when no level is crossed`() {
+        val original = PlayerProgress(gems = 9, totalXp = 10, stats = PlayerStats(gemsEarned = 4))
+        val (progress, bonus) = applyRewardedWorkshopXp(original, bonusXp = 50, cfg = cfg)
+
+        assertEquals(60, progress.totalXp)
+        assertEquals(9, progress.gems)
+        assertEquals(4L, progress.stats.gemsEarned)
+        assertEquals(50, bonus.xpGained)
+        assertEquals(0, bonus.gemsGained)
+        assertTrue(bonus.levelUps.isEmpty())
+        assertEquals(original.stats.gamesPlayed, progress.stats.gamesPlayed)
+    }
+
+    @Test
+    fun `rewarded workshop xp grants every crossed level reward once`() {
+        val original = PlayerProgress(gems = 7, totalXp = 110, stats = PlayerStats(gemsEarned = 3))
+        val (progress, bonus) = applyRewardedWorkshopXp(original, bonusXp = 200, cfg = cfg)
+        val expectedGems = cfg.levelUpGems(2) + cfg.levelUpGems(3)
+
+        assertEquals(310, progress.totalXp)
+        assertEquals(listOf(2, 3), bonus.levelUps)
+        assertEquals(expectedGems, bonus.gemsGained)
+        assertEquals(7 + expectedGems, progress.gems)
+        assertEquals(3L + expectedGems, progress.stats.gemsEarned)
+    }
+
+    @Test
+    fun `non positive rewarded workshop xp is a no-op`() {
+        val original = PlayerProgress(gems = 7, totalXp = 110)
+        val (progress, bonus) = applyRewardedWorkshopXp(original, bonusXp = 0, cfg = cfg)
+
+        assertEquals(original, progress)
+        assertEquals(RewardedWorkshopBonus(), bonus)
     }
 
     @Test

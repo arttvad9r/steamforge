@@ -17,134 +17,103 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RewardIdempotencyTest {
-
     private val dispatcher = StandardTestDispatcher()
+    private val cfg = ProgressionConfig()
 
-    @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
-    }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
+    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
+    @After fun tearDown() { Dispatchers.resetMain() }
 
     private class NoAnalytics : Analytics {
         override fun logEvent(name: String, params: Map<String, Any?>) = Unit
     }
 
-    private fun record(
-        id: String,
-        gems: Int,
-        claimed: Boolean = false,
-        day: Long = LocalDay.todayEpochDay(),
-        daily: Boolean = false,
-    ) = FinishedGameRecord(
+    private fun record(id: String, xp: Int, claimed: Boolean = false) = FinishedGameRecord(
         id = id,
-        day = day,
-        daily = daily,
+        day = LocalDay.todayEpochDay(),
+        daily = false,
         score = 1500,
         maxTileLevel = 7,
-        gemsGained = gems,
+        xpGained = xp,
         state = GameSaveCodec.encode(
             SavedGame(GameState(), seed = 1L, pressure = 0, overdriveRemaining = 0, freeUndosLeft = 0),
         ),
         rewardedClaimed = claimed,
     )
 
-    private fun vm(repo: FakeDataRepo): GameViewModel = GameViewModel(
+    private fun vm(repo: FakeDataRepo) = GameViewModel(
         repo = repo,
         analytics = NoAnalytics(),
-        cfg = ProgressionConfig(),
+        cfg = cfg,
         seedProvider = { 42L },
         savedGameProvider = { repo.currentGame },
     )
 
-    private fun gems(repo: FakeDataRepo) = repo.currentProgress.gems
-
     @Test
-    fun `repeated rewarded callback grants doubled gems only once`() = runTest(dispatcher) {
-        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
+    fun `repeated rewarded callback grants workshop xp only once`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(initialFinished = record("fg-1", 60))
         val model = vm(repo)
         advanceUntilIdle()
-        assertTrue(model.ui.value.finished)
-        assertEquals("fg-1", model.ui.value.gameResultId)
 
         model.grantDoubleReward()
         advanceUntilIdle()
-        assertEquals(12, gems(repo))
-        assertTrue(model.ui.value.rewardDoubled)
+        assertEquals(60, repo.currentProgress.totalXp)
+        assertEquals(60, model.ui.value.rewardedBonus?.xpGained)
 
         model.grantDoubleReward()
         advanceUntilIdle()
-        assertEquals(12, gems(repo))
+        assertEquals(60, repo.currentProgress.totalXp)
     }
 
     @Test
-    fun `process recreation does not regrant claimed reward`() = runTest(dispatcher) {
-        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
+    fun `process recreation restores rewarded bonus without regrant`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(initialFinished = record("fg-1", 60))
         val first = vm(repo)
         advanceUntilIdle()
         first.grantDoubleReward()
         advanceUntilIdle()
 
-        val second = vm(repo)
+        val restored = vm(repo)
         advanceUntilIdle()
-        assertTrue(second.ui.value.finished)
-        assertTrue(second.ui.value.rewardDoubled)
-        second.grantDoubleReward()
+        assertTrue(restored.ui.value.rewardDoubled)
+        assertEquals(60, restored.ui.value.rewardedBonus?.xpGained)
+        restored.grantDoubleReward()
         advanceUntilIdle()
-        assertEquals(12, gems(repo))
+        assertEquals(60, repo.currentProgress.totalXp)
     }
 
     @Test
-    fun `two different finished games each reward exactly once`() = runTest(dispatcher) {
-        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 10))
-        val first = vm(repo)
-        advanceUntilIdle()
-        first.grantDoubleReward()
-        advanceUntilIdle()
-        assertEquals(10, gems(repo))
+    fun `repository derives rewarded amount from persisted run xp`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(initialFinished = record("fg-1", 200))
+        val bonus = repo.claimDoubleReward("fg-1", cfg)
 
-        repo.currentFinished = record("fg-2", gems = 25)
-        val second = vm(repo)
-        advanceUntilIdle()
-        second.grantDoubleReward()
-        advanceUntilIdle()
-        assertEquals(35, gems(repo))
-        second.grantDoubleReward()
-        advanceUntilIdle()
-        assertEquals(35, gems(repo))
+        assertEquals(200, bonus?.xpGained)
+        assertEquals(200, repo.currentProgress.totalXp)
+        assertEquals(listOf(2), bonus?.levelUps)
+        assertEquals(cfg.levelUpGems(2), repo.currentProgress.gems)
+        assertNull(repo.claimDoubleReward("fg-1", cfg))
     }
 
     @Test
-    fun `claim is refused for foreign id or claimed record`() = runTest(dispatcher) {
-        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 10, claimed = true))
-        val model = vm(repo)
-        advanceUntilIdle()
-        assertTrue(model.ui.value.rewardDoubled)
-        model.grantDoubleReward()
-        advanceUntilIdle()
-        assertEquals(0, gems(repo))
+    fun `claim rejects mismatched id and already claimed record`() = runTest(dispatcher) {
+        val repo = FakeDataRepo(initialFinished = record("fg-1", 100))
+        assertNull(repo.claimDoubleReward("other", cfg))
+        assertEquals(100, repo.claimDoubleReward("fg-1", cfg)?.xpGained)
+        assertNull(repo.claimDoubleReward("fg-1", cfg))
 
-        repo.currentFinished = record("fg-2", gems = 10)
-        assertFalse(repo.claimDoubleReward("fg-OTHER", 10))
-        assertTrue(repo.claimDoubleReward("fg-2", 10))
-        assertFalse(repo.claimDoubleReward("fg-2", 10))
-        assertEquals(10, gems(repo))
+        repo.currentFinished = record("fg-2", 100, claimed = true)
+        assertNull(repo.claimDoubleReward("fg-2", cfg))
     }
 
     @Test
     fun `exit after finish discards result record`() = runTest(dispatcher) {
-        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
+        val repo = FakeDataRepo(initialFinished = record("fg-1", 60))
         val model = vm(repo)
         advanceUntilIdle()
         model.exit()

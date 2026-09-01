@@ -15,6 +15,7 @@ import com.steamforge.game.data.DataRepo
 import com.steamforge.game.data.FinishedGameRecord
 import com.steamforge.game.data.GameSaveCodec
 import com.steamforge.game.data.SavedGame
+import com.steamforge.game.data.rewardedBonus
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.progression.Achievements
 import com.steamforge.game.progression.DailyChallenge
@@ -22,6 +23,7 @@ import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.RewardedWorkshopBonus
 import com.steamforge.game.progression.TileMilestone
 import com.steamforge.game.progression.TileMilestones
 import com.steamforge.game.progression.WeeklyChallenge
@@ -57,6 +59,7 @@ data class GameUiState(
     val removingMode: Boolean = false,
     val gameResultId: String? = null,
     val rewardDoubled: Boolean = false,
+    val rewardedBonus: RewardedWorkshopBonus? = null,
     val lastResult: MoveResult? = null,
     val previousTiles: List<Tile> = emptyList(),
     val mergesTotal: Int = 0,
@@ -200,14 +203,15 @@ class GameViewModel(
                 finished = true,
                 gameResultId = record.id,
                 rewardDoubled = record.rewardedClaimed,
+                rewardedBonus = record.rewardedBonus().takeIf { bonus -> record.rewardedClaimed && bonus.xpGained > 0 },
                 effects = record.toEffects(),
                 state = restoredState?.state ?: GameState(score = record.score),
                 winCelebrated = record.maxTileLevel >= GameRules().winLevel,
                 freeUndosLeft = cfg.freeUndosPerGame,
             )
         }
-        if (!record.rewardedClaimed && record.gemsGained > 0) {
-            analytics.logEvent("rewarded_offered")
+        if (!record.rewardedClaimed && record.xpGained > 0) {
+            analytics.logEvent("rewarded_offered", mapOf("bonus" to "workshop_xp"))
         }
     }
 
@@ -438,6 +442,7 @@ class GameViewModel(
                 finished = false,
                 gameResultId = null,
                 rewardDoubled = false,
+                rewardedBonus = null,
                 effects = null,
                 weeklySubmissionAccepted = null,
                 tileMilestone = null,
@@ -547,8 +552,8 @@ class GameViewModel(
             }
             _ui.update { it.copy(finished = true, effects = eff, gameResultId = resultId, removingMode = false) }
             ads?.onGameFinished()
-            if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
-                analytics.logEvent("rewarded_offered")
+            if (ads?.rewardedReady?.value == true && (eff?.xpGained ?: 0) > 0) {
+                analytics.logEvent("rewarded_offered", mapOf("bonus" to "workshop_xp"))
             }
             analytics.logEvent(
                 "game_finished",
@@ -598,10 +603,19 @@ class GameViewModel(
         val s = _ui.value
         val eff = s.effects ?: return
         val id = s.gameResultId ?: return
-        if (s.rewardDoubled || eff.gemsGained <= 0) return
+        if (s.rewardDoubled || eff.xpGained <= 0) return
         writesScope.launch {
-            val granted = repo.claimDoubleReward(id, eff.gemsGained)
-            if (granted) _ui.update { it.copy(rewardDoubled = true) }
+            val bonus = repo.claimDoubleReward(id, cfg)
+            if (bonus != null) {
+                _ui.update { it.copy(rewardDoubled = true, rewardedBonus = bonus) }
+                bonus.levelUps.forEach { level ->
+                    analytics.logEvent("workshop_level_up", mapOf("level" to level, "source" to "rewarded"))
+                }
+                analytics.logEvent(
+                    "rewarded_workshop_xp_granted",
+                    mapOf("xp" to bonus.xpGained, "level_ups" to bonus.levelUps.size),
+                )
+            }
         }
     }
 
