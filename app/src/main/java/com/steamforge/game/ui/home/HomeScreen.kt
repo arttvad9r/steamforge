@@ -70,8 +70,8 @@ fun HomeScreen(
     onPlay: () -> Unit,
     onWorkshop: () -> Unit,
     onContracts: () -> Unit,
+    onBlueprints: () -> Unit,
     onDaily: () -> Unit,
-    onAchievements: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -188,12 +188,12 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 HomeEntryCard(
-                    icon = "▣",
-                    title = "Коллекция",
-                    subtitle = "${ui.achievementsUnlocked} открыто",
-                    onClick = onAchievements,
+                    icon = "⌁",
+                    title = "Чертежи",
+                    subtitle = "${ui.blueprintsCollected}/${ui.blueprintsTotal} · Steam Engine",
+                    onClick = onBlueprints,
                     modifier = Modifier.weight(1f),
-                    accent = BrassBright,
+                    accent = if (ui.blueprintsCollected == ui.blueprintsTotal) TealGlow else BrassBright,
                 )
             }
             Spacer(Modifier.height(18.dp))
