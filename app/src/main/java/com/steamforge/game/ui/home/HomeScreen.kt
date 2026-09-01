@@ -135,49 +135,70 @@ fun HomeScreen(
 
             HomeEntryCard("⚒", "Мастерская", "Ядро · уровень ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}", onWorkshop, Modifier.fillMaxWidth(), primary = true)
             Spacer(Modifier.height(8.dp))
-            HomeEntryCard(
-                icon = if (ui.eventRewardAvailable) "◆" else "F",
-                title = "Foundry Week",
-                subtitle = when {
-                    ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} pressure"
-                    else -> "${ui.eventPoints} pressure · ${ui.eventDaysRemaining} дн. осталось"
-                },
-                onClick = onEvent,
-                modifier = Modifier.fillMaxWidth(),
-                accent = if (ui.eventRewardAvailable) TealGlow else EventOrange,
-            )
-            Spacer(Modifier.height(8.dp))
-            HomeEntryCard(
-                icon = if (ui.weeklyRewardAvailable) "◆" else "W",
-                title = "Недельный турнир",
-                subtitle = when {
-                    ui.weeklyRewardAvailable -> "Награда готова · verified best ${ui.weeklyBestScore}"
-                    ui.weeklyBestScore > 0 -> "Лучший ${ui.weeklyBestScore} · ${ui.weeklyDaysRemaining} дн. до ротации"
-                    else -> "Один seed на неделю · ${ui.weeklyDaysRemaining} дн. осталось"
-                },
-                onClick = onWeekly,
-                modifier = Modifier.fillMaxWidth(),
-                accent = if (ui.weeklyRewardAvailable) TealGlow else BrassBright,
-            )
-            Spacer(Modifier.height(8.dp))
-            HomeEntryCard("≡", "Контракты", "3 задания на сегодня · награды за обычную игру", onContracts, Modifier.fillMaxWidth(), accent = TealGlow)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth()) {
+
+            if (ui.eventEnabled) {
                 HomeEntryCard(
-                    icon = if (ui.dailyDone) "✓" else "2048",
-                    title = "Испытание",
-                    subtitle = if (ui.dailyDone) "Выполнено" else "Задача дня",
-                    onClick = onDaily,
-                    modifier = Modifier.weight(1f),
-                    accent = if (ui.dailyDone) TealGlow else BrassBright,
+                    icon = if (ui.eventRewardAvailable) "◆" else "F",
+                    title = "Foundry Week",
+                    subtitle = when {
+                        ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} pressure"
+                        else -> "${ui.eventPoints} pressure · ${ui.eventDaysRemaining} дн. осталось"
+                    },
+                    onClick = onEvent,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = if (ui.eventRewardAvailable) TealGlow else EventOrange,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (ui.weeklyEnabled) {
+                HomeEntryCard(
+                    icon = if (ui.weeklyRewardAvailable) "◆" else "W",
+                    title = "Недельный турнир",
+                    subtitle = when {
+                        ui.weeklyRewardAvailable -> "Награда готова · verified best ${ui.weeklyBestScore}"
+                        ui.weeklyBestScore > 0 -> "Лучший ${ui.weeklyBestScore} · ${ui.weeklyDaysRemaining} дн. до ротации"
+                        else -> "Один seed на неделю · ${ui.weeklyDaysRemaining} дн. осталось"
+                    },
+                    onClick = onWeekly,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = if (ui.weeklyRewardAvailable) TealGlow else BrassBright,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (ui.contractsEnabled) {
+                HomeEntryCard("≡", "Контракты", "3 задания на сегодня · награды за обычную игру", onContracts, Modifier.fillMaxWidth(), accent = TealGlow)
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (ui.dailyEnabled) {
+                Row(Modifier.fillMaxWidth()) {
+                    HomeEntryCard(
+                        icon = if (ui.dailyDone) "✓" else "2048",
+                        title = "Испытание",
+                        subtitle = if (ui.dailyDone) "Выполнено" else "Задача дня",
+                        onClick = onDaily,
+                        modifier = Modifier.weight(1f),
+                        accent = if (ui.dailyDone) TealGlow else BrassBright,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    HomeEntryCard(
+                        icon = "⌁",
+                        title = "Чертежи",
+                        subtitle = "${ui.blueprintsCollected}/${ui.blueprintsTotal} · Steam Engine",
+                        onClick = onBlueprints,
+                        modifier = Modifier.weight(1f),
+                        accent = if (ui.blueprintsCollected == ui.blueprintsTotal) TealGlow else BrassBright,
+                    )
+                }
+            } else {
                 HomeEntryCard(
                     icon = "⌁",
                     title = "Чертежи",
                     subtitle = "${ui.blueprintsCollected}/${ui.blueprintsTotal} · Steam Engine",
                     onClick = onBlueprints,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     accent = if (ui.blueprintsCollected == ui.blueprintsTotal) TealGlow else BrassBright,
                 )
             }
