@@ -3,6 +3,7 @@ package com.steamforge.game.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
+import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +16,8 @@ data class HomeUiState(
     val gems: Int = 0,
     val bestScore: Int = 0,
     val workshopLevel: Int = 1,
-    val achievementsUnlocked: Int = 0,
+    val blueprintsCollected: Int = 0,
+    val blueprintsTotal: Int = Blueprints.steamEngine.pieces.size,
     val dailyDone: Boolean = false,
     val dailyRewardStreak: Int = 0,
     val hasSavedRun: Boolean = false,
@@ -34,7 +36,8 @@ class HomeViewModel(
             gems = progress.gems,
             bestScore = progress.bestScore,
             workshopLevel = progress.levelInfo(cfg).level,
-            achievementsUnlocked = progress.unlockedAchievements.size,
+            blueprintsCollected = Blueprints.collectedCount(Blueprints.steamEngine, progress.blueprintPieces),
+            blueprintsTotal = Blueprints.steamEngine.pieces.size,
             dailyDone = progress.dailyChallengeDay == todayDay && progress.dailyChallengeDone,
             dailyRewardStreak = if (progress.dailyRewardDay == todayDay || progress.dailyRewardDay == todayDay - 1) {
                 progress.dailyRewardStreak

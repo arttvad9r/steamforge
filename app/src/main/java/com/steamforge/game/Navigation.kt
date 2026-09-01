@@ -30,6 +30,8 @@ import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.ui.achievements.AchievementsScreen
 import com.steamforge.game.ui.achievements.AchievementsViewModel
+import com.steamforge.game.ui.blueprints.BlueprintsScreen
+import com.steamforge.game.ui.blueprints.BlueprintsViewModel
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
@@ -50,6 +52,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
 @Serializable data object Contracts : NavKey
+@Serializable data object Blueprints : NavKey
 @Serializable data class Game(val daily: Boolean = false) : NavKey
 @Serializable data object Achievements : NavKey
 @Serializable data object Settings : NavKey
@@ -97,8 +100,8 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onPlay = { backStack.add(Game(daily = false)) },
                     onWorkshop = { backStack.add(Workshop) },
                     onContracts = { backStack.add(Contracts) },
+                    onBlueprints = { backStack.add(Blueprints) },
                     onDaily = { backStack.add(Game(daily = true)) },
-                    onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
                 )
             }
@@ -116,6 +119,10 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             entry<Contracts> {
                 val vm: ContractsViewModel = viewModel { ContractsViewModel(container.repo) }
                 ContractsScreen(vm = vm, onBack = { back() })
+            }
+            entry<Blueprints> {
+                val vm: BlueprintsViewModel = viewModel { BlueprintsViewModel(container.repo) }
+                BlueprintsScreen(vm = vm, onBack = { back() })
             }
             entry<Game> { key ->
                 val vm: GameViewModel = viewModel(key = if (key.daily) "daily" else "normal") {

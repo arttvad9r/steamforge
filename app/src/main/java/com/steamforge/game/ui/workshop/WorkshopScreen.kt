@@ -106,6 +106,7 @@ fun WorkshopScreen(
                 bestScore = ui.bestScore,
                 animationsEnabled = ui.animationsEnabled,
                 accent = accent,
+                steamEngineUnlocked = ui.steamEngineUnlocked,
             )
             Spacer(Modifier.height(12.dp))
 
@@ -171,16 +172,8 @@ private fun WorkshopHeader(gems: Int, streak: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "STEAMFORGE",
-                style = MaterialTheme.typography.labelLarge,
-                color = BrassBright,
-            )
-            Text(
-                "Мастерская",
-                style = MaterialTheme.typography.headlineSmall,
-                color = TextWarm,
-            )
+            Text("STEAMFORGE", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+            Text("Мастерская", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
             Text(
                 "Восстанавливайте ядро и открывайте новые механизмы",
                 style = MaterialTheme.typography.bodyMedium,
@@ -227,6 +220,7 @@ private fun WorkshopConsole(
     bestScore: Int,
     animationsEnabled: Boolean,
     accent: Color,
+    steamEngineUnlocked: Boolean,
 ) {
     SteamPanel(
         modifier = Modifier.fillMaxWidth(),
@@ -234,26 +228,18 @@ private fun WorkshopConsole(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "УРОВЕНЬ МАСТЕРСКОЙ",
-                style = MaterialTheme.typography.labelLarge,
-                color = TextMuted,
-            )
+            Text("УРОВЕНЬ МАСТЕРСКОЙ", style = MaterialTheme.typography.labelLarge, color = TextMuted)
             Spacer(Modifier.height(2.dp))
-            Text(
-                level.toString(),
-                style = MaterialTheme.typography.displaySmall,
-                color = TextWarm,
-            )
+            Text(level.toString(), style = MaterialTheme.typography.displaySmall, color = TextWarm)
             Spacer(Modifier.height(2.dp))
 
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(174.dp),
+                    .height(if (steamEngineUnlocked) 194.dp else 174.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                WorkshopScene(animationsEnabled, accent)
+                WorkshopScene(animationsEnabled, accent, steamEngineUnlocked)
                 Box(
                     Modifier
                         .size(74.dp)
@@ -262,10 +248,14 @@ private fun WorkshopConsole(
                         .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(24.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
+                    Text("CORE", style = MaterialTheme.typography.titleMedium, color = accent)
+                }
+                if (steamEngineUnlocked) {
                     Text(
-                        "CORE",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = accent,
+                        "STEAM ENGINE ONLINE",
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TealGlow,
                     )
                 }
             }
@@ -334,7 +324,11 @@ private fun GaugeBar(fraction: Float, accent: Color, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
+private fun WorkshopScene(
+    animationsEnabled: Boolean,
+    accent: Color,
+    steamEngineUnlocked: Boolean,
+) {
     val angle = if (animationsEnabled) {
         val transition = rememberInfiniteTransition(label = "gears")
         val animated by transition.animateFloat(
@@ -346,7 +340,17 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
         animated
     } else 0f
 
-    Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Механическое ядро мастерской" }) {
+    Canvas(
+        Modifier
+            .fillMaxSize()
+            .semantics {
+                contentDescription = if (steamEngineUnlocked) {
+                    "Механическое ядро мастерской и установленный паровой двигатель"
+                } else {
+                    "Механическое ядро мастерской"
+                }
+            },
+    ) {
         val c = center
         drawCircle(accent.copy(alpha = 0.075f), radius = size.minDimension * 0.48f, center = c)
         drawCircle(Brass.copy(alpha = 0.06f), radius = size.minDimension * 0.40f, center = c)
@@ -369,6 +373,63 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
             center = c,
             style = Stroke(3.dp.toPx()),
         )
+
+        if (steamEngineUnlocked) {
+            val line = BrassBright.copy(alpha = 0.72f)
+            val body = Copper.copy(alpha = 0.48f)
+            val leftX = size.width * 0.08f
+            val top = size.height * 0.34f
+            val boilerW = size.width * 0.16f
+            val boilerH = size.height * 0.34f
+            drawRect(
+                color = body,
+                topLeft = Offset(leftX, top),
+                size = androidx.compose.ui.geometry.Size(boilerW, boilerH),
+            )
+            drawRect(
+                color = line,
+                topLeft = Offset(leftX, top),
+                size = androidx.compose.ui.geometry.Size(boilerW, boilerH),
+                style = Stroke(2.dp.toPx()),
+            )
+            drawCircle(TealGlow.copy(alpha = 0.42f), size.minDimension * 0.035f, Offset(leftX + boilerW * 0.5f, top + boilerH * 0.24f))
+            drawLine(
+                line,
+                Offset(leftX + boilerW, top + boilerH * 0.52f),
+                Offset(c.x - size.minDimension * 0.30f, c.y),
+                3.dp.toPx(),
+                StrokeCap.Round,
+            )
+
+            val pistonShift = kotlin.math.sin(Math.toRadians(angle.toDouble())).toFloat() * size.height * 0.025f
+            val pistonX = size.width * 0.79f
+            val pistonY = size.height * 0.43f + pistonShift
+            drawRect(
+                color = PanelRaised.copy(alpha = 0.92f),
+                topLeft = Offset(pistonX, pistonY),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.10f, size.height * 0.18f),
+            )
+            drawRect(
+                color = line,
+                topLeft = Offset(pistonX, pistonY),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.10f, size.height * 0.18f),
+                style = Stroke(2.dp.toPx()),
+            )
+            drawLine(
+                line,
+                Offset(c.x + size.minDimension * 0.28f, c.y),
+                Offset(pistonX, pistonY + size.height * 0.09f),
+                3.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                TealGlow.copy(alpha = 0.30f),
+                Offset(leftX + boilerW * 0.5f, top),
+                Offset(leftX + boilerW * 0.5f, top - size.height * 0.10f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
     }
 }
 
@@ -422,11 +483,7 @@ private fun MenuCard(
             .semantics { role = Role.Button; contentDescription = label },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            icon,
-            style = MaterialTheme.typography.titleLarge,
-            color = accent,
-        )
+        Text(icon, style = MaterialTheme.typography.titleLarge, color = accent)
         Spacer(Modifier.weight(1f))
         Text(
             label,
