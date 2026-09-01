@@ -7,6 +7,7 @@ import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.ReturnLoop
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -26,6 +27,8 @@ data class WorkshopUiState(
     val dailyRewardStreak: Int = 0,
     val dailyRewardDay: Int = 1,
     val dailyRewardGems: Int = 0,
+    val dailyRewardUsesGrace: Boolean = false,
+    val dailyRewardGraceAvailable: Boolean = true,
     val goldGaugeCosmetic: Boolean = false,
     val steamEngineUnlocked: Boolean = false,
     val animationsEnabled: Boolean = true,
@@ -41,9 +44,13 @@ class WorkshopViewModel(
 
     val ui: StateFlow<WorkshopUiState> = repo.progress.map { p ->
         val todayDay = today()
-        val canClaim = p.dailyRewardDay != todayDay
-        val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
-        val nextDay = (continuingStreak % cfg.dailyRewardCycle) + 1
+        val plan = ReturnLoop.dailyRewardPlan(
+            lastClaimDay = p.dailyRewardDay,
+            streakDay = p.dailyRewardStreak,
+            graceUsed = p.dailyRewardGraceUsed,
+            today = todayDay,
+            cycleDays = cfg.dailyRewardCycle,
+        )
         val li = p.levelInfo(cfg)
         WorkshopUiState(
             loaded = true,
@@ -54,10 +61,12 @@ class WorkshopViewModel(
             gamesPlayed = p.stats.gamesPlayed,
             achievementsUnlocked = p.unlockedAchievements.size,
             dailyDone = p.dailyChallengeDay == todayDay && p.dailyChallengeDone,
-            dailyRewardAvailable = canClaim,
-            dailyRewardStreak = continuingStreak,
-            dailyRewardDay = nextDay,
-            dailyRewardGems = cfg.dailyRewardGems(nextDay),
+            dailyRewardAvailable = plan.canClaim,
+            dailyRewardStreak = plan.visibleStreak,
+            dailyRewardDay = plan.rewardDay,
+            dailyRewardGems = cfg.dailyRewardGems(plan.rewardDay),
+            dailyRewardUsesGrace = plan.usesGrace,
+            dailyRewardGraceAvailable = !p.dailyRewardGraceUsed,
             goldGaugeCosmetic = "gold_gauge" in p.unlockedCosmetics,
             steamEngineUnlocked = Blueprints.STEAM_ENGINE_UNLOCK in p.unlockedCosmetics,
             animationsEnabled = p.animationsEnabled,
@@ -70,16 +79,27 @@ class WorkshopViewModel(
         viewModelScope.launch {
             repo.updateProgress { p ->
                 val todayDay = today()
-                if (p.dailyRewardDay == todayDay) return@updateProgress p
-                val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
-                val day = (continuingStreak % cfg.dailyRewardCycle) + 1
-                val reward = cfg.dailyRewardGems(day)
-                val cosmetics = if (day == cfg.dailyRewardCycle) p.unlockedCosmetics + "gold_gauge" else p.unlockedCosmetics
+                val plan = ReturnLoop.dailyRewardPlan(
+                    lastClaimDay = p.dailyRewardDay,
+                    streakDay = p.dailyRewardStreak,
+                    graceUsed = p.dailyRewardGraceUsed,
+                    today = todayDay,
+                    cycleDays = cfg.dailyRewardCycle,
+                )
+                if (!plan.canClaim) return@updateProgress p
+
+                val reward = cfg.dailyRewardGems(plan.rewardDay)
+                val cosmetics = if (plan.rewardDay == cfg.dailyRewardCycle) {
+                    p.unlockedCosmetics + "gold_gauge"
+                } else {
+                    p.unlockedCosmetics
+                }
                 p.copy(
                     gems = p.gems + reward,
                     stats = p.stats.copy(gemsEarned = p.stats.gemsEarned + reward),
                     dailyRewardDay = todayDay,
-                    dailyRewardStreak = day,
+                    dailyRewardStreak = plan.rewardDay,
+                    dailyRewardGraceUsed = plan.graceUsedAfterClaim,
                     unlockedCosmetics = cosmetics,
                 )
             }
