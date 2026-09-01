@@ -2,6 +2,7 @@ package com.steamforge.game.data
 
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Tile
+import com.steamforge.game.progression.RewardedWorkshopBonus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -30,6 +31,35 @@ class GameSaveCodecTest {
             highMergesSession = 5,
         )
         assertEquals(original, GameSaveCodec.decode(GameSaveCodec.encode(original)))
+    }
+
+    @Test
+    fun `finished game codec preserves rewarded workshop bonus for process recreation`() {
+        val bonus = RewardedWorkshopBonus(xpGained = 180, gemsGained = 30, levelUps = listOf(2, 3))
+        val original = FinishedGameRecord(
+            id = "run-42",
+            day = 20_698L,
+            daily = false,
+            score = 4_096,
+            maxTileLevel = 11,
+            xpGained = 180,
+            state = "final-state",
+        ).withRewardedBonus(bonus)
+
+        val restored = FinishedGameCodec.decode(FinishedGameCodec.encode(original))!!
+
+        assertEquals(true, restored.rewardedClaimed)
+        assertEquals(bonus, restored.rewardedBonus())
+        assertEquals(original, restored)
+    }
+
+    @Test
+    fun `legacy finished game without rewarded details remains readable`() {
+        val raw = """{"id":"old-run","day":20698,"daily":false,"score":100,"maxTileLevel":4,"state":"legacy","rewardedClaimed":true}"""
+        val restored = FinishedGameCodec.decode(raw)!!
+
+        assertEquals(true, restored.rewardedClaimed)
+        assertEquals(RewardedWorkshopBonus(), restored.rewardedBonus())
     }
 
     @Test
