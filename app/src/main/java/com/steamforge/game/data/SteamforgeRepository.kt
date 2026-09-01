@@ -54,6 +54,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val dailyChallengeDone = booleanPreferencesKey("daily_challenge_done")
         val dailyRewardDay = longPreferencesKey("daily_reward_day")
         val dailyRewardStreak = intPreferencesKey("daily_reward_streak")
+        val dailyRewardGraceUsed = booleanPreferencesKey("daily_reward_grace_used")
 
         val contractDay = longPreferencesKey("contract_day")
         val contractScore = intPreferencesKey("contract_score")
@@ -331,6 +332,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             dailyChallengeDone = prefs[Keys.dailyChallengeDone] ?: false,
             dailyRewardDay = prefs[Keys.dailyRewardDay] ?: -1L,
             dailyRewardStreak = prefs[Keys.dailyRewardStreak] ?: 0,
+            dailyRewardGraceUsed = prefs[Keys.dailyRewardGraceUsed] ?: false,
             contracts = ContractLedger(
                 day = prefs[Keys.contractDay] ?: -1L,
                 totals = ContractCounters(
@@ -385,6 +387,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.dailyChallengeDone] = p.dailyChallengeDone
         prefs[Keys.dailyRewardDay] = p.dailyRewardDay
         prefs[Keys.dailyRewardStreak] = p.dailyRewardStreak
+        prefs[Keys.dailyRewardGraceUsed] = p.dailyRewardGraceUsed
 
         prefs[Keys.contractDay] = p.contracts.day
         prefs[Keys.contractScore] = p.contracts.totals.score
