@@ -39,8 +39,15 @@ unzip -qq "$APK" 'lib/*/*.so' -d "$tmp_dir" 2>/dev/null || true
 mapfile -t libraries < <(find "$tmp_dir" -type f -name '*.so' | sort)
 
 if [[ ${#libraries[@]} -eq 0 ]]; then
-  echo 'No native shared libraries in APK; ELF page alignment check not needed.'
+  echo 'No native shared libraries in APK; ABI and ELF page alignment checks not needed.'
   exit 0
+fi
+
+mapfile -t abis < <(find "$tmp_dir/lib" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+echo "Native ABIs: ${abis[*]}"
+if [[ ! -d "$tmp_dir/lib/arm64-v8a" ]]; then
+  echo 'ERROR: APK contains native libraries but does not ship arm64-v8a.' >&2
+  exit 1
 fi
 
 echo "Checking ELF LOAD alignment for ${#libraries[@]} native libraries..."
@@ -68,4 +75,4 @@ if minimum < 16384:
 ' "$library"
 done
 
-echo '16 KB compatibility checks passed.'
+echo '64-bit ABI and 16 KB compatibility checks passed.'

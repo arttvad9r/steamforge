@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -365,18 +366,22 @@ fun MechanicalToggle(
     description: String,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(24.dp)
     val track = if (checked) TealSurface else Color(0xFF4A2518)
     Row(
         modifier = modifier
             .width(94.dp)
-            .height(40.dp)
+            .height(48.dp)
             .clip(shape)
             .background(track)
             .border(2.dp, if (checked) TealGlow else BrassDark, shape)
-            .clickable { onCheckedChange(!checked) }
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
             .padding(4.dp)
-            .semantics { contentDescription = "$description: ${if (checked) "включено" else "выключено"}" },
+            .semantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!checked) Spacer(Modifier.weight(1f))
