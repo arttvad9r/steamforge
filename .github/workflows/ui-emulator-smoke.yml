@@ -228,6 +228,20 @@ jobs:
           wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
           shot '00-consent.png'
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
+
+          # A fresh install enters the board-first onboarding before Workshop. Skip it for the
+          # generic visual matrix while still capturing the onboarding surface as smoke evidence.
+          for i in $(seq 1 15); do
+            dump_ui '01-post-consent-window'
+            if grep -Fqi 'ПРОПУСТИТЬ ОБУЧЕНИЕ' /tmp/window.xml; then
+              shot '01-onboarding.png'
+              tap_node 'ПРОПУСТИТЬ ОБУЧЕНИЕ' 'onboarding-skip'
+              break
+            fi
+            if grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then break; fi
+            sleep 2
+          done
+
           wait_for_text 'ИГРАТЬ' '01-workshop-window'
           sleep 1
           shot '01-workshop.png'
