@@ -44,6 +44,11 @@ val keystoreProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+val rustoreConsoleAppId = providers.gradleProperty("steamforge.rustoreConsoleAppId").orElse("").get()
+val rustoreRemoveAdsProductId = providers.gradleProperty("steamforge.removeAdsProductId").orElse("").get()
+val rustorePayScheme = providers.gradleProperty("steamforge.rustorePayScheme").orElse("steamforge-pay").get()
+val rustorePayConfigured = rustoreConsoleAppId.isNotBlank() && rustoreRemoveAdsProductId.isNotBlank()
+
 val generateLauncherIcon = tasks.register<GenerateLauncherIconTask>("generateLauncherIcon") {
     parts.from(fileTree("src/main/icon-assets") {
         include("steamforge-launcher-*.b64")
@@ -63,6 +68,13 @@ android {
 
         buildConfigField("String", "APPMETRICA_API_KEY", prop("steamforge.appmetricaApiKey", ""))
         buildConfigField("String", "PRIVACY_POLICY_URL", prop("steamforge.privacyPolicyUrl", ""))
+        buildConfigField("String", "RUSTORE_REMOVE_ADS_PRODUCT_ID", quoted(rustoreRemoveAdsProductId))
+        buildConfigField("boolean", "RUSTORE_PAY_CONFIGURED", rustorePayConfigured.toString())
+        // RuStore Pay auto-initializes from manifest resources. 0 is a non-production sentinel used
+        // only when release CI builds without store credentials; BillingProvider stays disabled then.
+        resValue("string", "rustore_console_application_id", rustoreConsoleAppId.ifBlank { "0" })
+        resValue("string", "rustore_pay_scheme", rustorePayScheme)
+        manifestPlaceholders["rustorePayScheme"] = rustorePayScheme
     }
 
     buildTypes {
@@ -115,8 +127,10 @@ androidComponents {
     }
 }
 
+fun quoted(value: String): String = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 fun prop(name: String, fallback: String): String =
-    "\"${providers.gradleProperty(name).orElse(fallback).get()}\""
+    quoted(providers.gradleProperty(name).orElse(fallback).get())
 
 kotlin {
     jvmToolchain(17)
@@ -156,4 +170,8 @@ dependencies {
   implementation(libs.androidx.navigation3.ui)
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+
+  // Current RuStore Pay SDK is release-only: debug/emulator builds use DisabledBillingProvider.
+  releaseImplementation(platform("ru.rustore.sdk:bom:2026.08.01"))
+  releaseImplementation("ru.rustore.sdk:pay")
 }

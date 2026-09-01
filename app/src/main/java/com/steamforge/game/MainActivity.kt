@@ -1,5 +1,6 @@
 package com.steamforge.game
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as SteamforgeApp).container
         storeScreenshotMode = BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_STORE_SCREENSHOT, false)
+        if (savedInstanceState == null) container.billing.proceedIntent(intent)
 
         lifecycleScope.launch {
             container.repo.progress
@@ -59,7 +61,10 @@ class MainActivity : ComponentActivity() {
 
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> sessionStartMs = System.currentTimeMillis()
+                Lifecycle.Event.ON_START -> {
+                    sessionStartMs = System.currentTimeMillis()
+                    container.billing.refresh()
+                }
                 Lifecycle.Event.ON_STOP -> {
                     if (sessionStartMs > 0L) {
                         val seconds = (System.currentTimeMillis() - sessionStartMs).coerceAtLeast(0L) / 1000
@@ -69,6 +74,12 @@ class MainActivity : ComponentActivity() {
                 else -> Unit
             }
         })
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        (application as SteamforgeApp).container.billing.proceedIntent(intent)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

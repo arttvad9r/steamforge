@@ -31,6 +31,14 @@ data class AdsConfig(
     val interstitialEnabled: Boolean = true,
 )
 
+/** Remove Ads suppresses automatic interstitials only; voluntary rewarded remains independent. */
+object AdDisplayPolicy {
+    fun allowsInterstitial(removeAdsOwned: Boolean, cfg: AdsConfig): Boolean =
+        cfg.interstitialEnabled && !removeAdsOwned
+
+    fun allowsRewarded(cfg: AdsConfig): Boolean = cfg.rewardedEnabled
+}
+
 /**
  * Обёртка над Yandex Mobile Ads. Ошибки рекламы никогда не блокируют игру.
  * Debug всегда использует официальные demo unit IDs, независимо от production properties.
@@ -43,6 +51,7 @@ class AdsManager(
     private var initialized = false
     private var gamesFinished = 0
     private val handler = Handler(Looper.getMainLooper())
+    private var removeAdsOwned = false
 
     private var rewardedLoader: RewardedAdLoader? = null
     private var rewardedAd: RewardedAd? = null
@@ -63,6 +72,21 @@ class AdsManager(
     private var interstitialRetryAttempt = 0
     private var interstitialRetryScheduled = false
 
+    fun setRemoveAdsOwned(owned: Boolean) {
+        if (removeAdsOwned == owned) return
+        removeAdsOwned = owned
+        if (owned) {
+            interstitialPending = false
+            rewardedShownSincePause = false
+            if (!interstitialShowing) {
+                interstitialAd?.setAdEventListener(null)
+                interstitialAd = null
+            }
+        } else if (initialized) {
+            loadInterstitial()
+        }
+    }
+
     fun init(context: Context, userConsent: Boolean) {
         if (initialized) return
         initialized = true
@@ -70,13 +94,14 @@ class AdsManager(
             YandexAds.setUserConsent(userConsent)
             YandexAds.setLocationTracking(false)
             YandexAds.initialize(context, InitializationListener { })
-            if (cfg.rewardedEnabled && rewardedId().isNotBlank()) {
+            if (AdDisplayPolicy.allowsRewarded(cfg) && rewardedId().isNotBlank()) {
                 rewardedLoader = RewardedAdLoader(context)
                 loadRewarded()
             }
             if (cfg.interstitialEnabled && interstitialId().isNotBlank()) {
+                // Keep the loader available so a later entitlement reconciliation/refund can re-enable ads.
                 interstitialLoader = InterstitialAdLoader(context)
-                loadInterstitial()
+                if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) loadInterstitial()
             }
         }.onFailure {
             initialized = false
@@ -123,24 +148,28 @@ class AdsManager(
     /** Отмечает рекламный момент; если ad ещё не загружен, момент сохраняется до следующей естественной паузы. */
     fun onGameFinished() {
         gamesFinished++
-        if (
-            gamesFinished >= cfg.interstitialMinGames &&
-            (gamesFinished - cfg.interstitialMinGames) % cfg.interstitialEveryGames == 0
-        ) {
-            interstitialPending = true
+        if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) {
+            if (
+                gamesFinished >= cfg.interstitialMinGames &&
+                (gamesFinished - cfg.interstitialMinGames) % cfg.interstitialEveryGames == 0
+            ) {
+                interstitialPending = true
+            }
+            if (interstitialAd == null) loadInterstitial()
+        } else {
+            interstitialPending = false
         }
         if (rewardedAd == null) loadRewarded()
-        if (interstitialAd == null) loadInterstitial()
     }
 
     fun maybeShowInterstitial(activity: Activity) {
-        if (interstitialShowing) return
+        if (!AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg) || interstitialShowing) return
         // Никогда не ставим interstitial сразу после rewarded на одном и том же result screen.
         if (rewardedShownSincePause) {
             rewardedShownSincePause = false
             return
         }
-        if (!interstitialPending || !cfg.interstitialEnabled) return
+        if (!interstitialPending) return
         val ad = interstitialAd ?: run {
             loadInterstitial()
             return
@@ -154,7 +183,7 @@ class AdsManager(
 
             override fun onAdFailedToShow(adError: com.yandex.mobile.ads.common.AdError) {
                 analytics.logEvent("interstitial_show_failed")
-                interstitialPending = true
+                if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) interstitialPending = true
                 cleanupInterstitial()
             }
 
@@ -163,7 +192,7 @@ class AdsManager(
             override fun onAdImpression(impressionData: com.yandex.mobile.ads.common.ImpressionData?) = Unit
         })
         runCatching { ad.show(activity) }.onFailure {
-            interstitialPending = true
+            if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) interstitialPending = true
             cleanupInterstitial()
         }
     }
@@ -186,11 +215,11 @@ class AdsManager(
         interstitialAd?.setAdEventListener(null)
         interstitialAd = null
         interstitialShowing = false
-        loadInterstitial()
+        if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) loadInterstitial()
     }
 
     private fun loadRewarded() {
-        if (!initialized || rewardedAd != null || rewardedLoading || rewardedShowing) return
+        if (!initialized || !AdDisplayPolicy.allowsRewarded(cfg) || rewardedAd != null || rewardedLoading || rewardedShowing) return
         val loader = rewardedLoader ?: return
         val id = rewardedId()
         if (id.isBlank()) return
@@ -225,7 +254,7 @@ class AdsManager(
     }
 
     private fun loadInterstitial() {
-        if (!initialized || interstitialAd != null || interstitialLoading || interstitialShowing) return
+        if (!initialized || !AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg) || interstitialAd != null || interstitialLoading || interstitialShowing) return
         val loader = interstitialLoader ?: return
         val id = interstitialId()
         if (id.isBlank()) return
@@ -238,7 +267,11 @@ class AdsManager(
                         interstitialLoading = false
                         interstitialRetryAttempt = 0
                         interstitialRetryScheduled = false
-                        this@AdsManager.interstitialAd = interstitialAd
+                        if (AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg)) {
+                            this@AdsManager.interstitialAd = interstitialAd
+                        } else {
+                            interstitialAd.setAdEventListener(null)
+                        }
                     }
 
                     override fun onAdFailedToLoad(error: AdRequestError) {
@@ -268,7 +301,7 @@ class AdsManager(
     }
 
     private fun scheduleInterstitialRetry() {
-        if (!initialized || interstitialRetryScheduled || interstitialId().isBlank()) return
+        if (!initialized || !AdDisplayPolicy.allowsInterstitial(removeAdsOwned, cfg) || interstitialRetryScheduled || interstitialId().isBlank()) return
         interstitialRetryScheduled = true
         val delayMs = retryDelayMs(interstitialRetryAttempt++)
         handler.postDelayed({

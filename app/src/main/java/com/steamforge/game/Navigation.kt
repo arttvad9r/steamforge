@@ -251,7 +251,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 AchievementsScreen(vm = vm, onBack = { back() })
             }
             entry<Settings> {
-                val vm: SettingsViewModel = viewModel { SettingsViewModel(container.repo) }
+                val vm: SettingsViewModel = viewModel { SettingsViewModel(container.repo, container.billing) }
                 SettingsScreen(vm = vm, onBack = { back() })
             }
         },
