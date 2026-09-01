@@ -191,14 +191,26 @@ jobs:
 
           needle = sys.argv[1].casefold()
           root = ET.parse("/tmp/window.xml").getroot()
-          matches = [
+
+          def node_label(node):
+              return (
+                  (node.attrib.get("text") or "")
+                  + " "
+                  + (node.attrib.get("content-desc") or "")
+              ).casefold()
+
+          candidates = [
               node for node in root.iter("node")
-              if needle in (node.attrib.get("content-desc") or "").casefold()
-              and node.attrib.get("checkable") == "true"
+              if node.attrib.get("checkable") == "true"
+              and node.attrib.get("clickable") == "true"
+              and (
+                  needle in node_label(node)
+                  or any(needle in node_label(descendant) for descendant in node.iter("node"))
+              )
           ]
-          assert matches, f"checkable switch not found: {needle}"
-          node = matches[0]
-          assert node.attrib.get("clickable") == "true", node.attrib
+          assert candidates, f"interactive switch not found: {needle}"
+          node = candidates[0]
+          assert node.attrib.get("checked") in ("true", "false"), node.attrib
           bounds = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
           assert bounds, node.attrib
           left, top, right, bottom = map(int, bounds.groups())
