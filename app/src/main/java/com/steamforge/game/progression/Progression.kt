@@ -100,6 +100,42 @@ data class FinishEffects(
     val newBest: Boolean = false,
 )
 
+data class RewardedWorkshopBonus(
+    val xpGained: Int = 0,
+    val gemsGained: Int = 0,
+    val levelUps: List<Int> = emptyList(),
+)
+
+/**
+ * Applies extra Workshop XP without skipping the gem rewards attached to crossed workshop levels.
+ * This is intentionally separate from game finish so rewarded completion never replays stats/achievements.
+ */
+fun applyRewardedWorkshopXp(
+    progress: PlayerProgress,
+    bonusXp: Int,
+    cfg: ProgressionConfig,
+): Pair<PlayerProgress, RewardedWorkshopBonus> {
+    if (bonusXp <= 0) return progress to RewardedWorkshopBonus()
+    val safeXp = bonusXp.coerceAtMost(Int.MAX_VALUE - progress.totalXp)
+    if (safeXp <= 0) return progress to RewardedWorkshopBonus()
+
+    val before = WorkshopProgression.levelInfo(progress.totalXp, cfg).level
+    val newXp = progress.totalXp + safeXp
+    val after = WorkshopProgression.levelInfo(newXp, cfg).level
+    val levelUps = (before + 1..after).toList()
+    val levelGems = levelUps.sumOf { cfg.levelUpGems(it) }
+
+    return progress.copy(
+        totalXp = newXp,
+        gems = progress.gems + levelGems,
+        stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + levelGems),
+    ) to RewardedWorkshopBonus(
+        xpGained = safeXp,
+        gemsGained = levelGems,
+        levelUps = levelUps,
+    )
+}
+
 fun applyGameFinished(
     progress: PlayerProgress,
     summary: GameSummary,
