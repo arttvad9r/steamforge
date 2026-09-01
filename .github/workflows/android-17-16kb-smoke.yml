@@ -120,7 +120,8 @@ jobs:
             activity_service="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
             if [ "$package_service" = 'Service package: found' ] && \
                [ "$window_service" = 'Service window: found' ] && \
-               [ "$activity_service" = 'Service activity: found' ]; then
+               [ "$activity_service" = 'Service activity: found' ] && \
+               adb shell pm list packages >/dev/null 2>&1; then
               stable=$((stable + 1))
               if [ "$stable" -ge 5 ]; then break; fi
             else
@@ -159,6 +160,10 @@ jobs:
             adb shell pidof system_server 2>/dev/null | tr -d '\r' | awk '{print $1}'
           }
 
+          package_manager_responding() {
+            adb shell pm list packages >/dev/null 2>&1
+          }
+
           wait_for_framework() {
             local stable=0
             local candidate_pid=""
@@ -174,7 +179,8 @@ jobs:
                  [ "$boot_completed" = '1' ] && \
                  [ "$package_service" = 'Service package: found' ] && \
                  [ "$window_service" = 'Service window: found' ] && \
-                 [ "$activity_service" = 'Service activity: found' ]; then
+                 [ "$activity_service" = 'Service activity: found' ] && \
+                 package_manager_responding; then
                 if [ "$current_pid" = "$candidate_pid" ]; then
                   stable=$((stable + 1))
                 else
@@ -182,7 +188,7 @@ jobs:
                   stable=1
                 fi
                 if [ "$stable" -ge 10 ]; then
-                  echo "Android framework pid $candidate_pid stable for 20 seconds."
+                  echo "Android framework pid $candidate_pid and PackageManager stable for 20 seconds."
                   return 0
                 fi
               else
@@ -212,8 +218,25 @@ jobs:
             return 1
           }
 
-          install_once() {
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
+          install_with_retry() {
+            for attempt in 1 2 3; do
+              echo "Steamforge install attempt $attempt/3"
+              wait_for_framework
+
+              if package_manager_responding && \
+                 adb install -r app/build/outputs/apk/debug/app-debug.apk; then
+                if wait_for_package; then
+                  echo 'Steamforge APK installed and visible to PackageManager.'
+                  return 0
+                fi
+              fi
+
+              echo 'PackageManager became unstable during install; waiting before retry.'
+              sleep 10
+            done
+
+            echo 'Steamforge APK could not be installed after 3 attempts.'
+            return 1
           }
 
           app_is_foreground() {
@@ -251,13 +274,7 @@ jobs:
             return 1
           }
 
-          wait_for_framework
-          if ! install_once; then
-            echo 'Install interrupted; retrying after framework recovery.'
-            wait_for_framework
-            install_once
-          fi
-          wait_for_package
+          install_with_retry
 
           adb logcat -c
           adb shell am force-stop com.steamforge.game
@@ -312,6 +329,8 @@ jobs:
           adb shell service check package || true
           adb shell service check window || true
           adb shell service check activity || true
+          echo '=== package manager ==='
+          adb shell pm list packages | head -20 || true
           echo '=== package ==='
           adb shell pm path com.steamforge.game || true
           echo '=== process ==='
