@@ -15,6 +15,7 @@ import com.steamforge.game.progression.ContractCounters
 import com.steamforge.game.progression.ContractLedger
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.GameSummary
+import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
 import kotlinx.coroutines.flow.Flow
@@ -83,25 +84,28 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
     }
 
     override suspend fun saveGame(state: SavedGame) {
-        context.dataStore.edit { it[Keys.game] = GameSaveCodec.encode(state) }
+        context.dataStore.edit { prefs ->
+            prefs[Keys.game] = GameSaveCodec.encode(state)
+            val runSeed = state.seed ?: return@edit
+            val updated = DailyContracts.recordLiveSnapshot(
+                progress = mapProgress(prefs),
+                day = LocalDay.todayEpochDay(),
+                runSeed = runSeed,
+                snapshot = state.toContractCounters(),
+            )
+            writeProgress(prefs, updated)
+        }
     }
 
     override suspend fun saveGameWithContractProgress(state: SavedGame, day: Long) {
         context.dataStore.edit { prefs ->
             prefs[Keys.game] = GameSaveCodec.encode(state)
             val runSeed = state.seed ?: return@edit
-            val current = ContractCounters(
-                score = state.state.score,
-                merges = state.mergesTotal,
-                moves = state.state.moves,
-                maxTileLevel = state.state.maxLevel,
-                overdrives = state.overdrivesSession,
-            )
             val updated = DailyContracts.recordLiveSnapshot(
                 progress = mapProgress(prefs),
                 day = day,
                 runSeed = runSeed,
-                snapshot = current,
+                snapshot = state.toContractCounters(),
             )
             writeProgress(prefs, updated)
         }
@@ -120,7 +124,18 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
     ) {
         context.dataStore.edit { prefs ->
-            val (updated, effects) = finisher(mapProgress(prefs))
+            val saved = GameSaveCodec.decode(record.state)
+            val base = if (saved?.seed != null) {
+                DailyContracts.recordFinishedRun(
+                    progress = mapProgress(prefs),
+                    day = record.day,
+                    runSeed = saved.seed,
+                    summary = saved.toSummary(record.daily),
+                )
+            } else {
+                mapProgress(prefs)
+            }
+            val (updated, effects) = finisher(base)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
             writeProgress(prefs, updated)
@@ -339,4 +354,24 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.animationsEnabled] = p.animationsEnabled
         if (p.analyticsConsent != null) prefs[Keys.analyticsConsent] = p.analyticsConsent else prefs.remove(Keys.analyticsConsent)
     }
+
+    private fun SavedGame.toContractCounters(): ContractCounters = ContractCounters(
+        score = state.score,
+        merges = mergesTotal,
+        moves = state.moves,
+        maxTileLevel = state.maxLevel,
+        overdrives = overdrivesSession,
+    )
+
+    private fun SavedGame.toSummary(daily: Boolean): GameSummary = GameSummary(
+        score = state.score,
+        maxTileLevel = state.maxLevel,
+        moves = state.moves,
+        merges = mergesTotal,
+        maxMergesInOneMove = maxMergesInOneMove,
+        overdrives = overdrivesSession,
+        undos = undosSession,
+        won = state.won,
+        daily = daily,
+    )
 }
