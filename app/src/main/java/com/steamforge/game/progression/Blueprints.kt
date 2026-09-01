@@ -1,7 +1,5 @@
 package com.steamforge.game.progression
 
-import kotlin.math.absoluteValue
-
 data class BlueprintPieceDef(
     val id: String,
     val title: String,
@@ -40,14 +38,12 @@ object Blueprints {
 
     fun isComplete(set: BlueprintSetDef, owned: Set<String>): Boolean = collectedCount(set, owned) == set.pieces.size
 
-    /**
-     * Выдаёт отсутствующую деталь детерминированно, но без дублей. Seed нужен только для порядка reveal.
-     */
+    /** Выдаёт отсутствующую деталь детерминированно, но без дублей. */
     fun nextMissingPiece(set: BlueprintSetDef, owned: Set<String>, seed: Long): BlueprintPieceDef? {
         val missing = set.pieces.filterNot { it.id in owned }
         if (missing.isEmpty()) return null
-        val index = (seed xor (seed ushr 32)).toInt().absoluteValue % missing.size
-        return missing[index]
+        val mixed = (seed xor (seed ushr 32)).toInt()
+        return missing[Math.floorMod(mixed, missing.size)]
     }
 
     fun workshopUnlocks(owned: Set<String>): Set<String> = buildSet {
