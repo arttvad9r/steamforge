@@ -2,12 +2,13 @@ package com.steamforge.game.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.config.FallbackGameConfigProvider
+import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LiveOpsCatalog
 import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
-import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.ReturnLoop
 import com.steamforge.game.progression.WeeklyChallenges
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,16 +31,21 @@ data class HomeUiState(
     val eventPoints: Int = 0,
     val eventRewardAvailable: Boolean = false,
     val eventDaysRemaining: Int = 0,
+    val dailyEnabled: Boolean = true,
+    val contractsEnabled: Boolean = true,
+    val weeklyEnabled: Boolean = true,
+    val eventEnabled: Boolean = true,
     val hasSavedRun: Boolean = false,
 )
 
 class HomeViewModel(
     repo: DataRepo,
-    private val cfg: ProgressionConfig = ProgressionConfig(),
+    private val configProvider: GameConfigProvider = FallbackGameConfigProvider(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
 ) : ViewModel() {
 
-    val ui: StateFlow<HomeUiState> = combine(repo.progress, repo.savedGame) { progress, savedGame ->
+    val ui: StateFlow<HomeUiState> = combine(repo.progress, repo.savedGame, configProvider.config) { progress, savedGame, remote ->
+        val cfg = remote.progressionConfig()
         val todayDay = today()
         val weekly = WeeklyChallenges.forEpochDay(todayDay)
         val weeklyRecord = progress.weekly.takeIf { it.challengeId == weekly.id }
@@ -66,6 +72,10 @@ class HomeViewModel(
             eventPoints = eventLedger.totalPoints,
             eventRewardAvailable = event.milestones.any { LiveOpsProgression.canClaim(eventLedger, event, it) },
             eventDaysRemaining = (event.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt(),
+            dailyEnabled = remote.features.dailyContracts,
+            contractsEnabled = remote.features.dailyContracts,
+            weeklyEnabled = remote.features.weeklyChallenge,
+            eventEnabled = remote.features.liveOps,
             hasSavedRun = savedGame != null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
