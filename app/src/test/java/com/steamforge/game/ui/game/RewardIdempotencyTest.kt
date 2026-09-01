@@ -74,7 +74,9 @@ class RewardIdempotencyTest {
     @Test
     fun `process recreation restores rewarded bonus without regrant`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialFinished = record("fg-1", 60))
-        vm(repo).also { it.grantDoubleReward() }
+        val first = vm(repo)
+        advanceUntilIdle()
+        first.grantDoubleReward()
         advanceUntilIdle()
 
         val restored = vm(repo)
