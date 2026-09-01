@@ -60,13 +60,16 @@ if [[ -n "$DIRTY_STATE" ]]; then
 fi
 SOURCE_SHA="$(git rev-parse HEAD)"
 
-# Production credentials must remain outside the repository. The project-level
+# Production values must remain outside the repository. The project-level
 # gradle.properties is tracked, so only ~/.gradle/gradle.properties may contain them.
 sensitive_project_props=(
   steamforge.appmetricaApiKey
   steamforge.privacyPolicyUrl
   steamforge.rewardedAdUnitId
   steamforge.interstitialAdUnitId
+  steamforge.rustoreConsoleAppId
+  steamforge.removeAdsProductId
+  steamforge.rustorePayScheme
 )
 for key in "${sensitive_project_props[@]}"; do
   if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$ROOT_DIR/gradle.properties"; then
@@ -117,6 +120,9 @@ required_gradle_props=(
   steamforge.privacyPolicyUrl
   steamforge.rewardedAdUnitId
   steamforge.interstitialAdUnitId
+  steamforge.rustoreConsoleAppId
+  steamforge.removeAdsProductId
+  steamforge.rustorePayScheme
 )
 
 for key in "${required_gradle_props[@]}"; do
@@ -131,11 +137,17 @@ APPMETRICA_KEY="$(read_prop steamforge.appmetricaApiKey)"
 REWARDED_ID="$(read_prop steamforge.rewardedAdUnitId)"
 INTERSTITIAL_ID="$(read_prop steamforge.interstitialAdUnitId)"
 PRIVACY_URL="$(read_prop steamforge.privacyPolicyUrl)"
+RUSTORE_CONSOLE_APP_ID="$(read_prop steamforge.rustoreConsoleAppId)"
+REMOVE_ADS_PRODUCT_ID="$(read_prop steamforge.removeAdsProductId)"
+RUSTORE_PAY_SCHEME="$(read_prop steamforge.rustorePayScheme)"
 
 [[ ${#APPMETRICA_KEY} -ge 20 ]] || fail 'steamforge.appmetricaApiKey looks too short for a production key'
 [[ "$REWARDED_ID" != demo-* ]] || fail 'rewarded ad unit must not use a Yandex demo ID'
 [[ "$INTERSTITIAL_ID" != demo-* ]] || fail 'interstitial ad unit must not use a Yandex demo ID'
 [[ "$PRIVACY_URL" == https://* ]] || fail 'steamforge.privacyPolicyUrl must be an HTTPS URL'
+[[ "$RUSTORE_CONSOLE_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail 'steamforge.rustoreConsoleAppId must be a positive numeric RuStore console application ID'
+[[ "$REMOVE_ADS_PRODUCT_ID" != *[[:space:]]* ]] || fail 'steamforge.removeAdsProductId must not contain whitespace'
+[[ "$RUSTORE_PAY_SCHEME" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] || fail 'steamforge.rustorePayScheme must be a valid URI scheme'
 
 command -v curl >/dev/null 2>&1 || fail 'curl is required to validate the published Privacy Policy'
 PRIVACY_TMP="$(mktemp)"

@@ -1,6 +1,6 @@
 package com.steamforge.game.ui.settings
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,7 +62,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     var confirmReset by remember { mutableStateOf(false) }
 
     SteamBackdrop(modifier) {

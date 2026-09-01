@@ -75,6 +75,9 @@ jobs:
               'steamforge.privacyPolicyUrl',
               'steamforge.rewardedAdUnitId',
               'steamforge.interstitialAdUnitId',
+              'steamforge.rustoreConsoleAppId',
+              'steamforge.removeAdsProductId',
+              'steamforge.rustorePayScheme',
           )
           leaked = [
               key for key in sensitive
