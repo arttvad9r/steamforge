@@ -80,6 +80,7 @@ fun HomeScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val seasonal = SeasonalVisuals.resolve(ui.eventTheme)
+    val eventUnit = ui.eventTheme?.compactUnit ?: "очков"
 
     SeasonalBackdrop(theme = seasonal, modifier = modifier) {
         Column(
@@ -141,8 +142,8 @@ fun HomeScreen(
                     icon = if (ui.eventRewardAvailable) "◆" else seasonal.badge,
                     title = ui.eventTheme?.title ?: "Событие",
                     subtitle = when {
-                        ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} pressure"
-                        else -> "${ui.eventPoints} pressure · ${ui.eventDaysRemaining} дн. осталось"
+                        ui.eventRewardAvailable -> "Награда готова · ${ui.eventPoints} $eventUnit"
+                        else -> "${ui.eventPoints} $eventUnit · ${ui.eventDaysRemaining} дн. осталось"
                     },
                     onClick = onEvent,
                     modifier = Modifier.fillMaxWidth(),
