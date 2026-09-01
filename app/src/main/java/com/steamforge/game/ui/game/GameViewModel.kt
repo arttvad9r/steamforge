@@ -9,6 +9,7 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
+import com.steamforge.game.core.ReplayableRandom
 import com.steamforge.game.core.Tile
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.data.FinishedGameRecord
@@ -21,9 +22,9 @@ import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.applyGameFinished
 import java.util.UUID
-import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,6 +47,8 @@ data class GameUiState(
     val effects: FinishEffects? = null,
     val daily: DailyChallenge? = null,
     val dailySatisfied: Boolean = false,
+    val weekly: WeeklyChallenge? = null,
+    val weeklySubmissionAccepted: Boolean? = null,
     val winCelebrated: Boolean = false,
     val winBannerShown: Boolean = false,
     val removingMode: Boolean = false,
@@ -69,23 +72,47 @@ class GameViewModel(
     private val cfg: ProgressionConfig = ProgressionConfig(),
     private val dailyMode: Boolean = false,
     private val dailyProvider: () -> DailyChallenge? = { null },
+    private val weeklyChallenge: WeeklyChallenge? = null,
     private val seedProvider: () -> Long = { System.currentTimeMillis() },
     private val savedGameProvider: suspend () -> SavedGame? = { repo.savedGame.first() },
     private val systemAnimationsEnabled: Boolean = true,
     private val ads: AdsManager? = null,
 ) : ViewModel() {
 
+    init {
+        require(!(dailyMode && weeklyChallenge != null)) { "Daily and weekly modes are mutually exclusive" }
+    }
+
     private val engine = GameEngine()
+    private val competitiveMode = weeklyChallenge != null
     private val daily = if (dailyMode) dailyProvider() else null
-    private var sessionSeed: Long? = if (dailyMode) daily?.seed else null
-    private var rng = ReplayableRandom(if (dailyMode) daily?.seed ?: 0L else seedProvider())
+    private var sessionSeed: Long? = when {
+        competitiveMode -> weeklyChallenge?.seed
+        dailyMode -> daily?.seed
+        else -> null
+    }
+    private var rng = ReplayableRandom(
+        when {
+            competitiveMode -> weeklyChallenge?.seed ?: 0L
+            dailyMode -> daily?.seed ?: 0L
+            else -> seedProvider()
+        },
+    )
     private var dailyCompletedToday = false
+    private val weeklyMoves = mutableListOf<Move>()
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
     private var discardFinishedRecord = false
 
-    private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
+    private val _ui = MutableStateFlow(
+        GameUiState(
+            freeUndosLeft = if (competitiveMode) 0 else cfg.freeUndosPerGame,
+            daily = daily,
+            weekly = weeklyChallenge,
+            winBannerShown = competitiveMode,
+        ),
+    )
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
 
     private var undoSnapshot: UndoSnapshot? = null
@@ -104,42 +131,52 @@ class GameViewModel(
 
     init {
         viewModelScope.launch {
-            val record = runCatching { repo.finishedGame.first() }.getOrNull()
-            if (record != null && record.day == LocalDay.todayEpochDay() && record.daily == dailyMode) {
-                restoreFinished(record)
+            if (competitiveMode) {
+                newGameInternal()
             } else {
-                val restored = runCatching { savedGameProvider() }.getOrNull()
-                if (!dailyMode && restored != null) {
-                    sessionSeed = restored.seed ?: seedProvider()
-                    rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
-                    _ui.update {
-                        it.copy(
-                            state = restored.state,
-                            pressure = restored.pressure,
-                            overdriveRemaining = restored.overdriveRemaining,
-                            freeUndosLeft = restored.freeUndosLeft,
-                            canUndo = false,
-                            winCelebrated = restored.state.won,
-                            mergesTotal = restored.mergesTotal,
-                            maxMergesInOneMove = restored.maxMergesInOneMove,
-                            overdrivesSession = restored.overdrivesSession,
-                            undosSession = restored.undosSession,
-                            highMergesSession = restored.highMergesSession,
-                        )
-                    }
+                val record = runCatching { repo.finishedGame.first() }.getOrNull()
+                if (record != null && record.day == LocalDay.todayEpochDay() && record.daily == dailyMode) {
+                    restoreFinished(record)
                 } else {
-                    newGameInternal()
+                    val restored = runCatching { savedGameProvider() }.getOrNull()
+                    if (!dailyMode && restored != null) {
+                        sessionSeed = restored.seed ?: seedProvider()
+                        rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
+                        _ui.update {
+                            it.copy(
+                                state = restored.state,
+                                pressure = restored.pressure,
+                                overdriveRemaining = restored.overdriveRemaining,
+                                freeUndosLeft = restored.freeUndosLeft,
+                                canUndo = false,
+                                winCelebrated = restored.state.won,
+                                mergesTotal = restored.mergesTotal,
+                                maxMergesInOneMove = restored.maxMergesInOneMove,
+                                overdrivesSession = restored.overdrivesSession,
+                                undosSession = restored.undosSession,
+                                highMergesSession = restored.highMergesSession,
+                            )
+                        }
+                    } else {
+                        newGameInternal()
+                    }
                 }
             }
+
             repo.progress.collect { p ->
                 val completedToday = dailyMode &&
                     p.dailyChallengeDay == LocalDay.todayEpochDay() &&
                     p.dailyChallengeDone
                 dailyCompletedToday = completedToday
+                val modeBest = if (competitiveMode && p.weekly.challengeId == weeklyChallenge?.id) {
+                    p.weekly.bestScore
+                } else {
+                    p.bestScore
+                }
                 _ui.update { s ->
                     s.copy(
                         gems = p.gems,
-                        best = p.bestScore,
+                        best = modeBest,
                         soundEnabled = p.soundEnabled,
                         hapticsEnabled = p.hapticsEnabled,
                         animationsActive = p.animationsEnabled && systemAnimationsEnabled,
@@ -180,20 +217,26 @@ class GameViewModel(
     fun onMove(move: Move) {
         val s = _ui.value
         if (s.finished || s.removingMode || finishStarted) return
-        val snapshot = UndoSnapshot(
-            state = s.state,
-            pressure = s.pressure,
-            overdriveRemaining = s.overdriveRemaining,
-            rngDraws = rng.draws,
-            mergesTotal = s.mergesTotal,
-            maxMergesInOneMove = s.maxMergesInOneMove,
-            overdrivesSession = s.overdrivesSession,
-            undosSession = s.undosSession,
-            highMergesSession = s.highMergesSession,
-        )
+        val snapshot = if (!competitiveMode) {
+            UndoSnapshot(
+                state = s.state,
+                pressure = s.pressure,
+                overdriveRemaining = s.overdriveRemaining,
+                rngDraws = rng.draws,
+                mergesTotal = s.mergesTotal,
+                maxMergesInOneMove = s.maxMergesInOneMove,
+                overdrivesSession = s.overdrivesSession,
+                undosSession = s.undosSession,
+                highMergesSession = s.highMergesSession,
+            )
+        } else {
+            null
+        }
+
         val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
         val result = engine.applyMove(s.state, move, rng, multiplier)
         if (!result.moved) return
+        if (competitiveMode) weeklyMoves += move
 
         var pressure = s.pressure
         var overdrive = s.overdriveRemaining
@@ -226,7 +269,7 @@ class GameViewModel(
                 overdrivesSession = overdrives,
                 highMergesSession = it.highMergesSession + highMerges,
                 winCelebrated = it.winCelebrated || result.state.won,
-                canUndo = true,
+                canUndo = !competitiveMode,
             )
         }
         undoSnapshot = snapshot
@@ -236,6 +279,7 @@ class GameViewModel(
     }
 
     fun undo() {
+        if (competitiveMode) return
         val s = _ui.value
         val snap = undoSnapshot ?: return
         if (s.finished || s.removingMode || finishStarted) return
@@ -272,6 +316,7 @@ class GameViewModel(
     }
 
     fun toggleRemovingMode() {
+        if (competitiveMode) return
         val s = _ui.value
         if (finishStarted || s.finished) return
         if (s.removingMode) {
@@ -283,6 +328,7 @@ class GameViewModel(
     }
 
     fun canRemoveTile(tile: Tile): Boolean {
+        if (competitiveMode) return false
         val s = _ui.value
         return !finishStarted &&
             !s.finished &&
@@ -292,6 +338,7 @@ class GameViewModel(
     }
 
     fun removeTile(tile: Tile) {
+        if (competitiveMode) return
         val s = _ui.value
         if (finishStarted || s.finished || !s.removingMode) return
         if (!canRemoveTile(tile)) return
@@ -315,15 +362,12 @@ class GameViewModel(
 
     fun restart() {
         if (finishStarted && !_ui.value.finished) return
-        if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
+        if (!competitiveMode && _ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
         newGameInternal()
     }
 
-    /**
-     * Выход не является завершением партии и не выдаёт XP. Обычная партия сохраняется для продолжения,
-     * Daily-попытка просто закрывается. Если Game Over уже фиксируется, результат удалится после транзакции.
-     */
     fun exit() {
+        if (competitiveMode) return
         if (_ui.value.finished || finishStarted) {
             discardFinishedRecord = true
             if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
@@ -339,8 +383,13 @@ class GameViewModel(
     private fun newGameInternal() {
         finishStarted = false
         discardFinishedRecord = false
-        sessionSeed = if (dailyMode) daily?.seed else seedProvider()
+        sessionSeed = when {
+            competitiveMode -> weeklyChallenge?.seed
+            dailyMode -> daily?.seed
+            else -> seedProvider()
+        }
         rng = ReplayableRandom(sessionSeed ?: 0L)
+        weeklyMoves.clear()
         undoSnapshot = null
         val state = engine.newGame(rng = rng)
         _ui.update {
@@ -353,8 +402,9 @@ class GameViewModel(
                 gameResultId = null,
                 rewardDoubled = false,
                 effects = null,
-                freeUndosLeft = cfg.freeUndosPerGame,
-                winBannerShown = false,
+                weeklySubmissionAccepted = null,
+                freeUndosLeft = if (competitiveMode) 0 else cfg.freeUndosPerGame,
+                winBannerShown = competitiveMode,
                 lastResult = null,
                 previousTiles = emptyList(),
                 mergesTotal = 0,
@@ -365,11 +415,12 @@ class GameViewModel(
                 dailySatisfied = dailyMode && dailyCompletedToday,
             )
         }
-        analytics.logEvent(
-            if (dailyMode) "daily_started" else "game_started",
-            daily?.let { mapOf("daily_type" to it.type.name) } ?: emptyMap(),
-        )
-        if (!dailyMode) persistGame()
+        when {
+            competitiveMode -> analytics.logEvent("weekly_started", mapOf("challenge_id" to weeklyChallenge?.id.orEmpty()))
+            dailyMode -> analytics.logEvent("daily_started", daily?.let { mapOf("daily_type" to it.type.name) } ?: emptyMap())
+            else -> analytics.logEvent("game_started")
+        }
+        if (!dailyMode && !competitiveMode) persistGame()
     }
 
     private fun checkDailyGoal(state: GameState) {
@@ -396,6 +447,11 @@ class GameViewModel(
     }
 
     private fun finishGame() {
+        if (competitiveMode) {
+            finishWeeklyGame()
+            return
+        }
+
         val s = _ui.value
         if (s.finished || finishStarted) return
         finishStarted = true
@@ -468,7 +524,39 @@ class GameViewModel(
         }
     }
 
+    private fun finishWeeklyGame() {
+        val challenge = weeklyChallenge ?: return
+        val s = _ui.value
+        if (s.finished || finishStarted) return
+        finishStarted = true
+        _ui.update { it.copy(canUndo = false, removingMode = false) }
+        val replay = weeklyMoves.toList()
+        val previousBest = s.best
+
+        writesScope.launch {
+            val verified = repo.submitWeeklyChallenge(challenge, replay)
+            val accepted = verified != null
+            val newBest = verified?.score?.let { it > previousBest } == true
+            _ui.update {
+                it.copy(
+                    finished = true,
+                    weeklySubmissionAccepted = accepted,
+                    effects = FinishEffects(newBest = newBest),
+                )
+            }
+            analytics.logEvent(
+                if (accepted) "weekly_finished" else "weekly_verification_failed",
+                mapOf(
+                    "challenge_id" to challenge.id,
+                    "score" to (verified?.score ?: s.state.score),
+                    "moves" to replay.size,
+                ),
+            )
+        }
+    }
+
     fun grantDoubleReward() {
+        if (competitiveMode) return
         val s = _ui.value
         val eff = s.effects ?: return
         val id = s.gameResultId ?: return
@@ -480,7 +568,7 @@ class GameViewModel(
     }
 
     private fun persistGame() {
-        if (dailyMode || finishStarted) return
+        if (dailyMode || competitiveMode || finishStarted) return
         val s = _ui.value
         writesScope.launch {
             repo.saveGame(
@@ -499,34 +587,5 @@ class GameViewModel(
                 ),
             )
         }
-    }
-}
-
-/**
- * Маленький детерминированный PRNG с сериализуемой позицией. Random.nextInt/nextDouble строятся поверх
- * nextBits, поэтому одного счётчика draws достаточно для точного продолжения последовательности.
- */
-private class ReplayableRandom(
-    private val seed: Long,
-    initialDraws: Long = 0L,
-) : Random() {
-    var draws: Long = initialDraws.coerceIn(0L, 1_000_000L)
-        private set
-
-    override fun nextBits(bitCount: Int): Int {
-        require(bitCount in 0..32)
-        if (bitCount == 0) return 0
-        val index = draws++
-        var z = seed + GOLDEN_GAMMA * (index + 1L)
-        z = (z xor (z ushr 30)) * MIX_1
-        z = (z xor (z ushr 27)) * MIX_2
-        z = z xor (z ushr 31)
-        return (z ushr (64 - bitCount)).toInt()
-    }
-
-    private companion object {
-        const val GOLDEN_GAMMA = -7046029254386353131L
-        const val MIX_1 = -4658895280553007687L
-        const val MIX_2 = -7723592293110705685L
     }
 }
