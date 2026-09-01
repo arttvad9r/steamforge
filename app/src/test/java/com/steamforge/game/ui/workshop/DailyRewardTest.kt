@@ -1,5 +1,7 @@
 package com.steamforge.game.ui.workshop
 
+import com.steamforge.game.config.LocalDefaultConfig
+import com.steamforge.game.config.MutableGameConfigProvider
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
 import kotlinx.coroutines.CoroutineScope
@@ -52,7 +54,7 @@ class DailyRewardTest {
     }
 
     @Test
-    fun `streak continues from yesterday and resets after gap`() = runTest(dispatcher) {
+    fun `streak continues normally and forgives one missed day`() = runTest(dispatcher) {
         val day = 1000L
         val continuingRepo = FakeDataRepo(
             initialProgress = PlayerProgress(dailyRewardDay = day - 1, dailyRewardStreak = 3),
@@ -62,13 +64,44 @@ class DailyRewardTest {
         advanceUntilIdle()
         assertEquals(4, continuing.ui.value.dailyRewardDay)
 
-        val gapRepo = FakeDataRepo(
+        val graceRepo = FakeDataRepo(
             initialProgress = PlayerProgress(dailyRewardDay = day - 2, dailyRewardStreak = 5),
         )
-        val gap = WorkshopViewModel(gapRepo, today = { day })
-        backgroundScope.subscribe(gap.ui)
+        val grace = WorkshopViewModel(graceRepo, today = { day })
+        backgroundScope.subscribe(grace.ui)
         advanceUntilIdle()
-        assertEquals(1, gap.ui.value.dailyRewardDay)
+        assertEquals(6, grace.ui.value.dailyRewardDay)
+        assertTrue(grace.ui.value.dailyRewardUsesGrace)
+
+        val exhaustedRepo = FakeDataRepo(
+            initialProgress = PlayerProgress(
+                dailyRewardDay = day - 2,
+                dailyRewardStreak = 5,
+                dailyRewardGraceUsed = true,
+            ),
+        )
+        val exhausted = WorkshopViewModel(exhaustedRepo, today = { day })
+        backgroundScope.subscribe(exhausted.ui)
+        advanceUntilIdle()
+        assertEquals(1, exhausted.ui.value.dailyRewardDay)
+        assertFalse(exhausted.ui.value.dailyRewardUsesGrace)
+    }
+
+    @Test
+    fun `remote reward multiplier matches displayed and granted daily reward`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo()
+        val config = MutableGameConfigProvider(
+            LocalDefaultConfig.value.copy(rewardMultiplierPercent = 200),
+        )
+        val vm = WorkshopViewModel(repo, configProvider = config, today = { day })
+        backgroundScope.subscribe(vm.ui)
+        advanceUntilIdle()
+
+        assertEquals(10, vm.ui.value.dailyRewardGems)
+        vm.claimDailyReward()
+        advanceUntilIdle()
+        assertEquals(10, repo.currentProgress.gems)
     }
 
     @Test
