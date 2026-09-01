@@ -97,7 +97,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
 
     fun back() = backStack.removeLastOrNull()
 
-    // Пока fresh-vs-legacy решение не записано, не показываем случайный meta screen под будущим onboarding.
     if (onboardingStep == null) return
 
     if (consent != null && onboardingStep == Onboarding.CORE) {
@@ -116,6 +115,11 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 vm.exit()
                 container.analytics.logEvent("onboarding_core_completed", mapOf("moves" to vm.ui.value.state.moves))
                 shellScope.launch { container.onboarding.setStep(Onboarding.WORKSHOP) }
+            },
+            onSkip = {
+                vm.exit()
+                container.analytics.logEvent("onboarding_skipped", mapOf("moves" to vm.ui.value.state.moves))
+                shellScope.launch { container.onboarding.setStep(Onboarding.COMPLETE) }
             },
             modifier = modifier,
         )
