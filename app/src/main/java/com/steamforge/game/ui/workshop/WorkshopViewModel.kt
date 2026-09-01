@@ -2,6 +2,8 @@ package com.steamforge.game.ui.workshop
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.config.FallbackGameConfigProvider
+import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.LevelInfo
@@ -10,7 +12,7 @@ import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.ReturnLoop
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -38,11 +40,13 @@ data class WorkshopUiState(
 
 class WorkshopViewModel(
     private val repo: DataRepo,
-    private val cfg: ProgressionConfig = ProgressionConfig(),
+    private val configProvider: GameConfigProvider = FallbackGameConfigProvider(),
+    private val baseCfg: ProgressionConfig = ProgressionConfig(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
 ) : ViewModel() {
 
-    val ui: StateFlow<WorkshopUiState> = repo.progress.map { p ->
+    val ui: StateFlow<WorkshopUiState> = combine(repo.progress, configProvider.config) { p, remote ->
+        val cfg = remote.economy.applyTo(baseCfg)
         val todayDay = today()
         val plan = ReturnLoop.dailyRewardPlan(
             lastClaimDay = p.dailyRewardDay,
@@ -77,6 +81,7 @@ class WorkshopViewModel(
 
     fun claimDailyReward() {
         viewModelScope.launch {
+            val cfg = configProvider.config.value.economy.applyTo(baseCfg)
             repo.updateProgress { p ->
                 val todayDay = today()
                 val plan = ReturnLoop.dailyRewardPlan(
