@@ -116,6 +116,11 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 container.analytics.logEvent("onboarding_core_completed", mapOf("moves" to vm.ui.value.state.moves))
                 shellScope.launch { container.onboarding.setStep(Onboarding.WORKSHOP) }
             },
+            onSkip = {
+                vm.exit()
+                container.analytics.logEvent("onboarding_skipped", mapOf("moves" to vm.ui.value.state.moves))
+                shellScope.launch { container.onboarding.setStep(Onboarding.COMPLETE) }
+            },
             modifier = modifier,
         )
         return
