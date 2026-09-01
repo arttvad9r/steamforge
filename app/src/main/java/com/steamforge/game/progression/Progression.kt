@@ -89,7 +89,6 @@ object WorkshopProgression {
     fun xpForGame(summary: GameSummary, cfg: ProgressionConfig): Int {
         var xp = summary.score / cfg.xpScoreDivisor + summary.maxTileLevel * cfg.xpPerMaxTileLevel
         if (summary.won) xp += cfg.winBonusXp
-        // Daily completion bonus is granted exactly once by the repository's atomic daily claim.
         return xp
     }
 }
@@ -151,6 +150,7 @@ data class PlayerProgress(
     val dailyRewardDay: Long = -1L,
     val dailyRewardStreak: Int = 0,
     val contracts: ContractLedger = ContractLedger(),
+    val weekly: WeeklyRecord = WeeklyRecord(),
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
