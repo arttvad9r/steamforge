@@ -25,6 +25,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.steamforge.game.cosmetics.CosmeticLoadout
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.Onboarding
@@ -39,6 +40,8 @@ import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.contracts.ContractsScreen
 import com.steamforge.game.ui.contracts.ContractsViewModel
+import com.steamforge.game.ui.cosmetics.CosmeticsScreen
+import com.steamforge.game.ui.cosmetics.CosmeticsViewModel
 import com.steamforge.game.ui.event.EventScreen
 import com.steamforge.game.ui.event.EventViewModel
 import com.steamforge.game.ui.game.GameViewModel
@@ -67,6 +70,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class Game(val daily: Boolean = false) : NavKey
 @Serializable data object Achievements : NavKey
 @Serializable data object Settings : NavKey
+@Serializable data object Cosmetics : NavKey
 
 @Composable
 fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
@@ -173,6 +177,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 val vm: WorkshopViewModel = viewModel {
                     WorkshopViewModel(container.repo, configProvider = container.config)
                 }
+                val cosmeticLoadout = effectiveCosmeticLoadout(container)
                 WorkshopScreen(
                     vm = vm,
                     sfx = container.sfx,
@@ -180,6 +185,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onDaily = { backStack.add(Game(daily = true)) },
                     onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
+                    workshopTheme = cosmeticLoadout.workshopTheme,
                 )
             }
             entry<FoundryEvent> {
@@ -200,6 +206,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             }
             entry<WeeklyGame> {
                 val challenge = WeeklyChallenges.forEpochDay(LocalDay.todayEpochDay())
+                val cosmeticLoadout = effectiveCosmeticLoadout(container)
                 val vm: GameViewModel = viewModel(key = "weekly-${challenge.id}") {
                     GameViewModel(
                         repo = container.repo,
@@ -215,6 +222,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     sfx = container.sfx,
                     ads = container.ads,
                     onExit = { back() },
+                    tileSet = cosmeticLoadout.tileSet,
                     modifier = Modifier.navigationBarsPadding(),
                 )
             }
@@ -227,6 +235,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 BlueprintsScreen(vm = vm, onBack = { back() })
             }
             entry<Game> { key ->
+                val cosmeticLoadout = effectiveCosmeticLoadout(container)
                 val vm: GameViewModel = viewModel(key = if (key.daily) "daily" else "normal") {
                     GameViewModel(
                         repo = container.repo,
@@ -243,6 +252,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     sfx = container.sfx,
                     ads = container.ads,
                     onExit = { back() },
+                    tileSet = cosmeticLoadout.tileSet,
                     modifier = Modifier.navigationBarsPadding(),
                 )
             }
@@ -252,9 +262,27 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             }
             entry<Settings> {
                 val vm: SettingsViewModel = viewModel { SettingsViewModel(container.repo, container.billing) }
-                SettingsScreen(vm = vm, onBack = { back() })
+                SettingsScreen(
+                    vm = vm,
+                    onBack = { back() },
+                    onCosmetics = { backStack.add(Cosmetics) },
+                )
+            }
+            entry<Cosmetics> {
+                val vm: CosmeticsViewModel = viewModel { CosmeticsViewModel(container.billing, container.cosmetics) }
+                CosmeticsScreen(vm = vm, onBack = { back() })
             }
         },
+    )
+}
+
+@Composable
+private fun effectiveCosmeticLoadout(container: AppContainer): CosmeticLoadout {
+    val selected by container.cosmetics.loadout.collectAsStateWithLifecycle(initialValue = CosmeticLoadout())
+    val purchases by container.billing.cosmetics.collectAsStateWithLifecycle()
+    return selected.effective(
+        tileSetOwned = purchases.tileSetOwned,
+        workshopThemeOwned = purchases.workshopThemeOwned,
     )
 }
 

@@ -44,13 +44,14 @@ private val rawTileColors = listOf(
     RawTileColor(Color(0xFFD1A45A), Color(0xFF172029)), // 2048 mechanical core
 )
 
-fun tileColors(level: Int): TileColors {
+fun tileColors(level: Int, patinaStyle: Boolean = false): TileColors {
     val raw = rawTileColors[(level - 1).coerceIn(0, rawTileColors.lastIndex)]
-    return TileColors(raw.bg, raw.content, glow = level >= 11)
+    val material = if (patinaStyle) raw.bg.mixWith(Patina, if (level <= 2) 0.10f else 0.18f) else raw.bg
+    return TileColors(material, raw.content, glow = level >= 11)
 }
 
-fun tileBevel(level: Int): Brush {
-    val material = tileColors(level).background
+fun tileBevel(level: Int, patinaStyle: Boolean = false): Brush {
+    val material = tileColors(level, patinaStyle).background
     val highTier = level >= 9
     return Brush.verticalGradient(
         listOf(
@@ -60,6 +61,16 @@ fun tileBevel(level: Int): Brush {
             material.darken(if (highTier) 0.90f else 0.92f),
             material.darken(if (highTier) 0.80f else 0.84f),
         ),
+    )
+}
+
+private fun Color.mixWith(other: Color, amount: Float): Color {
+    val t = amount.coerceIn(0f, 1f)
+    return Color(
+        red = red * (1f - t) + other.red * t,
+        green = green * (1f - t) + other.green * t,
+        blue = blue * (1f - t) + other.blue * t,
+        alpha = alpha,
     )
 }
 

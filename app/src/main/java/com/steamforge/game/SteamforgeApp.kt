@@ -8,6 +8,7 @@ import com.steamforge.game.analytics.MutableAnalytics
 import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.billing.BillingProviderFactory
 import com.steamforge.game.config.FallbackGameConfigProvider
+import com.steamforge.game.cosmetics.CosmeticLoadoutStore
 import com.steamforge.game.data.OnboardingStore
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
@@ -33,6 +34,7 @@ class AppContainer(context: Context) {
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
     val ads = AdsManager(analytics, isDebug = isDebug)
     val billing = BillingProviderFactory.create(appContext, appScope, analytics)
+    val cosmetics = CosmeticLoadoutStore(appContext)
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false

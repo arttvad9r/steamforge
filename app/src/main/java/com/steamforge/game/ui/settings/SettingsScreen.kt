@@ -59,6 +59,7 @@ import com.steamforge.game.ui.components.SteamPanel
 fun SettingsScreen(
     vm: SettingsViewModel,
     onBack: () -> Unit,
+    onCosmetics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -114,6 +115,11 @@ fun SettingsScreen(
             )
 
             Spacer(Modifier.height(16.dp))
+            SettingsGroupTitle("ОФОРМЛЕНИЕ")
+            Spacer(Modifier.height(6.dp))
+            CosmeticsEntry(onCosmetics)
+
+            Spacer(Modifier.height(16.dp))
             SettingsGroupTitle("ПРИВАТНОСТЬ")
             Spacer(Modifier.height(6.dp))
             SteamPanel(
@@ -155,7 +161,7 @@ fun SettingsScreen(
             body = {
                 Text(
                     "Будут удалены очки, гемы, уровень мастерской, достижения, статистика, " +
-                        "испытания и сохранённая партия. Настройки, выбор приватности и покупки сохранятся. " +
+                        "испытания и сохранённая партия. Настройки, выбор приватности, покупки и выбранное оформление сохранятся. " +
                         "Отменить это нельзя.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
@@ -254,6 +260,30 @@ private fun RemoveAdsSection(
             Spacer(Modifier.height(8.dp))
             Text(message, style = MaterialTheme.typography.bodySmall, color = TextMuted)
         }
+    }
+}
+
+@Composable
+private fun CosmeticsEntry(onOpen: () -> Unit) {
+    SteamPanel(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SettingIcon("✦", true)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Оформление мастерской", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+                Text("Наборы плиток и темы без игровых преимуществ", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        SteamButton(
+            text = "ОТКРЫТЬ ОФОРМЛЕНИЕ",
+            onClick = onOpen,
+            modifier = Modifier.fillMaxWidth(),
+            style = SteamButtonStyle.Dark,
+        )
     }
 }
 

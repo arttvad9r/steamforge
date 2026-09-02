@@ -74,6 +74,7 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 import com.steamforge.game.core.Tile
+import com.steamforge.game.cosmetics.CosmeticCatalog
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.progression.DailyChallenge
 import com.steamforge.game.progression.DailyGoalType
@@ -83,6 +84,7 @@ import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.BrassDark
 import com.steamforge.game.theme.Panel
+import com.steamforge.game.theme.Patina
 import com.steamforge.game.theme.Recess
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.theme.TealSurface
@@ -109,6 +111,7 @@ fun GameScreen(
     sfx: SfxPlayer,
     ads: AdsManager,
     onExit: () -> Unit,
+    tileSet: String = CosmeticCatalog.TILE_CLASSIC,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -268,6 +271,7 @@ fun GameScreen(
                 canRemove = vm::canRemoveTile,
                 onTileClick = vm::removeTile,
                 onSwipe = vm::onMove,
+                tileSet = tileSet,
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             )
             Spacer(Modifier.height(9.dp))
@@ -371,9 +375,11 @@ fun BoardView(
     canRemove: (Tile) -> Boolean,
     onTileClick: (Tile) -> Unit,
     onSwipe: (Move) -> Unit,
+    tileSet: String = CosmeticCatalog.TILE_CLASSIC,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(16.dp)
+    val patinaStyle = tileSet == CosmeticCatalog.TILE_PATINA
     BoxWithConstraints(modifier) {
         val board = maxWidth
         val gap = board * 0.021f
@@ -386,7 +392,7 @@ fun BoardView(
                 .shadow(8.dp, shape, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.48f))
                 .clip(shape)
                 .background(Brush.verticalGradient(listOf(Color(0xFF172029), Recess)))
-                .border(1.dp, BrassDark.copy(alpha = 0.78f), shape)
+                .border(1.dp, if (patinaStyle) Patina.copy(alpha = 0.72f) else BrassDark.copy(alpha = 0.78f), shape)
                 .swipeDetector(onSwipe),
         ) {
             for (r in 0 until state.size) for (c in 0 until state.size) {
@@ -410,7 +416,7 @@ fun BoardView(
                 if (animationsActive) delay(MOVE_MS.toLong() + 16L)
                 ghosts = emptyList()
             }
-            ghosts.forEach { (from, target) -> key(from.id, target.id) { GhostTileView(from, target, ::cellOffset, cell, animationsActive) } }
+            ghosts.forEach { (from, target) -> key(from.id, target.id) { GhostTileView(from, target, ::cellOffset, cell, animationsActive, patinaStyle) } }
 
             val spawnedId = lastResult?.spawned?.id
             val mergedIds = lastResult?.merges?.map { it.tile.id }?.toSet() ?: emptySet()
@@ -420,7 +426,7 @@ fun BoardView(
                     in mergedIds -> Appear.MERGE
                     else -> Appear.NONE
                 }
-                TileView(tile, cellOffset(tile.row, tile.col), cell, appear, animationsActive, removingMode && canRemove(tile)) { onTileClick(tile) }
+                TileView(tile, cellOffset(tile.row, tile.col), cell, appear, animationsActive, removingMode && canRemove(tile), patinaStyle) { onTileClick(tile) }
             }
         }
     }
@@ -452,7 +458,7 @@ private fun Modifier.swipeDetector(onSwipe: (Move) -> Unit): Modifier = pointerI
 }
 
 @Composable
-private fun TileView(tile: Tile, target: Dp2, cell: Dp, appear: Appear, animationsActive: Boolean, removable: Boolean, onClick: () -> Unit) {
+private fun TileView(tile: Tile, target: Dp2, cell: Dp, appear: Appear, animationsActive: Boolean, removable: Boolean, patinaStyle: Boolean, onClick: () -> Unit) {
     val spec = tween<Dp>(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing)
     val x by animateDpAsState(target.x, spec, label = "x${tile.id}")
     val y by animateDpAsState(target.y, spec, label = "y${tile.id}")
@@ -470,14 +476,18 @@ private fun TileView(tile: Tile, target: Dp2, cell: Dp, appear: Appear, animatio
             }
         }
     }
-    val colors = tileColors(tile.level)
+    val colors = tileColors(tile.level, patinaStyle)
     val shape = RoundedCornerShape(11.dp)
     Box(
         modifier = Modifier.offset { IntOffset(x.roundToPx(), y.roundToPx()) }.size(cell)
             .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
             .then(if (colors.glow) Modifier.shadow(8.dp, shape, ambientColor = BrassBright.copy(alpha = 0.45f), spotColor = TealGlow.copy(alpha = 0.42f)) else Modifier.shadow(2.dp, shape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.30f)))
-            .clip(shape).background(tileBevel(tile.level))
-            .border(1.dp, if (colors.glow) BrassBright.copy(alpha = 0.92f) else BrassDark.copy(alpha = 0.54f), shape)
+            .clip(shape).background(tileBevel(tile.level, patinaStyle))
+            .border(1.dp, when {
+                colors.glow -> BrassBright.copy(alpha = 0.92f)
+                patinaStyle -> Patina.copy(alpha = 0.82f)
+                else -> BrassDark.copy(alpha = 0.54f)
+            }, shape)
             .then(if (removable) Modifier.border(2.dp, TealGlow, shape).clickable(onClick = onClick) else Modifier)
             .semantics { contentDescription = "${Elements.name(tile.level)}, ${tile.value}" },
         contentAlignment = Alignment.Center,
@@ -493,7 +503,7 @@ private fun TileView(tile: Tile, target: Dp2, cell: Dp, appear: Appear, animatio
 }
 
 @Composable
-private fun GhostTileView(from: Tile, target: Tile, cellOffset: (Int, Int) -> Dp2, cell: Dp, animationsActive: Boolean) {
+private fun GhostTileView(from: Tile, target: Tile, cellOffset: (Int, Int) -> Dp2, cell: Dp, animationsActive: Boolean, patinaStyle: Boolean) {
     var current by remember(from.id, target.id) { mutableStateOf(cellOffset(from.row, from.col)) }
     val x by animateDpAsState(current.x, tween(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing), label = "gx${from.id}")
     val y by animateDpAsState(current.y, tween(if (animationsActive) MOVE_MS else 0, easing = LinearOutSlowInEasing), label = "gy${from.id}")
@@ -502,9 +512,9 @@ private fun GhostTileView(from: Tile, target: Tile, cellOffset: (Int, Int) -> Dp
         withFrameNanos { }
         current = cellOffset(target.row, target.col)
     }
-    val colors = tileColors(from.level)
+    val colors = tileColors(from.level, patinaStyle)
     val shape = RoundedCornerShape(11.dp)
-    Box(Modifier.offset { IntOffset(x.roundToPx(), y.roundToPx()) }.size(cell).clip(shape).background(tileBevel(from.level)).border(1.dp, BrassDark.copy(alpha = 0.50f), shape), contentAlignment = Alignment.Center) {
+    Box(Modifier.offset { IntOffset(x.roundToPx(), y.roundToPx()) }.size(cell).clip(shape).background(tileBevel(from.level, patinaStyle)).border(1.dp, if (patinaStyle) Patina.copy(alpha = 0.72f) else BrassDark.copy(alpha = 0.50f), shape), contentAlignment = Alignment.Center) {
         Text(from.value.toString(), style = MaterialTheme.typography.headlineSmall, color = colors.content)
     }
 }
