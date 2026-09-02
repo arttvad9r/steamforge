@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -175,7 +176,15 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             }
             entry<Workshop> {
                 val vm: WorkshopViewModel = viewModel {
-                    WorkshopViewModel(container.repo, configProvider = container.config)
+                    WorkshopViewModel(
+                        container.repo,
+                        configProvider = container.config,
+                        analytics = container.analytics,
+                    )
+                }
+                val workshopUi by vm.ui.collectAsStateWithLifecycle()
+                LaunchedEffect(workshopUi.loaded, workshopUi.dailyRewardAvailable, workshopUi.dailyRewardDay) {
+                    vm.recordDailyRewardShown()
                 }
                 val cosmeticLoadout = effectiveCosmeticLoadout(container)
                 WorkshopScreen(
@@ -233,7 +242,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<Contracts> {
-                val vm: ContractsViewModel = viewModel { ContractsViewModel(container.repo) }
+                val vm: ContractsViewModel = viewModel {
+                    ContractsViewModel(container.repo, analytics = container.analytics)
+                }
                 ContractsScreen(vm = vm, onBack = { back() })
             }
             entry<Blueprints> {

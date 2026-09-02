@@ -1,6 +1,8 @@
 package com.steamforge.game.data
 
 import com.steamforge.game.progression.Achievements
+import com.steamforge.game.progression.Blueprints
+import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.ProgressionConfig
@@ -84,6 +86,34 @@ class FakeDataRepo(
             stats = baseStats.copy(gemsEarned = baseStats.gemsEarned + totalGems),
             unlockedAchievements = p.unlockedAchievements + unlocked.map { it.id }.toSet(),
             achievementDays = p.achievementDays + unlocked.associate { it.id to day },
+        )
+        return true
+    }
+
+    override suspend fun claimContract(day: Long, contractId: String): Boolean {
+        val progress = currentProgress
+        val ledger = DailyContracts.normalized(progress.contracts, day)
+        val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return false
+        if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) return false
+
+        val firstContractClaimToday = ledger.claimedIds.isEmpty()
+        val piece = if (firstContractClaimToday) {
+            Blueprints.nextMissingPiece(
+                set = Blueprints.steamEngine,
+                owned = progress.blueprintPieces,
+                seed = day xor contract.id.hashCode().toLong(),
+            )
+        } else {
+            null
+        }
+        val pieces = if (piece != null) progress.blueprintPieces + piece.id else progress.blueprintPieces
+        val workshopUnlocks = Blueprints.workshopUnlocks(pieces)
+        currentProgress = progress.copy(
+            gems = progress.gems + contract.rewardGems,
+            stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + contract.rewardGems),
+            blueprintPieces = pieces,
+            unlockedCosmetics = progress.unlockedCosmetics + workshopUnlocks,
+            contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
         )
         return true
     }

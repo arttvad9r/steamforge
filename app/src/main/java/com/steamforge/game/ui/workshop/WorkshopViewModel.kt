@@ -2,6 +2,8 @@ package com.steamforge.game.ui.workshop
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.config.FallbackGameConfigProvider
 import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
@@ -43,7 +45,10 @@ class WorkshopViewModel(
     private val configProvider: GameConfigProvider = FallbackGameConfigProvider(),
     private val baseCfg: ProgressionConfig = ProgressionConfig(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
+    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
+
+    private var lastDailyRewardImpressionDay: Long? = null
 
     val ui: StateFlow<WorkshopUiState> = combine(repo.progress, configProvider.config) { p, remote ->
         val cfg = remote.economy.applyTo(baseCfg)
@@ -79,10 +84,28 @@ class WorkshopViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorkshopUiState())
 
+    /** Called only by the real Workshop reward surface, not by onboarding presentation. */
+    fun recordDailyRewardShown() {
+        val state = ui.value
+        if (!state.loaded || !state.dailyRewardAvailable) return
+        val day = today()
+        if (lastDailyRewardImpressionDay == day) return
+        lastDailyRewardImpressionDay = day
+        analytics.logEvent(
+            "daily_reward_shown",
+            mapOf(
+                "reward_day" to state.dailyRewardDay,
+                "reward_gems" to state.dailyRewardGems,
+                "uses_grace" to state.dailyRewardUsesGrace,
+            ),
+        )
+    }
+
     fun claimDailyReward() {
         viewModelScope.launch {
             val remote = configProvider.config.value
             val cfg = remote.economy.applyTo(baseCfg)
+            var claimAnalytics: Map<String, Any?>? = null
             repo.updateProgress { p ->
                 val todayDay = today()
                 val plan = ReturnLoop.dailyRewardPlan(
@@ -100,7 +123,7 @@ class WorkshopViewModel(
                 } else {
                     p.unlockedCosmetics
                 }
-                p.copy(
+                val updated = p.copy(
                     gems = p.gems + reward,
                     stats = p.stats.copy(gemsEarned = p.stats.gemsEarned + reward),
                     dailyRewardDay = todayDay,
@@ -108,7 +131,16 @@ class WorkshopViewModel(
                     dailyRewardGraceUsed = plan.graceUsedAfterClaim,
                     unlockedCosmetics = cosmetics,
                 )
+                claimAnalytics = mapOf(
+                    "reward_day" to plan.rewardDay,
+                    "reward_gems" to reward,
+                    "uses_grace" to plan.usesGrace,
+                    "cycle_complete" to (plan.rewardDay == cfg.dailyRewardCycle),
+                    "gem_balance" to updated.gems,
+                )
+                updated
             }
+            claimAnalytics?.let { analytics.logEvent("daily_reward_claimed", it) }
         }
     }
 }
