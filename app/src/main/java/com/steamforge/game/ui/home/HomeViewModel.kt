@@ -7,7 +7,6 @@ import com.steamforge.game.config.GameConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.Blueprints
 import com.steamforge.game.progression.EventTheme
-import com.steamforge.game.progression.LiveOpsCatalog
 import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ReturnLoop
@@ -51,8 +50,8 @@ class HomeViewModel(
         val todayDay = today()
         val weekly = WeeklyChallenges.forEpochDay(todayDay)
         val weeklyRecord = progress.weekly.takeIf { it.challengeId == weekly.id }
-        val event = LiveOpsCatalog.activeForEpochDay(todayDay)
-        val eventLedger = LiveOpsProgression.normalized(progress.liveOps, event)
+        val event = remote.activeEvent(todayDay)
+        val eventLedger = event?.let { LiveOpsProgression.normalized(progress.liveOps, it) }
         HomeUiState(
             loaded = true,
             gems = progress.gems,
@@ -71,14 +70,16 @@ class HomeViewModel(
             weeklyBestScore = weeklyRecord?.bestScore ?: 0,
             weeklyRewardAvailable = weeklyRecord?.let { it.bestScore > 0 && !it.rewardClaimed } ?: false,
             weeklyDaysRemaining = WeeklyChallenges.daysRemaining(weekly, todayDay),
-            eventPoints = eventLedger.totalPoints,
-            eventRewardAvailable = event.milestones.any { LiveOpsProgression.canClaim(eventLedger, event, it) },
-            eventDaysRemaining = (event.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt(),
-            eventTheme = event.theme.takeIf { remote.features.liveOps },
+            eventPoints = eventLedger?.totalPoints ?: 0,
+            eventRewardAvailable = event?.let { active ->
+                eventLedger != null && active.milestones.any { LiveOpsProgression.canClaim(eventLedger, active, it) }
+            } ?: false,
+            eventDaysRemaining = event?.let { (it.endEpochDayExclusive - todayDay).coerceAtLeast(0L).toInt() } ?: 0,
+            eventTheme = event?.theme,
             dailyEnabled = remote.features.dailyChallenge,
             contractsEnabled = remote.features.dailyContracts,
             weeklyEnabled = remote.features.weeklyChallenge,
-            eventEnabled = remote.features.liveOps,
+            eventEnabled = remote.features.liveOps && event != null,
             hasSavedRun = savedGame != null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
