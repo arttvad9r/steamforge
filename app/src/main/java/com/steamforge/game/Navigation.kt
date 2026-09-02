@@ -33,8 +33,8 @@ import com.steamforge.game.ui.achievements.AchievementsViewModel
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
-import com.steamforge.game.ui.game.GameScreen
 import com.steamforge.game.ui.game.GameViewModel
+import com.steamforge.game.ui.game.PersistenceGuardedGameScreen
 import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
 import com.steamforge.game.ui.workshop.WorkshopScreen
@@ -106,7 +106,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
                 }
-                GameScreen(
+                PersistenceGuardedGameScreen(
                     vm = vm,
                     sfx = container.sfx,
                     ads = container.ads,
