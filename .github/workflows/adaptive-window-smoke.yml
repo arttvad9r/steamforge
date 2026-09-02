@@ -174,6 +174,22 @@ jobs:
             sleep 2
           }
 
+          scroll_down() {
+            python3 > /tmp/swipe.txt <<'PY'
+          import re
+          import subprocess
+
+          size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
+          sizes = re.findall(r'(\d+)x(\d+)', size_text)
+          assert sizes, size_text
+          width, height = map(int, sizes[-1])
+          print(width // 2, int(height * 0.78), width // 2, int(height * 0.30))
+          PY
+            read -r x1 y1 x2 y2 < /tmp/swipe.txt
+            adb shell input swipe "$x1" "$y1" "$x2" "$y2" 350
+            sleep 1
+          }
+
           open_workshop() {
             local label="$1"
             for i in $(seq 1 12); do
@@ -181,8 +197,9 @@ jobs:
               if grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then return 0; fi
               if grep -Fqi 'content-desc="Мастерская.' /tmp/window.xml; then
                 tap 'Мастерская.' "${label}-open"
+                continue
               fi
-              sleep 1
+              scroll_down
             done
             echo 'Workshop not reachable'
             cat /tmp/window.xml || true
