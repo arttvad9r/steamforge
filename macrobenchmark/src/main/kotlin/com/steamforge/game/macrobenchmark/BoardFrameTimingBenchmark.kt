@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.SystemClock
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
-import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -25,7 +24,6 @@ class BoardFrameTimingBenchmark {
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Full(),
-        startupMode = StartupMode.COLD,
         iterations = ITERATIONS,
         setupBlock = {
             pressHome()
@@ -37,6 +35,8 @@ class BoardFrameTimingBenchmark {
         val startX = (device.displayWidth * 0.18f).toInt()
         val endX = (device.displayWidth * 0.82f).toInt()
 
+        // Keep startupMode unset: this is a non-startup benchmark and the Activity
+        // prepared in setupBlock must stay alive while FrameTimingMetric records the swipe.
         device.swipe(startX, y, endX, y, 24)
         SystemClock.sleep(450)
     }

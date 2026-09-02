@@ -6,7 +6,7 @@ The benchmark-only `BenchmarkBoardActivity` starts from a deterministic 4x4 boar
 mergeable pairs per row. One right swipe therefore exercises eight merge events, movement ghosts,
 merge pop animations, and a spawn in one burst.
 
-## Run
+## Physical-device acceptance run
 
 Use a physical Android 12+ device:
 
@@ -20,6 +20,14 @@ with the debug key for local/CI installation, and is profileable only through th
 `FrameTimingMetric` reports `frameDurationCpuMs` and `frameOverrunMs` percentiles. Positive
 `frameOverrunMs` values indicate frames that missed their deadline.
 
-Hosted emulator timings are intentionally not used as a pass/fail performance SLA because emulator
-results depend on host load and are not representative of end-user devices. CI only verifies that
-the release-like benchmark target and Macrobenchmark test APK compile.
+## CI emulator diagnostic
+
+`Frame Timing Diagnostic Smoke` also executes the same release-like Macrobenchmark on an Android 16
+hosted emulator. The workflow suppresses only the Benchmark library's `EMULATOR` environment error
+and uploads the benchmark result files so the production benchmark path itself is continuously
+exercised.
+
+Hosted emulator timings are intentionally **not** a pass/fail performance SLA because results depend
+on host load and are not representative of end-user devices. A green emulator diagnostic means the
+benchmark installed, launched the benchmark-only host, executed the dense merge burst and emitted
+Macrobenchmark output; it does not close the physical-device Gate A performance requirement.
