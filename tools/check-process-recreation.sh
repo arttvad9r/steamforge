@@ -229,47 +229,27 @@ wait_for_density() {
   return 1
 }
 
-activity_record_token() {
-  adb shell dumpsys activity activities > /tmp/activity-activities.txt
-  python3 - "$PACKAGE" /tmp/activity-activities.txt <<'PY'
-import re
-import sys
-from pathlib import Path
-
-package = sys.argv[1]
-text = Path(sys.argv[2]).read_text(encoding='utf-8', errors='replace')
-lines = text.splitlines()
-preferred = [
-    line for line in lines
-    if 'ActivityRecord{' in line
-    and f'{package}/.MainActivity' in line
-    and ('mResumedActivity' in line or 'topResumedActivity' in line)
-]
-fallback = [line for line in lines if 'ActivityRecord{' in line and f'{package}/.MainActivity' in line]
-for line in preferred + fallback:
-    match = re.search(r'ActivityRecord\{([^ ]+)', line)
-    if match:
-        print(match.group(1))
-        raise SystemExit(0)
-raise SystemExit('MainActivity ActivityRecord token not found')
-PY
+clear_activity_relaunch_events() {
+  adb logcat -b events -c
 }
 
-wait_for_activity_token_change() {
-  local before="$1"
-  local phase="$2"
-  local attempt token
+wait_for_activity_relaunch_event() {
+  local phase="$1"
+  local artifact_name="$2"
+  local attempt
   for attempt in $(seq 1 20); do
-    token="$(activity_record_token 2>/dev/null || true)"
-    if [[ -n "$token" && "$token" != "$before" ]]; then
-      echo "$token"
+    adb logcat -b events -d -v brief > /tmp/activity-events.txt
+    if grep -Eq 'am_relaunch_(resume_)?activity.*com\.steamforge\.game/(\.MainActivity|com\.steamforge\.game\.MainActivity)' /tmp/activity-events.txt; then
+      cp /tmp/activity-events.txt "$ARTIFACT_DIR/${artifact_name}.txt"
+      grep -E 'am_relaunch_(resume_)?activity.*com\.steamforge\.game/(\.MainActivity|com\.steamforge\.game\.MainActivity)' /tmp/activity-events.txt
       return 0
     fi
     sleep 1
   done
-  echo "MainActivity was not recreated during ${phase}" >&2
+  cp /tmp/activity-events.txt "$ARTIFACT_DIR/${artifact_name}.txt" 2>/dev/null || true
+  echo "Framework relaunch EventLog not found during ${phase}" >&2
+  grep -E 'am_(relaunch|destroy|resume|restart)_activity|configuration_changed' /tmp/activity-events.txt >&2 || true
   adb shell wm density >&2 || true
-  adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity|${PACKAGE}/.MainActivity" >&2 || true
   return 1
 }
 
@@ -367,29 +347,34 @@ check_background_resume() {
 
 check_activity_recreation() {
   local expected="$1"
-  local before_pid after_pid before_token scaled_token restored_token
+  local before_pid scaled_pid after_pid
   local actual=/tmp/actual-activity-recreation.signature.txt
 
   before_pid="$(current_pid)"
-  before_token="$(activity_record_token)"
   test -n "$before_pid"
-  test -n "$before_token"
 
   # Display-density changes are framework Configuration changes. MainActivity
-  # does not opt into handling density itself, so Android must recreate the
-  # Activity. ActivityRecord token changes prove a new Activity instance while
-  # an unchanged PID proves the Linux app process remained alive.
+  # does not opt into handling density itself. ActivityTaskManager writes a
+  # dedicated EventLog entry when it performs the required Activity relaunch;
+  # this is stronger than comparing ActivityRecord tokens, which are reused.
+  clear_activity_relaunch_events
   adb shell wm density 480
   wait_for_density 480 'density-420-to-480'
   adb shell wm density > "$ARTIFACT_DIR/30-density-480.txt"
-  scaled_token="$(wait_for_activity_token_change "$before_token" 'density-420-to-480')"
+  wait_for_activity_relaunch_event 'density-420-to-480' '30-density-480-relaunch-events'
   wait_for_tile '30-density-recreated-window'
+  scaled_pid="$(current_pid)"
+  if [[ "$scaled_pid" != "$before_pid" ]]; then
+    echo "Process changed during first Activity recreation: ${before_pid} -> ${scaled_pid}" >&2
+    return 1
+  fi
   shot '30-density-recreated'
 
+  clear_activity_relaunch_events
   adb shell wm density 420
   wait_for_density 420 'density-480-to-420'
   adb shell wm density > "$ARTIFACT_DIR/31-density-420.txt"
-  restored_token="$(wait_for_activity_token_change "$scaled_token" 'density-480-to-420')"
+  wait_for_activity_relaunch_event 'density-480-to-420' '31-density-420-relaunch-events'
   wait_for_tile '31-density-restored-window'
 
   after_pid="$(current_pid)"
@@ -397,15 +382,11 @@ check_activity_recreation() {
     echo "Process changed across Activity recreation: ${before_pid} -> ${after_pid}" >&2
     return 1
   fi
-  if [[ "$restored_token" == "$before_token" ]]; then
-    echo "Unexpected ActivityRecord token reuse after two recreations: ${restored_token}" >&2
-    return 1
-  fi
 
   board_signature '32-after-activity-recreation-state' "$actual" >/dev/null
   assert_signature_matches "$expected" "$actual" 'activity-recreation'
   shot '32-after-activity-recreation'
-  echo 'Activity recreation OK: process stayed alive and score, move count, tiles and 420-dpi bounds were restored.'
+  echo 'Activity recreation OK: framework relaunch events observed, process stayed alive, and score, move count, tiles and 420-dpi bounds were restored.'
 }
 
 # Fresh CI install: complete the real privacy/onboarding path, then open a
