@@ -6,7 +6,7 @@ ARTIFACT_DIR="${ARTIFACT_DIR:-ci-process-recreation}"
 mkdir -p "$ARTIFACT_DIR"
 
 cleanup() {
-  adb shell cmd window user-rotation free >/dev/null 2>&1 || true
+  adb shell wm density 420 >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -201,6 +201,34 @@ current_pid() {
   adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' | awk '{print $1}'
 }
 
+current_density() {
+  local density_text override physical
+  density_text="$(adb shell wm density | tr -d '\r')"
+  override="$(printf '%s\n' "$density_text" | awk -F': ' '/Override density:/ {print $2; exit}')"
+  physical="$(printf '%s\n' "$density_text" | awk -F': ' '/Physical density:/ {print $2; exit}')"
+  if [[ -n "$override" ]]; then
+    printf '%s\n' "$override"
+  else
+    printf '%s\n' "$physical"
+  fi
+}
+
+wait_for_density() {
+  local expected="$1"
+  local phase="$2"
+  local attempt actual
+  for attempt in $(seq 1 20); do
+    actual="$(current_density)"
+    if [[ "$actual" == "$expected" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Display density did not become ${expected} during ${phase}; got $(current_density)" >&2
+  adb shell wm density >&2 || true
+  return 1
+}
+
 activity_record_token() {
   adb shell dumpsys activity activities > /tmp/activity-activities.txt
   python3 - "$PACKAGE" /tmp/activity-activities.txt <<'PY'
@@ -240,7 +268,7 @@ wait_for_activity_token_change() {
     sleep 1
   done
   echo "MainActivity was not recreated during ${phase}" >&2
-  adb shell cmd window user-rotation >&2 || true
+  adb shell wm density >&2 || true
   adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity|${PACKAGE}/.MainActivity" >&2 || true
   return 1
 }
@@ -339,7 +367,7 @@ check_background_resume() {
 
 check_activity_recreation() {
   local expected="$1"
-  local before_pid after_pid before_token landscape_token portrait_token
+  local before_pid after_pid before_token scaled_token restored_token
   local actual=/tmp/actual-activity-recreation.signature.txt
 
   before_pid="$(current_pid)"
@@ -347,37 +375,37 @@ check_activity_recreation() {
   test -n "$before_pid"
   test -n "$before_token"
 
-  # Use WindowManager's shell API rather than mutating Settings directly.
-  # user-rotation lock calls freezeDisplayRotation, producing a real display
-  # configuration change. ActivityRecord token changes prove MainActivity was
-  # recreated while an unchanged PID proves the Linux app process stayed alive.
-  adb shell cmd window user-rotation lock 1
-  adb shell cmd window user-rotation > "$ARTIFACT_DIR/30-landscape-user-rotation.txt"
-  grep -Fqx 'lock 1' "$ARTIFACT_DIR/30-landscape-user-rotation.txt"
-  landscape_token="$(wait_for_activity_token_change "$before_token" 'portrait-to-landscape')"
-  wait_for_tile '30-landscape-recreated-window'
-  shot '30-landscape-recreated'
+  # Display-density changes are framework Configuration changes. MainActivity
+  # does not opt into handling density itself, so Android must recreate the
+  # Activity. ActivityRecord token changes prove a new Activity instance while
+  # an unchanged PID proves the Linux app process remained alive.
+  adb shell wm density 480
+  wait_for_density 480 'density-420-to-480'
+  adb shell wm density > "$ARTIFACT_DIR/30-density-480.txt"
+  scaled_token="$(wait_for_activity_token_change "$before_token" 'density-420-to-480')"
+  wait_for_tile '30-density-recreated-window'
+  shot '30-density-recreated'
 
-  adb shell cmd window user-rotation lock 0
-  adb shell cmd window user-rotation > "$ARTIFACT_DIR/31-portrait-user-rotation.txt"
-  grep -Fqx 'lock 0' "$ARTIFACT_DIR/31-portrait-user-rotation.txt"
-  portrait_token="$(wait_for_activity_token_change "$landscape_token" 'landscape-to-portrait')"
-  wait_for_tile '31-portrait-recreated-window'
+  adb shell wm density 420
+  wait_for_density 420 'density-480-to-420'
+  adb shell wm density > "$ARTIFACT_DIR/31-density-420.txt"
+  restored_token="$(wait_for_activity_token_change "$scaled_token" 'density-480-to-420')"
+  wait_for_tile '31-density-restored-window'
 
   after_pid="$(current_pid)"
   if [[ "$after_pid" != "$before_pid" ]]; then
     echo "Process changed across Activity recreation: ${before_pid} -> ${after_pid}" >&2
     return 1
   fi
-  if [[ "$portrait_token" == "$before_token" ]]; then
-    echo "Unexpected ActivityRecord token reuse after two recreations: ${portrait_token}" >&2
+  if [[ "$restored_token" == "$before_token" ]]; then
+    echo "Unexpected ActivityRecord token reuse after two recreations: ${restored_token}" >&2
     return 1
   fi
 
   board_signature '32-after-activity-recreation-state' "$actual" >/dev/null
   assert_signature_matches "$expected" "$actual" 'activity-recreation'
   shot '32-after-activity-recreation'
-  echo 'Activity recreation OK: process stayed alive and score, move count, tiles and portrait bounds were restored.'
+  echo 'Activity recreation OK: process stayed alive and score, move count, tiles and 420-dpi bounds were restored.'
 }
 
 # Fresh CI install: complete the real privacy/onboarding path, then open a
