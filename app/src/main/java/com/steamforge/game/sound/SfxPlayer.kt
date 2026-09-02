@@ -40,9 +40,9 @@ class SfxPlayer(context: Context) {
         this.enabled = enabled
     }
 
-    fun play(sfx: Sfx, volume: Float = 1f) {
+    fun play(sfx: Sfx, volume: Float = 1f, rate: Float = 1f) {
         if (!enabled) return
-        ids[sfx]?.let { pool.play(it, volume, volume, 1, 0, 1f) }
+        ids[sfx]?.let { pool.play(it, volume, volume, 1, 0, rate.coerceIn(0.5f, 2f)) }
     }
 
     fun release() {

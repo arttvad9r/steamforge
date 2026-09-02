@@ -132,12 +132,14 @@ fun GameScreen(
         val res = ui.lastResult ?: return@LaunchedEffect
         if (res.merges.isNotEmpty()) {
             val maxLevel = res.merges.maxOf { it.tile.level }
+            val feedback = mergeFeedbackProfile(maxLevel, res.merges.size)
             sfx.play(
-                when {
-                    maxLevel >= 8 -> Sfx.MERGE_HIGH
-                    maxLevel >= 4 -> Sfx.MERGE_MID
-                    else -> Sfx.MERGE_LOW
+                when (feedback.tier) {
+                    MergeFeedbackTier.HIGH -> Sfx.MERGE_HIGH
+                    MergeFeedbackTier.MID -> Sfx.MERGE_MID
+                    MergeFeedbackTier.LOW -> Sfx.MERGE_LOW
                 },
+                rate = feedback.playbackRate,
             )
             performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
         } else {
@@ -452,6 +454,7 @@ fun BoardView(
 
             val spawnedId = lastResult?.spawned?.id
             val mergedIds = lastResult?.merges?.map { it.tile.id }?.toSet() ?: emptySet()
+            val mergeCount = lastResult?.merges?.size ?: 0
             for (tile in state.tiles) {
                 key(tile.id) {
                     val appear = when (tile.id) {
@@ -465,6 +468,7 @@ fun BoardView(
                         cell = cell,
                         appear = appear,
                         animationsActive = animationsActive,
+                        mergeCount = mergeCount,
                         removable = removingMode && canRemove(tile),
                         onClick = { onTileClick(tile) },
                     )
@@ -515,6 +519,7 @@ private fun TileView(
     cell: Dp,
     appear: Appear,
     animationsActive: Boolean,
+    mergeCount: Int,
     removable: Boolean,
     onClick: () -> Unit,
 ) {
@@ -522,7 +527,8 @@ private fun TileView(
     val x by animateDpAsState(target.x, spec, label = "x${tile.id}")
     val y by animateDpAsState(target.y, spec, label = "y${tile.id}")
     val scale = remember(tile.id) { Animatable(if (animationsActive && appear != Appear.NONE) 0f else 1f) }
-    LaunchedEffect(tile.id, appear, animationsActive) {
+    val mergePeak = mergePopScale(tile.level, mergeCount)
+    LaunchedEffect(tile.id, appear, animationsActive, mergeCount) {
         when {
             !animationsActive -> scale.snapTo(1f)
             appear == Appear.NONE -> scale.snapTo(1f)
@@ -540,7 +546,7 @@ private fun TileView(
                     keyframes {
                         durationMillis = POP_MS
                         1f at 0
-                        1.18f at POP_MS / 2
+                        mergePeak at POP_MS / 2
                         1f at POP_MS
                     },
                 )
