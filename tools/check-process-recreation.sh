@@ -6,8 +6,7 @@ ARTIFACT_DIR="${ARTIFACT_DIR:-ci-process-recreation}"
 mkdir -p "$ARTIFACT_DIR"
 
 cleanup() {
-  adb shell settings put system user_rotation 0 >/dev/null 2>&1 || true
-  adb shell settings put system accelerometer_rotation 1 >/dev/null 2>&1 || true
+  adb shell cmd window user-rotation free >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -241,6 +240,8 @@ wait_for_activity_token_change() {
     sleep 1
   done
   echo "MainActivity was not recreated during ${phase}" >&2
+  adb shell cmd window user-rotation >&2 || true
+  adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity|${PACKAGE}/.MainActivity" >&2 || true
   return 1
 }
 
@@ -346,16 +347,20 @@ check_activity_recreation() {
   test -n "$before_pid"
   test -n "$before_token"
 
-  # Lock rotation so a real configuration change recreates MainActivity while
-  # the Linux app process remains alive. ActivityRecord token changes prove a
-  # new Activity instance was created; returning to portrait restores geometry.
-  adb shell settings put system accelerometer_rotation 0
-  adb shell settings put system user_rotation 1
+  # Use WindowManager's shell API rather than mutating Settings directly.
+  # user-rotation lock calls freezeDisplayRotation, producing a real display
+  # configuration change. ActivityRecord token changes prove MainActivity was
+  # recreated while an unchanged PID proves the Linux app process stayed alive.
+  adb shell cmd window user-rotation lock 1
+  adb shell cmd window user-rotation > "$ARTIFACT_DIR/30-landscape-user-rotation.txt"
+  grep -Fqx 'lock 1' "$ARTIFACT_DIR/30-landscape-user-rotation.txt"
   landscape_token="$(wait_for_activity_token_change "$before_token" 'portrait-to-landscape')"
   wait_for_tile '30-landscape-recreated-window'
   shot '30-landscape-recreated'
 
-  adb shell settings put system user_rotation 0
+  adb shell cmd window user-rotation lock 0
+  adb shell cmd window user-rotation > "$ARTIFACT_DIR/31-portrait-user-rotation.txt"
+  grep -Fqx 'lock 0' "$ARTIFACT_DIR/31-portrait-user-rotation.txt"
   portrait_token="$(wait_for_activity_token_change "$landscape_token" 'landscape-to-portrait')"
   wait_for_tile '31-portrait-recreated-window'
 
