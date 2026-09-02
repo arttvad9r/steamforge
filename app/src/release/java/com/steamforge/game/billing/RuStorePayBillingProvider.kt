@@ -231,7 +231,11 @@ private class RuStorePayBillingProvider(
                 } else {
                     analytics.logEvent("billing_purchase_failed", mapOf("store" to "rustore", "product" to analyticsProduct, "error" to "unknown_product"))
                     markInProgress(false)
-                    cosmeticState.update { it.copy(message = "Получен неизвестный товар") }
+                    if (analyticsProduct == "remove_ads") {
+                        removeAdsState.update { it.copy(message = "Получен неизвестный товар") }
+                    } else {
+                        cosmeticState.update { it.copy(message = "Получен неизвестный товар") }
+                    }
                 }
                 refreshEntitlements()
             }
