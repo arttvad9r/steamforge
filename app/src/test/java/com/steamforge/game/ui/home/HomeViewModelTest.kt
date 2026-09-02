@@ -50,7 +50,7 @@ class HomeViewModelTest {
             ),
         )
         val model = HomeViewModel(repo = repo, configProvider = config, today = { day })
-        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect() }
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect { } }
         advanceUntilIdle()
 
         assertEquals(event.theme, model.ui.value.eventTheme)
