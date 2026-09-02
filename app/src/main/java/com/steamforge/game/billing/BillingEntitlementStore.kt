@@ -52,6 +52,18 @@ class BillingEntitlementStore(context: Context) {
         }
     }
 
+    suspend fun setTilePackOwned(owned: Boolean) {
+        appContext.billingDataStore.edit { it[TILE_PACK_OWNED] = owned }
+    }
+
+    suspend fun setWorkshopPackOwned(owned: Boolean) {
+        appContext.billingDataStore.edit { it[WORKSHOP_PACK_OWNED] = owned }
+    }
+
+    suspend fun setStarterBundleOwned(owned: Boolean) {
+        appContext.billingDataStore.edit { it[STARTER_BUNDLE_OWNED] = owned }
+    }
+
     private companion object {
         val REMOVE_ADS_OWNED = booleanPreferencesKey("remove_ads_owned")
         val TILE_PACK_OWNED = booleanPreferencesKey("tile_cosmetic_pack_owned")
