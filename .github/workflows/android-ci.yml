@@ -94,6 +94,9 @@ jobs:
       - name: Verify debug and release code
         run: ./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
 
+      - name: Verify Macrobenchmark harness compiles
+        run: ./gradlew :app:assembleBenchmark :macrobenchmark:assembleBenchmark --stacktrace --no-daemon
+
       - name: Verify 16 KB release APK
         run: bash tools/check-android-16kb.sh
 

@@ -34,3 +34,4 @@ plugins {
 
 rootProject.name = "Steamforge"
 include(":app")
+include(":macrobenchmark")
