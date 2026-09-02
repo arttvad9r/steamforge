@@ -9,12 +9,10 @@ on:
       - 'docs/**'
       - 'README.md'
   pull_request:
-    branches:
-      - master
-      - fix/release-hardening
     paths-ignore:
       - 'docs/**'
       - 'README.md'
+  workflow_dispatch:
 
 permissions:
   contents: read
