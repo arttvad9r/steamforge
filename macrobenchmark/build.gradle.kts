@@ -28,12 +28,6 @@ android {
     }
 }
 
-androidComponents {
-    beforeVariants(selector().all()) {
-        enable = buildType == "benchmark"
-    }
-}
-
 kotlin {
     jvmToolchain(17)
 }
