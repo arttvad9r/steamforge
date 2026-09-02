@@ -321,7 +321,14 @@ class GameViewModel(
             )
         }
         undoSnapshot = null
-        analytics.logEvent("undo_used")
+        analytics.logEvent(
+            "undo_used",
+            mapOf(
+                "paid" to paidUndo,
+                "cost_gems" to if (paidUndo) cfg.undoGemsCost else 0,
+                "gem_balance" to _ui.value.gems,
+            ),
+        )
         persistGame()
     }
 
@@ -366,7 +373,15 @@ class GameViewModel(
             )
         }
         undoSnapshot = null
-        analytics.logEvent("powerup_used", mapOf("type" to "wrench", "tile_level" to tile.level))
+        analytics.logEvent(
+            "powerup_used",
+            mapOf(
+                "type" to "wrench",
+                "tile_level" to tile.level,
+                "cost_gems" to cfg.wrenchGemsCost,
+                "gem_balance" to _ui.value.gems,
+            ),
+        )
         persistGame()
     }
 
@@ -484,7 +499,14 @@ class GameViewModel(
             )
             if (granted) {
                 dailyCompletedToday = true
-                analytics.logEvent("daily_completed", mapOf("type" to challenge.type.name))
+                analytics.logEvent(
+                    "daily_completed",
+                    mapOf(
+                        "type" to challenge.type.name,
+                        "reward_gems" to challenge.rewardGems,
+                        "bonus_xp" to challenge.bonusXp,
+                    ),
+                )
             }
         }
     }
@@ -538,12 +560,15 @@ class GameViewModel(
         )
         writesScope.launch {
             var eff: FinishEffects? = null
+            var finalGemBalance = s.gems
             repo.applyGameFinish(record) { latest ->
                 val (updated, e) = applyGameFinished(latest, summary, cfg)
                 eff = e
-                updated.copy(
+                val withAchievementDays = updated.copy(
                     achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
-                ) to e
+                )
+                finalGemBalance = withAchievementDays.gems
+                withAchievementDays to e
             }
             if (discardFinishedRecord) repo.clearFinishedGame()
             eff?.let { effects ->
@@ -562,6 +587,9 @@ class GameViewModel(
                     "max_tile" to (1 shl summary.maxTileLevel),
                     "moves" to summary.moves,
                     "daily" to summary.daily,
+                    "xp_gained" to (eff?.xpGained ?: 0),
+                    "gems_gained" to (eff?.gemsGained ?: 0),
+                    "gem_balance" to finalGemBalance,
                 ),
             )
         }
@@ -613,7 +641,11 @@ class GameViewModel(
                 }
                 analytics.logEvent(
                     "rewarded_workshop_xp_granted",
-                    mapOf("xp" to bonus.xpGained, "level_ups" to bonus.levelUps.size),
+                    mapOf(
+                        "xp" to bonus.xpGained,
+                        "gems_gained" to bonus.gemsGained,
+                        "level_ups" to bonus.levelUps.size,
+                    ),
                 )
             }
         }
