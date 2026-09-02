@@ -53,6 +53,7 @@ jobs:
         run: |
           bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
+          bash -n tools/check-release-aab.sh
           python3 - <<'PY'
           import re
           import xml.etree.ElementTree as ET
@@ -82,7 +83,14 @@ jobs:
               raise SystemExit('Production properties must not be committed: ' + ', '.join(leaked))
           PY
 
-      - name: Verify
-        run: |
-          ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace --no-daemon
-          bash tools/check-android-16kb.sh
+      - name: Verify debug and release code
+        run: ./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
+
+      - name: Verify 16 KB release APK
+        run: bash tools/check-android-16kb.sh
+
+      - name: Build release app bundle
+        run: ./gradlew bundleRelease --stacktrace --no-daemon
+
+      - name: Validate release app bundle
+        run: bash tools/check-release-aab.sh
