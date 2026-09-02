@@ -9,6 +9,7 @@ on:
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
       - 'tools/check-active-run-interruptions.sh'
+      - 'tools/check-screen-off-restoration.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   pull_request:
     branches:
@@ -19,6 +20,7 @@ on:
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
       - 'tools/check-active-run-interruptions.sh'
+      - 'tools/check-screen-off-restoration.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   workflow_dispatch:
 
@@ -49,7 +51,9 @@ jobs:
           packages: platform-tools
 
       - name: Verify smoke script syntax
-        run: bash -n tools/check-active-run-interruptions.sh
+        run: |
+          bash -n tools/check-active-run-interruptions.sh
+          bash -n tools/check-screen-off-restoration.sh
 
       - name: Install emulator packages
         run: |
@@ -130,6 +134,9 @@ jobs:
 
       - name: Verify active run survives interruptions
         run: bash tools/check-active-run-interruptions.sh
+
+      - name: Verify active run survives screen off and wake
+        run: bash tools/check-screen-off-restoration.sh
 
       - name: Upload active run lifecycle diagnostics
         if: always()
