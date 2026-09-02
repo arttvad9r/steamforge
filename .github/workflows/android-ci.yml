@@ -55,6 +55,7 @@ jobs:
         run: |
           bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
+          bash -n tools/check-release-aab.sh
           python3 - <<'PY'
           import re
           import xml.etree.ElementTree as ET
@@ -92,5 +93,6 @@ jobs:
 
       - name: Verify
         run: |
-          ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace --no-daemon
+          ./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease bundleRelease --stacktrace --no-daemon
           bash tools/check-android-16kb.sh
+          bash tools/check-release-aab.sh
