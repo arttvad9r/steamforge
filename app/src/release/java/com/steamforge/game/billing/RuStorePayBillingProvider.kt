@@ -27,7 +27,10 @@ object BillingProviderFactory {
         store = BillingEntitlementStore(context),
         analytics = analytics,
         configured = BuildConfig.RUSTORE_PAY_CONFIGURED,
-        productId = BuildConfig.RUSTORE_REMOVE_ADS_PRODUCT_ID,
+        removeAdsProductId = BuildConfig.RUSTORE_REMOVE_ADS_PRODUCT_ID,
+        tilePackProductId = BuildConfig.RUSTORE_TILE_COSMETIC_PRODUCT_ID,
+        workshopPackProductId = BuildConfig.RUSTORE_WORKSHOP_COSMETIC_PRODUCT_ID,
+        starterBundleProductId = BuildConfig.RUSTORE_STARTER_COSMETIC_BUNDLE_PRODUCT_ID,
     )
 }
 
@@ -37,91 +40,241 @@ private class RuStorePayBillingProvider(
     private val store: BillingEntitlementStore,
     private val analytics: Analytics,
     private val configured: Boolean,
-    private val productId: String,
+    private val removeAdsProductId: String,
+    private val tilePackProductId: String,
+    private val workshopPackProductId: String,
+    private val starterBundleProductId: String,
 ) : BillingProvider {
-    private val state = MutableStateFlow(RemoveAdsState(configured = configured))
-    override val removeAds: StateFlow<RemoveAdsState> = state.asStateFlow()
+    private val removeAdsState = MutableStateFlow(RemoveAdsState(configured = configured))
+    override val removeAds: StateFlow<RemoveAdsState> = removeAdsState.asStateFlow()
+
+    private val cosmeticState = MutableStateFlow(CosmeticsBillingState(configured = configured))
+    override val cosmetics: StateFlow<CosmeticsBillingState> = cosmeticState.asStateFlow()
 
     private val client by lazy { RuStorePayClient.instance }
 
     init {
         scope.launch {
             store.removeAdsOwned.collect { owned ->
-                state.update { it.copy(owned = owned) }
+                removeAdsState.update { it.copy(owned = owned) }
+            }
+        }
+        scope.launch {
+            store.cosmeticEntitlements.collect { owned ->
+                cosmeticState.update {
+                    it.copy(
+                        tilePack = it.tilePack.copy(owned = owned.tilePackOwned),
+                        workshopPack = it.workshopPack.copy(owned = owned.workshopPackOwned),
+                        starterBundle = it.starterBundle.copy(owned = owned.starterBundleOwned),
+                    )
+                }
             }
         }
         if (configured) refresh()
     }
 
     override fun refresh() {
-        if (!configured || productId.isBlank()) return
-        state.update { it.copy(loading = true, message = null) }
-        refreshProduct()
-        refreshEntitlement()
+        if (!configured) return
+        removeAdsState.update { it.copy(loading = true, message = null) }
+        cosmeticState.update { it.copy(loading = true, message = null) }
+        refreshProducts()
+        refreshEntitlements()
     }
 
-    private fun refreshProduct() {
+    private fun refreshProducts() {
+        val ids = allProductIds().filter { it.isNotBlank() }.map(::ProductId)
+        if (ids.isEmpty()) {
+            removeAdsState.update { it.copy(loading = false) }
+            cosmeticState.update { it.copy(loading = false) }
+            return
+        }
         client.getProductInteractor()
-            .getProducts(productsId = listOf(ProductId(productId)))
+            .getProducts(productsId = ids)
             .addOnSuccessListener { products ->
-                val product = products.firstOrNull {
-                    it.productId.value == productId && it.type == ProductType.NON_CONSUMABLE_PRODUCT
+                fun product(id: String) = products.firstOrNull {
+                    it.productId.value == id && it.type == ProductType.NON_CONSUMABLE_PRODUCT
                 }
-                state.update {
+                val removeAdsProduct = product(removeAdsProductId)
+                val tileProduct = product(tilePackProductId)
+                val workshopProduct = product(workshopPackProductId)
+                val bundleProduct = product(starterBundleProductId)
+                removeAdsState.update {
                     it.copy(
-                        productAvailable = product != null,
-                        priceLabel = product?.amountLabel?.value,
+                        productAvailable = removeAdsProduct != null,
+                        priceLabel = removeAdsProduct?.amountLabel?.value,
+                    )
+                }
+                cosmeticState.update {
+                    it.copy(
+                        tilePack = it.tilePack.copy(
+                            productAvailable = tileProduct != null,
+                            priceLabel = tileProduct?.amountLabel?.value,
+                        ),
+                        workshopPack = it.workshopPack.copy(
+                            productAvailable = workshopProduct != null,
+                            priceLabel = workshopProduct?.amountLabel?.value,
+                        ),
+                        starterBundle = it.starterBundle.copy(
+                            productAvailable = bundleProduct != null,
+                            priceLabel = bundleProduct?.amountLabel?.value,
+                        ),
                     )
                 }
             }
             .addOnFailureListener { error ->
                 analytics.logEvent("billing_product_load_failed", mapOf("store" to "rustore", "error" to error.javaClass.simpleName))
-                state.update { it.copy(productAvailable = false, message = "Покупка временно недоступна") }
+                removeAdsState.update { it.copy(productAvailable = false, message = "Покупка временно недоступна") }
+                cosmeticState.update {
+                    it.copy(
+                        tilePack = it.tilePack.copy(productAvailable = false),
+                        workshopPack = it.workshopPack.copy(productAvailable = false),
+                        starterBundle = it.starterBundle.copy(productAvailable = false),
+                        message = "Покупки оформления временно недоступны",
+                    )
+                }
             }
     }
 
-    private fun refreshEntitlement() {
+    private fun refreshEntitlements() {
         client.getPurchaseInteractor()
             .getPurchases()
             .addOnSuccessListener { purchases ->
-                val owned = purchases.filterIsInstance<ProductPurchase>().any { purchase ->
-                    purchase.productId.value == productId &&
-                        purchase.productType == ProductType.NON_CONSUMABLE_PRODUCT &&
-                        purchase.status == ProductPurchaseStatus.CONFIRMED
+                val confirmed = purchases.filterIsInstance<ProductPurchase>().filter {
+                    it.productType == ProductType.NON_CONSUMABLE_PRODUCT &&
+                        it.status == ProductPurchaseStatus.CONFIRMED
                 }
-                scope.launch { store.setRemoveAdsOwned(owned) }
-                state.update { it.copy(owned = owned, loading = false, message = null) }
+                fun owned(id: String): Boolean = confirmed.any { it.productId.value == id }
+
+                val removeAdsOwned = owned(removeAdsProductId)
+                val tileOwned = owned(tilePackProductId)
+                val workshopOwned = owned(workshopPackProductId)
+                val bundleOwned = owned(starterBundleProductId)
+
+                scope.launch {
+                    store.setRemoveAdsOwned(removeAdsOwned)
+                    store.setCosmeticOwnership(tileOwned, workshopOwned, bundleOwned)
+                }
+                removeAdsState.update { it.copy(owned = removeAdsOwned, loading = false, message = null) }
+                cosmeticState.update {
+                    it.copy(
+                        loading = false,
+                        tilePack = it.tilePack.copy(owned = tileOwned),
+                        workshopPack = it.workshopPack.copy(owned = workshopOwned),
+                        starterBundle = it.starterBundle.copy(owned = bundleOwned),
+                        message = null,
+                    )
+                }
             }
             .addOnFailureListener { error ->
-                // A transient store/network failure must never revoke the last known entitlement.
+                // A transient store/network failure must never revoke the last known entitlements.
                 analytics.logEvent("billing_reconcile_failed", mapOf("store" to "rustore", "error" to error.javaClass.simpleName))
-                state.update { it.copy(loading = false, message = "Не удалось проверить покупки") }
+                removeAdsState.update { it.copy(loading = false, message = "Не удалось проверить покупки") }
+                cosmeticState.update { it.copy(loading = false, message = "Не удалось проверить покупки оформления") }
             }
     }
 
     override fun purchaseRemoveAds(activity: Activity) {
-        if (!configured || productId.isBlank() || state.value.owned || state.value.purchaseInProgress) return
-        state.update { it.copy(purchaseInProgress = true, message = null) }
-        analytics.logEvent("remove_ads_purchase_started", mapOf("store" to "rustore"))
+        if (removeAdsState.value.owned || removeAdsState.value.purchaseInProgress) return
+        purchaseProduct(
+            productId = removeAdsProductId,
+            analyticsProduct = "remove_ads",
+            markInProgress = { inProgress -> removeAdsState.update { it.copy(purchaseInProgress = inProgress, message = null) } },
+            markOwned = {
+                scope.launch { store.setRemoveAdsOwned(true) }
+                removeAdsState.update { it.copy(owned = true) }
+            },
+        )
+    }
+
+    override fun purchaseCosmetic(activity: Activity, product: CosmeticProduct) {
+        val current = cosmeticState.value.product(product)
+        if (current.owned || current.purchaseInProgress) return
+        val productId = cosmeticProductId(product)
+        purchaseProduct(
+            productId = productId,
+            analyticsProduct = when (product) {
+                CosmeticProduct.TILE_PACK -> "tile_cosmetic_pack"
+                CosmeticProduct.WORKSHOP_PACK -> "workshop_cosmetic_pack"
+                CosmeticProduct.STARTER_BUNDLE -> "starter_cosmetic_bundle"
+            },
+            markInProgress = { inProgress -> updateCosmeticProduct(product) { it.copy(purchaseInProgress = inProgress) } },
+            markOwned = {
+                scope.launch {
+                    when (product) {
+                        CosmeticProduct.TILE_PACK -> store.setTilePackOwned(true)
+                        CosmeticProduct.WORKSHOP_PACK -> store.setWorkshopPackOwned(true)
+                        CosmeticProduct.STARTER_BUNDLE -> store.setStarterBundleOwned(true)
+                    }
+                }
+                updateCosmeticProduct(product) { it.copy(owned = true) }
+            },
+        )
+    }
+
+    private fun purchaseProduct(
+        productId: String,
+        analyticsProduct: String,
+        markInProgress: (Boolean) -> Unit,
+        markOwned: () -> Unit,
+    ) {
+        if (!configured || productId.isBlank()) return
+        markInProgress(true)
+        analytics.logEvent("billing_purchase_started", mapOf("store" to "rustore", "product" to analyticsProduct))
         client.getPurchaseInteractor()
             .purchase(params = ProductPurchaseParams(ProductId(productId)))
             .addOnSuccessListener { result ->
                 val matches = result.productId.value == productId && result.productType == ProductType.NON_CONSUMABLE_PRODUCT
                 if (matches) {
-                    scope.launch { store.setRemoveAdsOwned(true) }
-                    analytics.logEvent("remove_ads_purchase_completed", mapOf("store" to "rustore"))
-                    state.update { it.copy(owned = true, purchaseInProgress = false, message = null) }
+                    markOwned()
+                    analytics.logEvent("billing_purchase_completed", mapOf("store" to "rustore", "product" to analyticsProduct))
+                    markInProgress(false)
                 } else {
-                    state.update { it.copy(purchaseInProgress = false, message = "Получен неизвестный товар") }
+                    analytics.logEvent("billing_purchase_failed", mapOf("store" to "rustore", "product" to analyticsProduct, "error" to "unknown_product"))
+                    markInProgress(false)
+                    cosmeticState.update { it.copy(message = "Получен неизвестный товар") }
                 }
-                refreshEntitlement()
+                refreshEntitlements()
             }
             .addOnFailureListener { error ->
-                analytics.logEvent("remove_ads_purchase_failed", mapOf("store" to "rustore", "error" to error.javaClass.simpleName))
-                state.update { it.copy(purchaseInProgress = false, message = "Покупка не завершена") }
-                refreshEntitlement()
+                analytics.logEvent(
+                    "billing_purchase_failed",
+                    mapOf("store" to "rustore", "product" to analyticsProduct, "error" to error.javaClass.simpleName),
+                )
+                markInProgress(false)
+                if (analyticsProduct == "remove_ads") {
+                    removeAdsState.update { it.copy(message = "Покупка не завершена") }
+                } else {
+                    cosmeticState.update { it.copy(message = "Покупка оформления не завершена") }
+                }
+                refreshEntitlements()
             }
     }
+
+    private fun updateCosmeticProduct(
+        product: CosmeticProduct,
+        update: (StoreProductState) -> StoreProductState,
+    ) {
+        cosmeticState.update {
+            when (product) {
+                CosmeticProduct.TILE_PACK -> it.copy(tilePack = update(it.tilePack), message = null)
+                CosmeticProduct.WORKSHOP_PACK -> it.copy(workshopPack = update(it.workshopPack), message = null)
+                CosmeticProduct.STARTER_BUNDLE -> it.copy(starterBundle = update(it.starterBundle), message = null)
+            }
+        }
+    }
+
+    private fun cosmeticProductId(product: CosmeticProduct): String = when (product) {
+        CosmeticProduct.TILE_PACK -> tilePackProductId
+        CosmeticProduct.WORKSHOP_PACK -> workshopPackProductId
+        CosmeticProduct.STARTER_BUNDLE -> starterBundleProductId
+    }
+
+    private fun allProductIds(): List<String> = listOf(
+        removeAdsProductId,
+        tilePackProductId,
+        workshopPackProductId,
+        starterBundleProductId,
+    )
 
     override fun proceedIntent(intent: Intent?) {
         if (!configured) return
