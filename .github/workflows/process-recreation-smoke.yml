@@ -1,17 +1,21 @@
-name: Process Recreation Smoke
+name: Active Run Lifecycle Smoke
 
 on:
   push:
     branches:
       - master
     paths:
-      - 'app/src/main/java/com/steamforge/game/**'
-      - 'tools/check-process-recreation.sh'
+      - 'app/src/main/**'
+      - 'app/src/androidTest/**'
+      - 'app/build.gradle.kts'
+      - 'tools/check-active-run-interruptions.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   pull_request:
     paths:
-      - 'app/src/main/java/com/steamforge/game/**'
-      - 'tools/check-process-recreation.sh'
+      - 'app/src/main/**'
+      - 'app/src/androidTest/**'
+      - 'app/build.gradle.kts'
+      - 'tools/check-active-run-interruptions.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   workflow_dispatch:
 
@@ -19,13 +23,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: process-recreation-${{ github.ref }}
+  group: active-run-lifecycle-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  active-run-process-recreation:
+  active-run-lifecycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,7 +46,7 @@ jobs:
           packages: platform-tools
 
       - name: Verify smoke script syntax
-        run: bash -n tools/check-process-recreation.sh
+        run: bash -n tools/check-active-run-interruptions.sh
 
       - name: Install emulator packages
         run: |
@@ -54,8 +58,8 @@ jobs:
             'build-tools;36.0.0' \
             'system-images;android-36;google_apis;x86_64'
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Build debug and instrumentation APKs
+        run: ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
 
       - name: Create and boot emulator
         run: |
@@ -103,21 +107,32 @@ jobs:
           adb shell wm size 1080x2400
           adb shell wm density 420
 
-      - name: Install and launch Steamforge
+      - name: Verify Activity recreation with ActivityScenario
         run: |
-          adb install -r app/build/outputs/apk/debug/app-debug.apk
-          adb shell am force-stop com.steamforge.game
+          set -o pipefail
+          mkdir -p ci-process-recreation
+          adb install -r -t app/build/outputs/apk/debug/app-debug.apk
+          adb install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          adb shell am instrument -w \
+            -e class com.steamforge.game.ActiveRunActivityRecreationTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee ci-process-recreation/activity-recreation-instrumentation.txt
+          grep -Fq 'OK (1 test)' ci-process-recreation/activity-recreation-instrumentation.txt
+
+      - name: Launch clean Steamforge for interruption smoke
+        run: |
+          adb shell pm clear com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           sleep 5
 
-      - name: Verify active run survives process recreation
-        run: bash tools/check-process-recreation.sh
+      - name: Verify active run survives interruptions
+        run: bash tools/check-active-run-interruptions.sh
 
-      - name: Upload process recreation diagnostics
+      - name: Upload active run lifecycle diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: steamforge-process-recreation
+          name: steamforge-active-run-lifecycle
           path: |
             ci-process-recreation/
             emulator.log
