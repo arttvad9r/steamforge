@@ -49,6 +49,8 @@ data class GameUiState(
     val canUndo: Boolean = false,
     val freeUndosLeft: Int = 0,
     val finished: Boolean = false,
+    val finishPersistenceFailed: Boolean = false,
+    val finishPersistenceRetrying: Boolean = false,
     val effects: FinishEffects? = null,
     val daily: DailyChallenge? = null,
     val dailySatisfied: Boolean = false,
@@ -113,6 +115,16 @@ class GameViewModel(
     private var finishStarted = false
     private var discardFinishedRecord = false
     private var saveIoFailureActive = false
+    private var pendingFinish: PendingFinish? = null
+    private var finishCommitInFlight = false
+    private var finishIoFailureActive = false
+
+    private data class PendingFinish(
+        val summary: GameSummary,
+        val day: Long,
+        val startingGemBalance: Int,
+        val record: FinishedGameRecord,
+    )
 
     private val _ui = MutableStateFlow(
         GameUiState(
@@ -441,6 +453,9 @@ class GameViewModel(
     private fun newGameInternal() {
         finishStarted = false
         discardFinishedRecord = false
+        pendingFinish = null
+        finishCommitInFlight = false
+        finishIoFailureActive = false
         sessionSeed = when {
             competitiveMode -> weeklyChallenge?.seed
             dailyMode -> daily?.seed
@@ -457,6 +472,8 @@ class GameViewModel(
                 overdriveRemaining = 0,
                 canUndo = false,
                 finished = false,
+                finishPersistenceFailed = false,
+                finishPersistenceRetrying = false,
                 gameResultId = null,
                 rewardDoubled = false,
                 rewardedBonus = null,
@@ -523,7 +540,14 @@ class GameViewModel(
         if (s.finished || finishStarted) return
         finishStarted = true
         discardFinishedRecord = false
-        _ui.update { it.copy(canUndo = false, removingMode = false) }
+        _ui.update {
+            it.copy(
+                canUndo = false,
+                removingMode = false,
+                finishPersistenceFailed = false,
+                finishPersistenceRetrying = false,
+            )
+        }
 
         val summary = GameSummary(
             score = s.state.score,
@@ -560,24 +584,78 @@ class GameViewModel(
                 ),
             ),
         )
+        val pending = PendingFinish(
+            summary = summary,
+            day = today,
+            startingGemBalance = s.gems,
+            record = record,
+        )
+        pendingFinish = pending
+        commitPendingFinish(pending)
+    }
+
+    fun retryFinishPersistence() {
+        if (competitiveMode) return
+        val pending = pendingFinish ?: return
+        val state = _ui.value
+        if (!finishStarted || state.finished || !state.finishPersistenceFailed || finishCommitInFlight) return
+        _ui.update { it.copy(finishPersistenceRetrying = true) }
+        analytics.logEvent("game_finish_save_retry")
+        commitPendingFinish(pending)
+    }
+
+    private fun commitPendingFinish(pending: PendingFinish) {
+        if (finishCommitInFlight) return
+        finishCommitInFlight = true
         writesScope.launch {
             var eff: FinishEffects? = null
-            var finalGemBalance = s.gems
-            repo.applyGameFinish(record) { latest ->
-                val (updated, e) = applyGameFinished(latest, summary, cfg)
-                eff = e
-                val withAchievementDays = updated.copy(
-                    achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
-                )
-                finalGemBalance = withAchievementDays.gems
-                withAchievementDays to e
+            var finalGemBalance = pending.startingGemBalance
+            try {
+                repo.applyGameFinish(pending.record) { latest ->
+                    val (updated, e) = applyGameFinished(latest, pending.summary, cfg)
+                    eff = e
+                    val withAchievementDays = updated.copy(
+                        achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to pending.day },
+                    )
+                    finalGemBalance = withAchievementDays.gems
+                    withAchievementDays to e
+                }
+            } catch (_: IOException) {
+                finishCommitInFlight = false
+                _ui.update {
+                    it.copy(
+                        finishPersistenceFailed = true,
+                        finishPersistenceRetrying = false,
+                    )
+                }
+                if (!finishIoFailureActive) {
+                    finishIoFailureActive = true
+                    analytics.logEvent("game_finish_save_failed", mapOf("reason" to "io"))
+                }
+                return@launch
+            }
+
+            finishCommitInFlight = false
+            pendingFinish = null
+            if (finishIoFailureActive) {
+                finishIoFailureActive = false
+                analytics.logEvent("game_finish_save_recovered")
             }
             if (discardFinishedRecord) repo.clearFinishedGame()
             eff?.let { effects ->
                 effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
                 effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
             }
-            _ui.update { it.copy(finished = true, effects = eff, gameResultId = resultId, removingMode = false) }
+            _ui.update {
+                it.copy(
+                    finished = true,
+                    finishPersistenceFailed = false,
+                    finishPersistenceRetrying = false,
+                    effects = eff,
+                    gameResultId = pending.record.id,
+                    removingMode = false,
+                )
+            }
             ads?.onGameFinished()
             if (ads?.rewardedReady?.value == true && (eff?.xpGained ?: 0) > 0) {
                 analytics.logEvent("rewarded_offered", mapOf("bonus" to "workshop_xp"))
@@ -585,10 +663,10 @@ class GameViewModel(
             analytics.logEvent(
                 "game_finished",
                 mapOf(
-                    "score" to summary.score,
-                    "max_tile" to (1 shl summary.maxTileLevel),
-                    "moves" to summary.moves,
-                    "daily" to summary.daily,
+                    "score" to pending.summary.score,
+                    "max_tile" to (1 shl pending.summary.maxTileLevel),
+                    "moves" to pending.summary.moves,
+                    "daily" to pending.summary.daily,
                     "xp_gained" to (eff?.xpGained ?: 0),
                     "gems_gained" to (eff?.gemsGained ?: 0),
                     "gem_balance" to finalGemBalance,

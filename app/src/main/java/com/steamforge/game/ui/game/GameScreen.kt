@@ -175,6 +175,7 @@ fun GameScreen(
     }
 
     fun leave() {
+        if (ui.finishPersistenceFailed) return
         if (!exitHandled) {
             exitHandled = true
             vm.exit()
@@ -505,7 +506,12 @@ fun GameScreen(
         }
     }
 
-    if (ui.finished) {
+    if (ui.finishPersistenceFailed) {
+        FinishPersistenceRecoveryOverlay(
+            retrying = ui.finishPersistenceRetrying,
+            onRetry = vm::retryFinishPersistence,
+        )
+    } else if (ui.finished) {
         if (weeklyMode) {
             WeeklyResultOverlay(ui = ui, onRestart = vm::restart, onExit = ::leave)
         } else {
@@ -724,6 +730,44 @@ private fun ToolButton(symbol: String, label: String, active: Boolean, onClick: 
         Text(symbol, color = if (active) BrassBright else TextMuted, style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.width(8.dp))
         Text(label, color = if (active) TextWarm else TextMuted, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, maxLines = 1, softWrap = false)
+    }
+}
+
+@Composable
+private fun FinishPersistenceRecoveryOverlay(retrying: Boolean, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.84f)).padding(20.dp), contentAlignment = Alignment.Center) {
+        SteamPanel(Modifier.fillMaxWidth().widthIn(max = 500.dp), highlighted = true) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("РЕЗУЛЬТАТ НЕ СОХРАНЁН", style = MaterialTheme.typography.headlineSmall, color = BrassBright, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Хранилище устройства не приняло финальную запись. Партия остаётся на экране, а награда пока не начислена.",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
+                    Text(
+                        "Освободите немного места и повторите сохранение. Steamforge повторит тот же результат без повторного начисления.",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextWarm,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                SteamButton(
+                    if (retrying) "СОХРАНЯЕМ…" else "ПОВТОРИТЬ СОХРАНЕНИЕ",
+                    if (retrying) ({}) else onRetry,
+                    Modifier.fillMaxWidth(),
+                    style = SteamButtonStyle.Teal,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text("До успешной записи выход из результата заблокирован.", style = MaterialTheme.typography.labelMedium, color = TextMuted, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 
