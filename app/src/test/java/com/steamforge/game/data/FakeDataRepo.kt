@@ -47,6 +47,10 @@ class FakeDataRepo(
         record: FinishedGameRecord,
         finisher: (PlayerProgress) -> Pair<PlayerProgress, FinishEffects>,
     ) {
+        if (currentFinished?.id == record.id) {
+            currentGame = null
+            return
+        }
         val (updated, effects) = finisher(currentProgress)
         currentProgress = updated
         currentFinished = record.withEffects(effects)

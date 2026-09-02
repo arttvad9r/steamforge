@@ -62,6 +62,8 @@ data class GameUiState(
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsActive: Boolean = true,
+    val finishPersistenceInProgress: Boolean = false,
+    val finishPersistenceFailed: Boolean = false,
 )
 
 class GameViewModel(
@@ -86,6 +88,9 @@ class GameViewModel(
     private var finishStarted = false
     private var discardFinishedRecord = false
     private var saveIoFailureActive = false
+    private var pendingFinish: PendingFinish? = null
+    private var finishWriteInFlight = false
+    private var finishPersistenceHadIoFailure = false
 
     private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -102,6 +107,12 @@ class GameViewModel(
         val overdrivesSession: Int,
         val undosSession: Int,
         val highMergesSession: Int,
+    )
+
+    private data class PendingFinish(
+        val record: FinishedGameRecord,
+        val summary: GameSummary,
+        val day: Long,
     )
 
     init {
@@ -164,6 +175,8 @@ class GameViewModel(
                 state = restoredState?.state ?: GameState(score = record.score),
                 winCelebrated = record.maxTileLevel >= GameRules().winLevel,
                 freeUndosLeft = cfg.freeUndosPerGame,
+                finishPersistenceInProgress = false,
+                finishPersistenceFailed = false,
             )
         }
         if (!record.rewardedClaimed && record.gemsGained > 0) {
@@ -326,6 +339,7 @@ class GameViewModel(
      * Daily-попытка просто закрывается. Если Game Over уже фиксируется, результат удалится после транзакции.
      */
     fun exit() {
+        if (_ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
         if (_ui.value.finished || finishStarted) {
             discardFinishedRecord = true
             if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
@@ -341,6 +355,9 @@ class GameViewModel(
     private fun newGameInternal() {
         finishStarted = false
         discardFinishedRecord = false
+        pendingFinish = null
+        finishWriteInFlight = false
+        finishPersistenceHadIoFailure = false
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
@@ -365,6 +382,8 @@ class GameViewModel(
                 undosSession = 0,
                 highMergesSession = 0,
                 dailySatisfied = dailyMode && dailyCompletedToday,
+                finishPersistenceInProgress = false,
+                finishPersistenceFailed = false,
             )
         }
         analytics.logEvent(
@@ -402,7 +421,14 @@ class GameViewModel(
         if (s.finished || finishStarted) return
         finishStarted = true
         discardFinishedRecord = false
-        _ui.update { it.copy(canUndo = false, removingMode = false) }
+        _ui.update {
+            it.copy(
+                canUndo = false,
+                removingMode = false,
+                finishPersistenceInProgress = true,
+                finishPersistenceFailed = false,
+            )
+        }
 
         val summary = GameSummary(
             score = s.state.score,
@@ -416,9 +442,8 @@ class GameViewModel(
             daily = dailyMode,
         )
         val today = LocalDay.todayEpochDay()
-        val resultId = "fg-" + UUID.randomUUID().toString()
         val record = FinishedGameRecord(
-            id = resultId,
+            id = "fg-" + UUID.randomUUID().toString(),
             day = today,
             daily = dailyMode,
             score = summary.score,
@@ -439,34 +464,85 @@ class GameViewModel(
                 ),
             ),
         )
+        pendingFinish = PendingFinish(record = record, summary = summary, day = today)
+        persistPendingFinish()
+    }
+
+    fun retryFinishPersistence() {
+        if (pendingFinish == null || finishWriteInFlight || !_ui.value.finishPersistenceFailed) return
+        analytics.logEvent("game_finish_save_retry")
+        persistPendingFinish()
+    }
+
+    private fun persistPendingFinish() {
+        val pending = pendingFinish ?: return
+        if (finishWriteInFlight) return
+        finishWriteInFlight = true
+        _ui.update { it.copy(finishPersistenceInProgress = true, finishPersistenceFailed = false) }
+
         writesScope.launch {
-            var eff: FinishEffects? = null
-            repo.applyGameFinish(record) { latest ->
-                val (updated, e) = applyGameFinished(latest, summary, cfg)
-                eff = e
-                updated.copy(
-                    achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to today },
-                ) to e
+            try {
+                var eff: FinishEffects? = null
+                repo.applyGameFinish(pending.record) { latest ->
+                    val (updated, e) = applyGameFinished(latest, pending.summary, cfg)
+                    eff = e
+                    updated.copy(
+                        achievementDays = updated.achievementDays + e.newAchievements.associate { it.id to pending.day },
+                    ) to e
+                }
+                val committedRecord = repo.finishedGame.first()?.takeIf { it.id == pending.record.id }
+                if (committedRecord != null) eff = committedRecord.toEffects()
+                if (discardFinishedRecord) repo.clearFinishedGame()
+
+                finishWriteInFlight = false
+                pendingFinish = null
+                val recovered = finishPersistenceHadIoFailure
+                finishPersistenceHadIoFailure = false
+
+                eff?.let { effects ->
+                    effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
+                    effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
+                }
+                _ui.update {
+                    it.copy(
+                        finished = true,
+                        effects = eff,
+                        gameResultId = pending.record.id,
+                        removingMode = false,
+                        finishPersistenceInProgress = false,
+                        finishPersistenceFailed = false,
+                    )
+                }
+                if (recovered) analytics.logEvent("game_finish_save_recovered")
+                ads?.onGameFinished()
+                if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
+                    analytics.logEvent("rewarded_offered")
+                }
+                analytics.logEvent(
+                    "game_finished",
+                    mapOf(
+                        "score" to pending.summary.score,
+                        "max_tile" to (1 shl pending.summary.maxTileLevel),
+                        "moves" to pending.summary.moves,
+                        "daily" to pending.summary.daily,
+                    ),
+                )
+            } catch (_: IOException) {
+                finishWriteInFlight = false
+                _ui.update {
+                    it.copy(
+                        finished = false,
+                        effects = null,
+                        gameResultId = null,
+                        finishPersistenceInProgress = false,
+                        finishPersistenceFailed = true,
+                    )
+                }
+                if (!finishPersistenceHadIoFailure) {
+                    finishPersistenceHadIoFailure = true
+                    analytics.logEvent("game_finish_save_failed", mapOf("reason" to "io"))
+                }
             }
-            if (discardFinishedRecord) repo.clearFinishedGame()
-            eff?.let { effects ->
-                effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
-                effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
-            }
-            _ui.update { it.copy(finished = true, effects = eff, gameResultId = resultId, removingMode = false) }
-            ads?.onGameFinished()
-            if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
-                analytics.logEvent("rewarded_offered")
-            }
-            analytics.logEvent(
-                "game_finished",
-                mapOf(
-                    "score" to summary.score,
-                    "max_tile" to (1 shl summary.maxTileLevel),
-                    "moves" to summary.moves,
-                    "daily" to summary.daily,
-                ),
-            )
         }
     }
 

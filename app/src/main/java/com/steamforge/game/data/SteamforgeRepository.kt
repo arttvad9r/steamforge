@@ -79,6 +79,11 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
     ) {
         context.dataStore.edit { prefs ->
+            val existingFinished = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
+            if (existingFinished?.id == record.id) {
+                prefs.remove(Keys.game)
+                return@edit
+            }
             val (updated, effects) = finisher(mapProgress(prefs))
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
