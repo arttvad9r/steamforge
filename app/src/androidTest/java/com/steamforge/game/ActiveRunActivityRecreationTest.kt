@@ -16,7 +16,6 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Tile
 import com.steamforge.game.data.SavedGame
-import com.steamforge.game.progression.Onboarding
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -35,13 +34,12 @@ class ActiveRunActivityRecreationTest {
         runBlocking {
             app.container.repo.clearGame()
             app.container.repo.updateProgress { it.copy(analyticsConsent = false) }
-            app.container.onboarding.setStep(Onboarding.COMPLETE)
             app.container.repo.saveGame(testRun)
         }
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitForText("ПРОДОЛЖИТЬ")
-            composeRule.onNodeWithText("ПРОДОЛЖИТЬ").performClick()
+            waitForText("ИГРАТЬ")
+            composeRule.onNodeWithText("ИГРАТЬ").performClick()
             waitForContentDescription(SCORE_DESCRIPTION)
 
             composeRule.onNodeWithText(MOVE_TEXT).fetchSemanticsNode()
