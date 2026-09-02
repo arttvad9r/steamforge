@@ -28,6 +28,7 @@ import com.steamforge.game.progression.TileMilestone
 import com.steamforge.game.progression.TileMilestones
 import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.applyGameFinished
+import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +112,7 @@ class GameViewModel(
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
     private var discardFinishedRecord = false
+    private var saveIoFailureActive = false
 
     private val _ui = MutableStateFlow(
         GameUiState(
@@ -654,22 +656,32 @@ class GameViewModel(
     private fun persistGame() {
         if (dailyMode || competitiveMode || finishStarted) return
         val s = _ui.value
+        val snapshot = SavedGame(
+            state = s.state,
+            seed = sessionSeed,
+            pressure = s.pressure,
+            overdriveRemaining = s.overdriveRemaining,
+            freeUndosLeft = s.freeUndosLeft,
+            rngDraws = rng.draws,
+            mergesTotal = s.mergesTotal,
+            maxMergesInOneMove = s.maxMergesInOneMove,
+            overdrivesSession = s.overdrivesSession,
+            undosSession = s.undosSession,
+            highMergesSession = s.highMergesSession,
+        )
         writesScope.launch {
-            repo.saveGame(
-                SavedGame(
-                    state = s.state,
-                    seed = sessionSeed,
-                    pressure = s.pressure,
-                    overdriveRemaining = s.overdriveRemaining,
-                    freeUndosLeft = s.freeUndosLeft,
-                    rngDraws = rng.draws,
-                    mergesTotal = s.mergesTotal,
-                    maxMergesInOneMove = s.maxMergesInOneMove,
-                    overdrivesSession = s.overdrivesSession,
-                    undosSession = s.undosSession,
-                    highMergesSession = s.highMergesSession,
-                ),
-            )
+            try {
+                repo.saveGame(snapshot)
+                if (saveIoFailureActive) {
+                    saveIoFailureActive = false
+                    analytics.logEvent("run_save_recovered")
+                }
+            } catch (_: IOException) {
+                if (!saveIoFailureActive) {
+                    saveIoFailureActive = true
+                    analytics.logEvent("run_save_failed", mapOf("reason" to "io"))
+                }
+            }
         }
     }
 }
