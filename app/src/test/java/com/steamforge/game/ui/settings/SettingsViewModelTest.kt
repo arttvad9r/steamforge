@@ -3,6 +3,8 @@ package com.steamforge.game.ui.settings
 import android.app.Activity
 import android.content.Intent
 import com.steamforge.game.billing.BillingProvider
+import com.steamforge.game.billing.CosmeticProduct
+import com.steamforge.game.billing.CosmeticsBillingState
 import com.steamforge.game.billing.RemoveAdsState
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
@@ -30,9 +32,11 @@ class SettingsViewModelTest {
 
     private class FakeBilling(initial: RemoveAdsState) : BillingProvider {
         override val removeAds = MutableStateFlow(initial)
+        override val cosmetics = MutableStateFlow(CosmeticsBillingState())
         var refreshes = 0
         override fun refresh() { refreshes++ }
         override fun purchaseRemoveAds(activity: Activity) = Unit
+        override fun purchaseCosmetic(activity: Activity, product: CosmeticProduct) = Unit
         override fun proceedIntent(intent: Intent?) = Unit
     }
 
