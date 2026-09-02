@@ -206,6 +206,21 @@ jobs:
             return 1
           }
 
+          open_saved_run() {
+            local label="$1"
+            for i in $(seq 1 12); do
+              dump_ui "$label"
+              if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
+                tap 'ПРОДОЛЖИТЬ' "${label}-continue"
+                return 0
+              fi
+              scroll_down
+            done
+            echo 'Saved run entry not reachable'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           wait_for_tile() {
             local label="$1"
             for i in $(seq 1 15); do
@@ -302,6 +317,8 @@ jobs:
             sleep 2
           done
 
+          run_created=0
+
           verify_shape() {
             local size="$1"
             local density="$2"
@@ -309,13 +326,12 @@ jobs:
             adb shell wm size "$size"
             adb shell wm density "$density"
             launch_app
-            # The first shape creates a real run; later shapes resume that same production run.
-            dump_ui "${label}-home"
-            if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
-              tap 'ПРОДОЛЖИТЬ' "${label}-continue"
-            else
+            if [ "$run_created" -eq 0 ]; then
               open_workshop "${label}-workshop"
               tap 'ИГРАТЬ' "${label}-play"
+              run_created=1
+            else
+              open_saved_run "${label}-home"
             fi
             wait_for_tile "${label}-game"
             assert_node_inside_display 'СЧЁТ:' "${label}-score"
