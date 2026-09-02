@@ -1,13 +1,23 @@
 package com.steamforge.game.ui.event
 
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.config.LocalDefaultConfig
+import com.steamforge.game.config.MutableGameConfigProvider
+import com.steamforge.game.config.RemoteGameConfig
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.EventDefinition
-import com.steamforge.game.progression.LiveOpsCatalog
+import com.steamforge.game.progression.EventMetric
+import com.steamforge.game.progression.EventMilestone
+import com.steamforge.game.progression.EventReward
+import com.steamforge.game.progression.EventScoringRule
+import com.steamforge.game.progression.EventTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -44,23 +54,51 @@ class EventViewModelTest {
         override suspend fun claimEventMilestone(event: EventDefinition, milestoneId: String): Boolean = claimResult
     }
 
+    private fun maintenanceEvent(day: Long) = LocalDefaultConfig.foundryTemplate.instantiateForEpochDay(day).copy(
+        id = "maintenance-week",
+        startEpochDay = day,
+        endEpochDayExclusive = day + 4,
+        scoringRule = EventScoringRule(EventMetric.SCORE, pointsPerUnit = 1, unitsPerStep = 100),
+        milestones = listOf(
+            EventMilestone("calibration-10", 10, EventReward(gems = 3)),
+            EventMilestone("calibration-25", 25, EventReward(gems = 7)),
+        ),
+        theme = EventTheme(
+            id = "maintenance",
+            title = "MAINTENANCE WEEK",
+            subtitle = "Калибруйте механизмы цеха",
+            accent = "patina-teal",
+        ),
+    )
+
     @Test
-    fun `opening reward track logs event entered context`() = runTest(dispatcher) {
+    fun `opening reward track uses scheduled event and logs its context`() = runTest(dispatcher) {
         val day = 25_000L
         val analytics = RecordingAnalytics()
-        val event = LiveOpsCatalog.activeForEpochDay(day)
-
-        EventViewModel(
+        val event = maintenanceEvent(day)
+        val config = MutableGameConfigProvider(
+            RemoteGameConfig(scheduledEvents = listOf(event)),
+        )
+        val model = EventViewModel(
             repo = ClaimingRepo(),
+            configProvider = config,
             today = { day },
             analytics = analytics,
         )
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect { } }
+        advanceUntilIdle()
+
+        assertEquals(event.id, model.ui.value.event.id)
+        assertEquals(event.theme.id, model.ui.value.event.theme.id)
+        assertEquals(event.scoringRule, model.ui.value.event.scoringRule)
+        assertEquals(event.milestones.map { it.id }, model.ui.value.event.milestones.map { it.id })
 
         val entered = analytics.events.single { it.first == "event_entered" }.second
         assertEquals(event.id, entered["event_id"])
         assertEquals(event.theme.id, entered["theme_id"])
         assertEquals("reward_track", entered["surface"])
         assertEquals(event.milestones.size, entered["track_levels"])
+        collector.cancel()
     }
 
     @Test
@@ -69,6 +107,7 @@ class EventViewModelTest {
         val analytics = RecordingAnalytics()
         val repo = ClaimingRepo(claimResult = true)
         val model = EventViewModel(repo = repo, today = { day }, analytics = analytics)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect { } }
         advanceUntilIdle()
         val milestone = model.ui.value.event.milestones.first()
 
@@ -87,5 +126,6 @@ class EventViewModelTest {
 
         assertFalse(analytics.events.any { it.first == "event_milestone" })
         assertTrue(model.ui.value.event.id.isNotBlank())
+        collector.cancel()
     }
 }
