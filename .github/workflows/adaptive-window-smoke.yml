@@ -137,43 +137,6 @@ jobs:
             return 1
           }
 
-          tap_node() {
-            local needle="$1"
-            local label="$2"
-            dump_ui "$label"
-            python3 - "$needle" <<'PY'
-          import re
-          import sys
-          import xml.etree.ElementTree as ET
-
-          needle = sys.argv[1].casefold()
-          root = ET.parse('/tmp/window.xml').getroot()
-          parents = {child: parent for parent in root.iter() for child in parent}
-          matches = [
-              node for node in root.iter('node')
-              if needle in (((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold())
-          ]
-          assert matches, f'node not found: {needle}'
-          original = matches[0]
-          ancestors = [original]
-          current = original
-          for _ in range(3):
-              current = parents.get(current)
-              if current is None:
-                  break
-              ancestors.append(current)
-          node = next((candidate for candidate in ancestors if candidate.attrib.get('clickable') == 'true'), original)
-          match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
-          assert match, node.attrib
-          left, top, right, bottom = map(int, match.groups())
-          print((left + right) // 2, (top + bottom) // 2)
-          PY
-            read -r x y < /tmp/tap.txt
-            adb shell input tap "$x" "$y"
-            sleep 2
-          }
-
-          # Wrapper around tap_node so Python output can be captured without mixing logs.
           tap() {
             local needle="$1"
             local label="$2"
@@ -269,6 +232,37 @@ jobs:
           PY
           }
 
+          assert_tile_inside_display() {
+            local label="$1"
+            dump_ui "$label"
+            python3 <<'PY'
+          import re
+          import subprocess
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('/tmp/window.xml').getroot()
+          tile = next(
+              (
+                  node for node in root.iter('node')
+                  if re.match(r'^(Уголь|Медная шестерня),\s*\d+$', node.attrib.get('content-desc') or '')
+              ),
+              None,
+          )
+          assert tile is not None, 'production gameplay tile not found'
+          match = re.match(r'\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]', tile.attrib.get('bounds', ''))
+          assert match, tile.attrib
+          left, top, right, bottom = map(int, match.groups())
+          size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
+          sizes = re.findall(r'(\d+)x(\d+)', size_text)
+          assert sizes, size_text
+          width, height = map(int, sizes[-1])
+          assert right > left and bottom > top, tile.attrib
+          assert left >= 0 and top >= 0, (tile.attrib, width, height)
+          assert right <= width and bottom <= height, (tile.attrib, width, height)
+          print(f"tile inside {width}x{height}: [{left},{top}][{right},{bottom}]")
+          PY
+          }
+
           capture() {
             local label="$1"
             adb exec-out screencap -p > "ci-adaptive-window/${label}.png"
@@ -302,7 +296,7 @@ jobs:
             tap 'ИГРАТЬ' "${label}-play"
             wait_for_tile "${label}-game"
             assert_node_inside_display 'СЧЁТ:' "${label}-score"
-            assert_node_inside_display 'Уголь,' "${label}-tile"
+            assert_tile_inside_display "${label}-tile"
             assert_node_inside_display 'ОТМЕНА' "${label}-undo"
             assert_node_inside_display 'КЛЮЧ' "${label}-wrench"
             capture "${label}-game"
