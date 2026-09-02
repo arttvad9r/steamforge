@@ -1,4 +1,4 @@
-name: Process Recreation Smoke
+name: Active Run Lifecycle Smoke
 
 on:
   push:
@@ -22,11 +22,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: process-recreation-${{ github.ref }}
+  group: active-run-lifecycle-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  active-run-process-recreation:
+  active-run-lifecycle:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -113,14 +113,14 @@ jobs:
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           sleep 5
 
-      - name: Verify active run survives process recreation
+      - name: Verify active run survives lifecycle transitions
         run: bash tools/check-process-recreation.sh
 
-      - name: Upload process recreation diagnostics
+      - name: Upload active run lifecycle diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: steamforge-process-recreation
+          name: steamforge-active-run-lifecycle
           path: |
             ci-process-recreation/
             emulator.log
