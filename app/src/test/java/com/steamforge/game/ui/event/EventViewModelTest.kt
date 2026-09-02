@@ -85,7 +85,7 @@ class EventViewModelTest {
             today = { day },
             analytics = analytics,
         )
-        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect() }
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect { } }
         advanceUntilIdle()
 
         assertEquals(event.id, model.ui.value.event.id)
@@ -107,7 +107,7 @@ class EventViewModelTest {
         val analytics = RecordingAnalytics()
         val repo = ClaimingRepo(claimResult = true)
         val model = EventViewModel(repo = repo, today = { day }, analytics = analytics)
-        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect() }
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect { } }
         advanceUntilIdle()
         val milestone = model.ui.value.event.milestones.first()
 
