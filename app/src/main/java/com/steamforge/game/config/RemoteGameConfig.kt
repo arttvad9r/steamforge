@@ -186,6 +186,6 @@ object LocalDefaultConfig {
 
     val value = RemoteGameConfig(
         fallbackEvent = foundryTemplate,
-        fallbackEventRotation = listOf(foundryTemplate, calibrationTemplate),
+        fallbackEventRotation = listOf(calibrationTemplate, foundryTemplate),
     )
 }
