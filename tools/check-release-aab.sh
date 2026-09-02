@@ -16,11 +16,11 @@ fi
 [[ -s "$AAB" ]] || { echo "ERROR: AAB not found or empty: $AAB" >&2; exit 1; }
 
 unzip -tqq "$AAB"
-mapfile -t entries < <(unzip -Z1 "$AAB")
+entries_text="$(unzip -Z1 "$AAB")"
 
 require_entry() {
   local expected="$1"
-  if ! printf '%s\n' "${entries[@]}" | grep -Fxq "$expected"; then
+  if ! grep -Fxq "$expected" <<<"$entries_text"; then
     echo "ERROR: release AAB missing required entry: $expected" >&2
     exit 1
   fi
@@ -29,7 +29,7 @@ require_entry() {
 require_entry 'base/manifest/AndroidManifest.xml'
 require_entry 'base/resources.pb'
 
-if ! printf '%s\n' "${entries[@]}" | grep -Eq '^base/dex/classes([0-9]+)?\.dex$'; then
+if ! grep -Eq '^base/dex/classes([0-9]+)?\.dex$' <<<"$entries_text"; then
   echo 'ERROR: release AAB contains no base DEX payload' >&2
   exit 1
 fi
