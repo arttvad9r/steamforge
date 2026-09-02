@@ -77,6 +77,9 @@ jobs:
               'steamforge.interstitialAdUnitId',
               'steamforge.rustoreConsoleAppId',
               'steamforge.removeAdsProductId',
+              'steamforge.tileCosmeticProductId',
+              'steamforge.workshopCosmeticProductId',
+              'steamforge.starterCosmeticBundleProductId',
               'steamforge.rustorePayScheme',
           )
           leaked = [
