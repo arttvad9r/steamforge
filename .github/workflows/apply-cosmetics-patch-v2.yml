@@ -19,7 +19,7 @@ jobs:
           ref: feature/cosmetics
           fetch-depth: 0
 
-      - name: Reuse targeted patch with normalized anchor
+      - name: Reuse targeted patch with normalized anchors
         shell: bash
         run: |
           python3 - <<'PY'
@@ -38,6 +38,14 @@ jobs:
               lines.append(line)
           script = '\n'.join(lines)
           script = script.replace("must be a valid URI scheme' '''", "must be a valid URI scheme'''" )
+          script = script.replace(
+              "'''import com.steamforge.game.sound.Sfx'''",
+              "'''import com.steamforge.game.sound.Sfx\\n'''",
+          )
+          script = script.replace(
+              "'''import com.steamforge.game.cosmetics.CosmeticCatalog\\nimport com.steamforge.game.sound.Sfx'''",
+              "'''import com.steamforge.game.cosmetics.CosmeticCatalog\\nimport com.steamforge.game.sound.Sfx\\n'''",
+          )
           compile(script, 'cosmetics-wiring.py', 'exec')
           exec(script, {'__name__': '__main__'})
           PY
