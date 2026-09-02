@@ -309,8 +309,13 @@ jobs:
             adb shell wm size "$size"
             adb shell wm density "$density"
             launch_app
-            open_workshop "${label}-workshop"
-            tap 'ИГРАТЬ' "${label}-play"
+            dump_ui "${label}-home"
+            if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
+              tap 'ПРОДОЛЖИТЬ' "${label}-continue"
+            else
+              open_workshop "${label}-workshop"
+              tap 'ИГРАТЬ' "${label}-play"
+            fi
             wait_for_tile "${label}-game"
             assert_node_inside_display 'СЧЁТ:' "${label}-score"
             assert_tile_inside_display "${label}-tile"
