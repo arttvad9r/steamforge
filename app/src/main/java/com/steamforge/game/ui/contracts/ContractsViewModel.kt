@@ -2,6 +2,8 @@ package com.steamforge.game.ui.contracts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.ContractDef
 import com.steamforge.game.progression.DailyContracts
@@ -33,7 +35,19 @@ data class ContractsUiState(
 class ContractsViewModel(
     private val repo: DataRepo,
     private val today: () -> Long = { LocalDay.todayEpochDay() },
+    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
+
+    init {
+        val day = today()
+        analytics.logEvent(
+            "contracts_opened",
+            mapOf(
+                "day" to day,
+                "contracts" to DailyContracts.forEpochDay(day).size,
+            ),
+        )
+    }
 
     val ui: StateFlow<ContractsUiState> = repo.progress.map { progress ->
         val day = today()
@@ -53,8 +67,20 @@ class ContractsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ContractsUiState())
 
     fun claim(contractId: String) {
+        val day = today()
+        val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return
         viewModelScope.launch {
-            repo.claimContract(today(), contractId)
+            if (repo.claimContract(day, contractId)) {
+                analytics.logEvent(
+                    "contract_completed",
+                    mapOf(
+                        "contract_id" to contract.id,
+                        "type" to contract.type.name,
+                        "target" to contract.target,
+                        "reward_gems" to contract.rewardGems,
+                    ),
+                )
+            }
         }
     }
 }
