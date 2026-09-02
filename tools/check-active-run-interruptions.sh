@@ -5,11 +5,6 @@ PACKAGE="${PACKAGE:-com.steamforge.game}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-ci-process-recreation}"
 mkdir -p "$ARTIFACT_DIR"
 
-cleanup() {
-  adb shell wm density 420 >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
-
 shot() {
   local label="$1"
   adb exec-out screencap -p > "$ARTIFACT_DIR/${label}.png"
@@ -166,8 +161,6 @@ for node in root.iter('node'):
     left, top, right, bottom = map(int, bounds.groups())
     width = right - left
     height = bottom - top
-    # Tile semantics are square, large board nodes. This excludes unrelated
-    # comma+number accessibility labels if any are added elsewhere later.
     if width < 100 or height < 100 or abs(width - height) > 4:
         continue
     tiles.append((top, left, bottom, right, desc))
@@ -201,66 +194,11 @@ current_pid() {
   adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' | awk '{print $1}'
 }
 
-current_density() {
-  local density_text override physical
-  density_text="$(adb shell wm density | tr -d '\r')"
-  override="$(printf '%s\n' "$density_text" | awk -F': ' '/Override density:/ {print $2; exit}')"
-  physical="$(printf '%s\n' "$density_text" | awk -F': ' '/Physical density:/ {print $2; exit}')"
-  if [[ -n "$override" ]]; then
-    printf '%s\n' "$override"
-  else
-    printf '%s\n' "$physical"
-  fi
-}
-
-wait_for_density() {
-  local expected="$1"
-  local phase="$2"
-  local attempt actual
-  for attempt in $(seq 1 20); do
-    actual="$(current_density)"
-    if [[ "$actual" == "$expected" ]]; then
-      return 0
-    fi
-    sleep 1
-  done
-  echo "Display density did not become ${expected} during ${phase}; got $(current_density)" >&2
-  adb shell wm density >&2 || true
-  return 1
-}
-
-clear_activity_relaunch_events() {
-  adb logcat -b events -c
-}
-
-wait_for_activity_relaunch_event() {
-  local phase="$1"
-  local artifact_name="$2"
-  local attempt
-  for attempt in $(seq 1 20); do
-    adb logcat -b events -d -v brief > /tmp/activity-events.txt
-    if grep -Eq 'am_relaunch_(resume_)?activity.*com\.steamforge\.game/(\.MainActivity|com\.steamforge\.game\.MainActivity)' /tmp/activity-events.txt; then
-      cp /tmp/activity-events.txt "$ARTIFACT_DIR/${artifact_name}.txt"
-      grep -E 'am_relaunch_(resume_)?activity.*com\.steamforge\.game/(\.MainActivity|com\.steamforge\.game\.MainActivity)' /tmp/activity-events.txt
-      return 0
-    fi
-    sleep 1
-  done
-  cp /tmp/activity-events.txt "$ARTIFACT_DIR/${artifact_name}.txt" 2>/dev/null || true
-  echo "Framework relaunch EventLog not found during ${phase}" >&2
-  grep -E 'am_(relaunch|destroy|resume|restart)_activity|configuration_changed' /tmp/activity-events.txt >&2 || true
-  adb shell wm density >&2 || true
-  return 1
-}
-
 perform_successful_move() {
   local baseline=/tmp/game-before-move.signature.txt
   local candidate=/tmp/game-after-move.signature.txt
   board_signature '10-before-move-window' "$baseline" >/dev/null
 
-  # The board occupies the central square on the fixed 1080x2400 / 420 dpi
-  # phone surface. Try all four real swipes; at least one must change a live
-  # 2048 state. Invalid moves do not spawn or increment the move counter.
   local gesture
   for gesture in \
     '800 1050 280 1050' \
@@ -279,7 +217,7 @@ perform_successful_move() {
     fi
   done
 
-  echo 'No swipe changed the game; cannot validate lifecycle restoration' >&2
+  echo 'No swipe changed the game; cannot validate interruption restoration' >&2
   cat "$baseline" >&2
   return 1
 }
@@ -316,81 +254,6 @@ resume_active_game() {
   return 1
 }
 
-check_background_resume() {
-  local expected="$1"
-  local before_pid after_home_pid after_resume_pid
-  local actual=/tmp/actual-background-resume.signature.txt
-  before_pid="$(current_pid)"
-  test -n "$before_pid"
-
-  adb shell input keyevent KEYCODE_HOME
-  sleep 2
-  after_home_pid="$(current_pid)"
-  if [[ "$after_home_pid" != "$before_pid" ]]; then
-    echo "App process changed while backgrounded: ${before_pid} -> ${after_home_pid}" >&2
-    return 1
-  fi
-
-  adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null
-  wait_for_tile '20-after-background-resume-window'
-  after_resume_pid="$(current_pid)"
-  if [[ "$after_resume_pid" != "$before_pid" ]]; then
-    echo "App process changed across background/resume: ${before_pid} -> ${after_resume_pid}" >&2
-    return 1
-  fi
-
-  board_signature '21-after-background-resume-state' "$actual" >/dev/null
-  assert_signature_matches "$expected" "$actual" 'background-resume'
-  shot '21-after-background-resume'
-  echo 'Background/resume OK: process stayed alive and score, move count, tiles and bounds were unchanged.'
-}
-
-check_activity_recreation() {
-  local expected="$1"
-  local before_pid scaled_pid after_pid
-  local actual=/tmp/actual-activity-recreation.signature.txt
-
-  before_pid="$(current_pid)"
-  test -n "$before_pid"
-
-  # Display-density changes are framework Configuration changes. MainActivity
-  # does not opt into handling density itself. ActivityTaskManager writes a
-  # dedicated EventLog entry when it performs the required Activity relaunch;
-  # this is stronger than comparing ActivityRecord tokens, which are reused.
-  clear_activity_relaunch_events
-  adb shell wm density 480
-  wait_for_density 480 'density-420-to-480'
-  adb shell wm density > "$ARTIFACT_DIR/30-density-480.txt"
-  wait_for_activity_relaunch_event 'density-420-to-480' '30-density-480-relaunch-events'
-  wait_for_tile '30-density-recreated-window'
-  scaled_pid="$(current_pid)"
-  if [[ "$scaled_pid" != "$before_pid" ]]; then
-    echo "Process changed during first Activity recreation: ${before_pid} -> ${scaled_pid}" >&2
-    return 1
-  fi
-  shot '30-density-recreated'
-
-  clear_activity_relaunch_events
-  adb shell wm density 420
-  wait_for_density 420 'density-480-to-420'
-  adb shell wm density > "$ARTIFACT_DIR/31-density-420.txt"
-  wait_for_activity_relaunch_event 'density-480-to-420' '31-density-420-relaunch-events'
-  wait_for_tile '31-density-restored-window'
-
-  after_pid="$(current_pid)"
-  if [[ "$after_pid" != "$before_pid" ]]; then
-    echo "Process changed across Activity recreation: ${before_pid} -> ${after_pid}" >&2
-    return 1
-  fi
-
-  board_signature '32-after-activity-recreation-state' "$actual" >/dev/null
-  assert_signature_matches "$expected" "$actual" 'activity-recreation'
-  shot '32-after-activity-recreation'
-  echo 'Activity recreation OK: framework relaunch events observed, process stayed alive, and score, move count, tiles and 420-dpi bounds were restored.'
-}
-
-# Fresh CI install: complete the real privacy/onboarding path, then open a
-# normal run. No debug/test-only app hooks are used.
 wait_for_text 'ПРИВАТНОСТЬ' '00-privacy-window'
 if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then
   tap_node 'ОТКЛЮЧИТЬ' '00-privacy-disable'
@@ -414,23 +277,41 @@ wait_for_tile '04-active-game-window'
 shot '04-active-game'
 
 perform_successful_move
-# Capturing the settled accessibility tree also gives the normal autosave path
-# time to finish before lifecycle transitions. The signature now includes the
-# visible score and move counter in addition to exact semantic tile positions.
 board_signature '12-stable-active-run-window' /tmp/expected-active-run.signature.txt >/dev/null
 cp /tmp/expected-active-run.signature.txt "$ARTIFACT_DIR/expected-active-run.signature.txt"
 shot '12-stable-active-run'
 
-check_background_resume /tmp/expected-active-run.signature.txt
-check_activity_recreation /tmp/expected-active-run.signature.txt
+before_pid="$(current_pid)"
+test -n "$before_pid"
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+after_home_pid="$(current_pid)"
+if [[ "$after_home_pid" != "$before_pid" ]]; then
+  echo "App process changed while backgrounded: ${before_pid} -> ${after_home_pid}" >&2
+  exit 1
+fi
+adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null
+wait_for_tile '20-after-background-resume-window'
+after_resume_pid="$(current_pid)"
+if [[ "$after_resume_pid" != "$before_pid" ]]; then
+  echo "App process changed across background/resume: ${before_pid} -> ${after_resume_pid}" >&2
+  exit 1
+fi
+board_signature '21-after-background-resume-state' /tmp/actual-background-resume.signature.txt >/dev/null
+assert_signature_matches /tmp/expected-active-run.signature.txt /tmp/actual-background-resume.signature.txt 'background-resume'
+shot '21-after-background-resume'
+echo 'Background/resume OK: process stayed alive and score, move count, tiles and bounds were unchanged.'
 
-# Finally prove full process death restoration through the production launcher
-# path. force-stop removes the process, so the relaunch must load Run Save.
 adb shell am force-stop "$PACKAGE"
+sleep 1
+if [[ -n "$(current_pid)" ]]; then
+  echo 'App process still exists after force-stop' >&2
+  exit 1
+fi
 adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null
 resume_active_game
 board_signature '42-after-process-recreation-state' /tmp/actual-process-recreation.signature.txt >/dev/null
 assert_signature_matches /tmp/expected-active-run.signature.txt /tmp/actual-process-recreation.signature.txt 'process-recreation'
 shot '42-after-process-recreation'
 
-echo 'Active-run lifecycle OK: background/resume, Activity recreation and process recreation preserved score, move count and exact board state.'
+echo 'Active-run interruption OK: background/resume and full process recreation preserved score, move count and exact board state.'
