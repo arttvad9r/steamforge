@@ -46,6 +46,11 @@ jobs:
               "'''import com.steamforge.game.cosmetics.CosmeticCatalog\\nimport com.steamforge.game.sound.Sfx'''",
               "'''import com.steamforge.game.cosmetics.CosmeticCatalog\\nimport com.steamforge.game.sound.Sfx\\n'''",
           )
+          script = script.replace(
+              "'''    accent: Color,\\n    steamEngineUnlocked: Boolean,\\n) {''',\n    '''    accent: Color,\\n    steamEngineUnlocked: Boolean,\\n    foundryTheme: Boolean,\\n) {''',",
+              "'''private fun WorkshopConsole(\\n    level: Int,\\n    levelInfo: com.steamforge.game.progression.LevelInfo,\\n    gamesPlayed: Int,\\n    bestScore: Int,\\n    animationsEnabled: Boolean,\\n    accent: Color,\\n    steamEngineUnlocked: Boolean,\\n) {''',\n    '''private fun WorkshopConsole(\\n    level: Int,\\n    levelInfo: com.steamforge.game.progression.LevelInfo,\\n    gamesPlayed: Int,\\n    bestScore: Int,\\n    animationsEnabled: Boolean,\\n    accent: Color,\\n    steamEngineUnlocked: Boolean,\\n    foundryTheme: Boolean,\\n) {''',",
+              1,
+          )
           compile(script, 'cosmetics-wiring.py', 'exec')
           exec(script, {'__name__': '__main__'})
           PY
