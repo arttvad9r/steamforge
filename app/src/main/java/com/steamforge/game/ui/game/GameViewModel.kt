@@ -407,6 +407,7 @@ class GameViewModel(
 
     fun exit() {
         if (competitiveMode) return
+        if (_ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
         if (_ui.value.finished || finishStarted) {
             discardFinishedRecord = true
             if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
@@ -595,6 +596,7 @@ class GameViewModel(
 
     fun retryFinishPersistence() {
         if (competitiveMode || pendingFinish == null || finishWriteInFlight || !_ui.value.finishPersistenceFailed) return
+        analytics.logEvent("game_finish_save_retry")
         persistPendingFinish()
     }
 

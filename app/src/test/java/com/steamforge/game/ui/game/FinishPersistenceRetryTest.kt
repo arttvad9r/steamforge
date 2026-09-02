@@ -91,6 +91,8 @@ class FinishPersistenceRetryTest {
         advanceUntilIdle()
 
         model.onMove(Move.LEFT)
+        assertTrue(model.ui.value.finishPersistenceInProgress)
+        model.exit()
         advanceUntilIdle()
 
         assertEquals(GameStatus.GAME_OVER, model.ui.value.state.status)
@@ -117,6 +119,7 @@ class FinishPersistenceRetryTest {
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
         assertEquals(1, analytics.names.count { it == "game_finished" })
         assertEquals(1, analytics.names.count { it == "game_finish_save_failed" })
+        assertEquals(1, analytics.names.count { it == "game_finish_save_retry" })
         assertEquals(1, analytics.names.count { it == "game_finish_save_recovered" })
 
         model.retryFinishPersistence()
