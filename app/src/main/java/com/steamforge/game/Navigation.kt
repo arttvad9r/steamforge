@@ -192,6 +192,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 val vm: EventViewModel = viewModel {
                     EventViewModel(
                         repo = container.repo,
+                        configProvider = container.config,
                         analytics = container.analytics,
                     )
                 }
