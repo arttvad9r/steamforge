@@ -52,8 +52,15 @@ fun EventScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val visual = SeasonalVisuals.resolve(ui.event.theme)
     val theme = ui.event.theme
-    val next = ui.nextTarget
-    val progress = if (next == null) 1f else (ui.points.toFloat() / next).coerceIn(0f, 1f)
+    val track = ui.rewardTrack
+    val next = track.nextLevel
+    val finalRequirement = track.definition.levels.lastOrNull()?.progressRequirement
+    val progress = if (finalRequirement == null || finalRequirement <= 0) {
+        0f
+    } else {
+        (ui.points.toFloat() / finalRequirement).coerceIn(0f, 1f)
+    }
+    val completedLevels = track.definition.levels.count { ui.points >= it.progressRequirement }
 
     SeasonalBackdrop(theme = visual, modifier = modifier) {
         Column(
@@ -105,7 +112,11 @@ fun EventScreen(
                         Text(theme.scoreLabel, style = MaterialTheme.typography.labelLarge, color = TextMuted)
                         Text(ui.points.toString(), style = MaterialTheme.typography.displaySmall, color = visual.accent)
                         Text(
-                            if (next == null) "ВСЕ РУБЕЖИ ДОСТИГНУТЫ" else "СЛЕДУЮЩИЙ РУБЕЖ · $next",
+                            if (next == null) {
+                                "ПУТЬ ЗАВЕРШЁН · ${track.definition.levels.size}/${track.definition.levels.size}"
+                            } else {
+                                "УРОВНЕЙ $completedLevels/${track.definition.levels.size} · ДАЛЕЕ ${next.progressRequirement}"
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = visual.secondary,
                         )
@@ -145,14 +156,26 @@ fun EventScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text(theme.milestonesTitle, style = MaterialTheme.typography.labelLarge, color = visual.secondary, modifier = Modifier.fillMaxWidth())
+            Text(
+                "ПУТЬ НАГРАД · БЕСПЛАТНЫЙ",
+                style = MaterialTheme.typography.labelLarge,
+                color = visual.secondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                theme.milestonesTitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(6.dp))
 
-            ui.milestones.forEach { item ->
-                val milestone = item.definition
+            track.levels.forEach { item ->
+                val level = item.definition
                 SteamPanel(
                     modifier = Modifier.fillMaxWidth(),
-                    highlighted = item.claimable,
+                    highlighted = item.freeClaimable,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -160,26 +183,30 @@ fun EventScreen(
                             Modifier
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(11.dp))
-                                .background(visual.accent.copy(alpha = if (item.claimed) 0.08f else 0.15f))
+                                .background(visual.accent.copy(alpha = if (item.freeClaimed) 0.08f else 0.15f))
                                 .border(1.dp, visual.accent.copy(alpha = 0.36f), RoundedCornerShape(11.dp)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                if (item.claimed) "✓" else milestone.targetPoints.toString(),
+                                if (item.freeClaimed) "✓" else level.level.toString(),
                                 style = MaterialTheme.typography.labelLarge,
-                                color = if (item.claimed) TealGlow else visual.accent,
+                                color = if (item.freeClaimed) TealGlow else visual.accent,
                             )
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("${milestone.targetPoints} ${theme.milestoneUnit}", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+                            Text(
+                                "УРОВЕНЬ ${level.level} · ${level.progressRequirement} ${theme.milestoneUnit}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextWarm,
+                            )
                             val rewardText = buildString {
-                                if (milestone.reward.gems > 0) append("+${milestone.reward.gems} гемов")
-                                if (milestone.reward.blueprintPieces > 0) {
+                                if (level.freeReward.gems > 0) append("+${level.freeReward.gems} гемов")
+                                if (level.freeReward.blueprintPieces > 0) {
                                     if (isNotEmpty()) append(" · ")
                                     append("деталь чертежа")
                                 }
-                                milestone.reward.cosmeticId?.let {
+                                level.freeReward.cosmeticId?.let {
                                     if (isNotEmpty()) append(" · ")
                                     append("косметика")
                                 }
@@ -187,17 +214,23 @@ fun EventScreen(
                             Text(rewardText, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
                         }
                     }
-                    if (item.claimable) {
+                    if (item.freeClaimable) {
                         Spacer(Modifier.height(8.dp))
                         SteamButton(
                             text = "ПОЛУЧИТЬ",
-                            onClick = { vm.claim(milestone.id) },
+                            onClick = { vm.claim(level.id) },
                             modifier = Modifier.fillMaxWidth(),
                             style = SteamButtonStyle.Brass,
                         )
-                    } else if (item.claimed) {
+                    } else if (item.freeClaimed) {
                         Spacer(Modifier.height(6.dp))
-                        Text("ПОЛУЧЕНО", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium, color = TealGlow, textAlign = TextAlign.Center)
+                        Text(
+                            "ПОЛУЧЕНО",
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TealGlow,
+                            textAlign = TextAlign.Center,
+                        )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
