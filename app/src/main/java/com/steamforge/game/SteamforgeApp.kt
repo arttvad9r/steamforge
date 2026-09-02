@@ -27,7 +27,7 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val isDebug: Boolean = (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     val config = FallbackGameConfigProvider()
-    val repo = SteamforgeRepository(appContext)
+    val repo = SteamforgeRepository(appContext, configProvider = config)
     val onboarding = OnboardingStore(appContext, repo)
     val sfx = SfxPlayer(appContext)
 
