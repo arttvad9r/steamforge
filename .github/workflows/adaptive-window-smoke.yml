@@ -309,6 +309,7 @@ jobs:
             adb shell wm size "$size"
             adb shell wm density "$density"
             launch_app
+            # The first shape creates a real run; later shapes resume that same production run.
             dump_ui "${label}-home"
             if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
               tap 'ПРОДОЛЖИТЬ' "${label}-continue"
