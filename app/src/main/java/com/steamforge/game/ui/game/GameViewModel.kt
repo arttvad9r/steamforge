@@ -619,6 +619,9 @@ class GameViewModel(
                     finalGemBalance = withAchievementDays.gems
                     withAchievementDays to e
                 }
+                val committedRecord = repo.finishedGame.first()?.takeIf { it.id == pending.record.id }
+                if (committedRecord != null) eff = committedRecord.toEffects()
+                finalGemBalance = repo.progress.first().gems
                 if (discardFinishedRecord) repo.clearFinishedGame()
 
                 finishWriteInFlight = false
