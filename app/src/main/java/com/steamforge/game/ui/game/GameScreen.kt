@@ -51,7 +51,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -59,7 +58,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -68,6 +67,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.core.view.HapticFeedbackConstantsCompat
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.steamforge.game.core.Elements
 import com.steamforge.game.core.GameState
@@ -118,11 +119,15 @@ fun GameScreen(
     val rewardedReady by ads.rewardedReady.collectAsStateWithLifecycle()
     val weeklyMode = ui.weekly != null
     var exitHandled by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
     val context = androidx.compose.ui.platform.LocalContext.current
     var prevOverdrive by remember { mutableIntStateOf(0) }
     var prevFinished by remember { mutableStateOf(false) }
     var prevWon by remember { mutableStateOf(false) }
+
+    fun performGameplayHaptic(feedbackConstant: Int) {
+        if (ui.hapticsEnabled) ViewCompat.performHapticFeedback(view, feedbackConstant)
+    }
 
     LaunchedEffect(ui.lastResult) {
         val res = ui.lastResult ?: return@LaunchedEffect
@@ -135,7 +140,7 @@ fun GameScreen(
                     else -> Sfx.MERGE_LOW
                 },
             )
-            if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
         } else {
             sfx.play(Sfx.MOVE)
         }
@@ -143,19 +148,25 @@ fun GameScreen(
     LaunchedEffect(ui.overdriveRemaining) {
         if (ui.overdriveRemaining > 0 && prevOverdrive == 0) {
             sfx.play(Sfx.OVERDRIVE)
-            if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
         }
         prevOverdrive = ui.overdriveRemaining
     }
     LaunchedEffect(ui.finished) {
         if (ui.finished && !prevFinished) {
             sfx.play(if (!weeklyMode && ui.effects?.levelUps?.isNotEmpty() == true) Sfx.LEVEL_UP else Sfx.GAME_OVER)
-            if (ui.hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            performGameplayHaptic(
+                if (weeklyMode && ui.weeklySubmissionAccepted == true) HapticFeedbackConstantsCompat.CONFIRM
+                else HapticFeedbackConstantsCompat.REJECT,
+            )
         }
         prevFinished = ui.finished
     }
     LaunchedEffect(ui.winCelebrated) {
-        if (ui.winCelebrated && !prevWon) sfx.play(Sfx.WIN)
+        if (ui.winCelebrated && !prevWon) {
+            sfx.play(Sfx.WIN)
+            performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
+        }
         prevWon = ui.winCelebrated
     }
 
@@ -293,7 +304,14 @@ fun GameScreen(
                             symbol = "↶",
                             label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
                             active = ui.canUndo && !ui.finished,
-                            onClick = vm::undo,
+                            onClick = {
+                                val beforeUndo = vm.ui.value.state
+                                vm.undo()
+                                if (vm.ui.value.state != beforeUndo) {
+                                    sfx.play(Sfx.UNDO)
+                                    performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
+                                }
+                            },
                             modifier = Modifier.weight(1f),
                         )
                         ToolButton(
