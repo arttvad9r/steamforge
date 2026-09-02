@@ -1,5 +1,6 @@
 package com.steamforge.game.ui.workshop
 
+import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.config.LocalDefaultConfig
 import com.steamforge.game.config.MutableGameConfigProvider
 import com.steamforge.game.data.FakeDataRepo
@@ -51,6 +52,36 @@ class DailyRewardTest {
         vm.claimDailyReward()
         advanceUntilIdle()
         assertEquals(reward, repo.currentProgress.gems)
+    }
+
+    @Test
+    fun `daily reward impression and successful claim emit funnel events once`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo()
+        val analytics = CaptureAnalytics()
+        val vm = WorkshopViewModel(repo, today = { day }, analytics = analytics)
+        backgroundScope.subscribe(vm.ui)
+        advanceUntilIdle()
+
+        vm.recordDailyRewardShown()
+        vm.recordDailyRewardShown()
+        assertEquals(1, analytics.events.count { it.name == "daily_reward_shown" })
+        val shown = analytics.events.single { it.name == "daily_reward_shown" }
+        assertEquals(vm.ui.value.dailyRewardDay, shown.params["reward_day"])
+        assertEquals(vm.ui.value.dailyRewardGems, shown.params["reward_gems"])
+
+        val expectedReward = vm.ui.value.dailyRewardGems
+        vm.claimDailyReward()
+        advanceUntilIdle()
+
+        val claimed = analytics.events.filter { it.name == "daily_reward_claimed" }
+        assertEquals(1, claimed.size)
+        assertEquals(expectedReward, claimed.single().params["reward_gems"])
+        assertEquals(repo.currentProgress.gems, claimed.single().params["gem_balance"])
+
+        vm.claimDailyReward()
+        advanceUntilIdle()
+        assertEquals(1, analytics.events.count { it.name == "daily_reward_claimed" })
     }
 
     @Test
@@ -144,5 +175,14 @@ class DailyRewardTest {
         assertFalse(p.hapticsEnabled)
         assertFalse(p.animationsEnabled)
         assertEquals(true, p.analyticsConsent)
+    }
+
+    private data class Event(val name: String, val params: Map<String, Any?>)
+
+    private class CaptureAnalytics : Analytics {
+        val events = mutableListOf<Event>()
+        override fun logEvent(name: String, params: Map<String, Any?>) {
+            events += Event(name, params)
+        }
     }
 }
