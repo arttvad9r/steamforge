@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -128,6 +129,15 @@ fun GameScreen(
         if (ui.hapticsEnabled) ViewCompat.performHapticFeedback(view, feedbackConstant)
     }
 
+    fun undoWithFeedback() {
+        val beforeUndo = vm.ui.value.state
+        vm.undo()
+        if (vm.ui.value.state != beforeUndo) {
+            sfx.play(Sfx.UNDO)
+            performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
+        }
+    }
+
     LaunchedEffect(ui.lastResult) {
         val res = ui.lastResult ?: return@LaunchedEffect
         if (res.merges.isNotEmpty()) {
@@ -194,118 +204,267 @@ fun GameScreen(
                 true
             },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .wrapContentWidth(Alignment.CenterHorizontally)
-                .widthIn(max = 560.dp)
-                .padding(horizontal = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(6.dp))
-            SteamLogoHeader(
-                compact = true,
-                leading = { BrassRoundButton("←", "В мастерскую", ::leave) },
-            )
-            Spacer(Modifier.height(8.dp))
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compactLandscape = maxWidth > maxHeight && maxHeight < 600.dp
+            if (compactLandscape) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1.05f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val boardSize = minOf(maxWidth, maxHeight)
+                        BoardView(
+                            state = ui.state,
+                            lastResult = ui.lastResult,
+                            previousTiles = ui.previousTiles,
+                            animationsActive = ui.animationsActive,
+                            removingMode = ui.removingMode,
+                            canRemove = vm::canRemoveTile,
+                            onTileClick = vm::removeTile,
+                            onSwipe = vm::onMove,
+                            modifier = Modifier.size(boardSize),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(0.95f)
+                            .fillMaxHeight()
+                            .widthIn(max = 400.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            BrassRoundButton("←", "В мастерскую", ::leave)
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "STEAMFORGE",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = BrassBright,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                                Text(
+                                    if (ui.daily != null) "ИСПЫТАНИЕ ДНЯ" else "МЕХАНИЧЕСКОЕ ЯДРО",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                            Text(
+                                "ХОД ${ui.state.moves}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
 
-            Row(Modifier.fillMaxWidth()) {
-                StatPlate("СЧЁТ", ui.state.score.toString(), Modifier.weight(1f), BrassBright)
-                Spacer(Modifier.width(8.dp))
-                StatPlate("ЛУЧШИЙ", ui.best.toString(), Modifier.weight(1f), TextWarm)
-                Spacer(Modifier.width(8.dp))
-                StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
-            }
-            Spacer(Modifier.height(7.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            StatPlate("СЧЁТ", ui.state.score.toString(), Modifier.weight(1f), BrassBright)
+                            Spacer(Modifier.width(5.dp))
+                            StatPlate("ЛУЧШИЙ", ui.best.toString(), Modifier.weight(1f), TextWarm)
+                            Spacer(Modifier.width(5.dp))
+                            StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
+                        }
+                        Spacer(Modifier.height(4.dp))
 
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                highlighted = ui.overdriveRemaining > 0,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudMetric(
-                        label = "ХОДЫ",
-                        value = ui.state.moves.toString(),
-                        accent = BrassBright,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    PressureGauge(
-                        pressure = ui.pressure,
-                        overdriveRemaining = ui.overdriveRemaining,
-                        animationsActive = ui.animationsActive,
-                        modifier = Modifier.size(112.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    HudMetric(
-                        label = "ОТМЕНА",
-                        value = if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
-                        accent = if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
-                        modifier = Modifier.weight(1f),
-                    )
+                        SteamPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            highlighted = ui.overdriveRemaining > 0,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                HudMetric(
+                                    label = "ХОДЫ",
+                                    value = ui.state.moves.toString(),
+                                    accent = BrassBright,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                PressureGauge(
+                                    pressure = ui.pressure,
+                                    overdriveRemaining = ui.overdriveRemaining,
+                                    animationsActive = ui.animationsActive,
+                                    modifier = Modifier.size(82.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                HudMetric(
+                                    label = "ОТМЕНА",
+                                    value = if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
+                                    accent = if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            ui.daily?.let { daily ->
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (ui.dailySatisfied) TealGlow else TextMuted,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+
+                        SteamPanel(
+                            Modifier.fillMaxWidth(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ToolButton(
+                                    symbol = "↶",
+                                    label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
+                                    active = ui.canUndo && !ui.finished,
+                                    onClick = ::undoWithFeedback,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                ToolButton(
+                                    symbol = "⚒",
+                                    label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
+                                    active = !ui.finished,
+                                    selected = ui.removingMode,
+                                    onClick = vm::toggleRemovingMode,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            "Свайпните по полю · одинаковые детали объединяются",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
                 }
-                val daily = ui.daily
-                if (daily != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 560.dp)
+                        .padding(horizontal = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(Modifier.height(6.dp))
+                    SteamLogoHeader(
+                        compact = true,
+                        leading = { BrassRoundButton("←", "В мастерскую", ::leave) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(Modifier.fillMaxWidth()) {
+                        StatPlate("СЧЁТ", ui.state.score.toString(), Modifier.weight(1f), BrassBright)
+                        Spacer(Modifier.width(8.dp))
+                        StatPlate("ЛУЧШИЙ", ui.best.toString(), Modifier.weight(1f), TextWarm)
+                        Spacer(Modifier.width(8.dp))
+                        StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
+                    }
+                    Spacer(Modifier.height(7.dp))
+
+                    SteamPanel(
                         modifier = Modifier.fillMaxWidth(),
+                        highlighted = ui.overdriveRemaining > 0,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            HudMetric(
+                                label = "ХОДЫ",
+                                value = ui.state.moves.toString(),
+                                accent = BrassBright,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            PressureGauge(
+                                pressure = ui.pressure,
+                                overdriveRemaining = ui.overdriveRemaining,
+                                animationsActive = ui.animationsActive,
+                                modifier = Modifier.size(112.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            HudMetric(
+                                label = "ОТМЕНА",
+                                value = if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
+                                accent = if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        val daily = ui.daily
+                        if (daily != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (ui.dailySatisfied) TealGlow else TextMuted,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(7.dp))
+
+                    BoardView(
+                        state = ui.state,
+                        lastResult = ui.lastResult,
+                        previousTiles = ui.previousTiles,
+                        animationsActive = ui.animationsActive,
+                        removingMode = ui.removingMode,
+                        canRemove = vm::canRemoveTile,
+                        onTileClick = vm::removeTile,
+                        onSwipe = vm::onMove,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    )
+                    Spacer(Modifier.height(9.dp))
+
+                    SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ToolButton(
+                                symbol = "↶",
+                                label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
+                                active = ui.canUndo && !ui.finished,
+                                onClick = ::undoWithFeedback,
+                                modifier = Modifier.weight(1f),
+                            )
+                            ToolButton(
+                                symbol = "⚒",
+                                label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
+                                active = !ui.finished,
+                                selected = ui.removingMode,
+                                onClick = vm::toggleRemovingMode,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        "Свайпните по полю · одинаковые детали объединяются",
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (ui.dailySatisfied) TealGlow else TextMuted,
+                        color = TextMuted,
                         textAlign = TextAlign.Center,
                     )
                 }
             }
-            Spacer(Modifier.height(7.dp))
-
-            BoardView(
-                state = ui.state,
-                lastResult = ui.lastResult,
-                previousTiles = ui.previousTiles,
-                animationsActive = ui.animationsActive,
-                removingMode = ui.removingMode,
-                canRemove = vm::canRemoveTile,
-                onTileClick = vm::removeTile,
-                onSwipe = vm::onMove,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            )
-            Spacer(Modifier.height(9.dp))
-
-            SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ToolButton(
-                        symbol = "↶",
-                        label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
-                        active = ui.canUndo && !ui.finished,
-                        onClick = {
-                            val beforeUndo = vm.ui.value.state
-                            vm.undo()
-                            if (vm.ui.value.state != beforeUndo) {
-                                sfx.play(Sfx.UNDO)
-                                performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    ToolButton(
-                        symbol = "⚒",
-                        label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
-                        active = !ui.finished,
-                        selected = ui.removingMode,
-                        onClick = vm::toggleRemovingMode,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Spacer(Modifier.height(7.dp))
-            Text(
-                "Свайпните по полю · одинаковые детали объединяются",
-                style = MaterialTheme.typography.labelMedium,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 
