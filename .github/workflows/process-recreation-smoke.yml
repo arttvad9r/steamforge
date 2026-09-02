@@ -1,0 +1,125 @@
+name: Process Recreation Smoke
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'app/src/main/java/com/steamforge/game/**'
+      - 'tools/check-process-recreation.sh'
+      - '.github/workflows/process-recreation-smoke.yml'
+  pull_request:
+    paths:
+      - 'app/src/main/java/com/steamforge/game/**'
+      - 'tools/check-process-recreation.sh'
+      - '.github/workflows/process-recreation-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: process-recreation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  active-run-process-recreation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Verify smoke script syntax
+        run: bash -n tools/check-process-recreation.sh
+
+      - name: Install emulator packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platform-tools' \
+            'emulator' \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            'system-images;android-36;google_apis;x86_64'
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Create and boot emulator
+        run: |
+          set -euxo pipefail
+          ls -l /dev/kvm
+          sudo chmod 666 /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          AVDMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/avdmanager"
+          test -x "$AVDMANAGER"
+          echo no | "$AVDMANAGER" create avd \
+            -n steamforge_process_ci \
+            -k 'system-images;android-36;google_apis;x86_64' \
+            -d pixel_6 \
+            --force
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd steamforge_process_ci \
+            -no-window \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -accel on \
+            -camera-back none \
+            -camera-front none \
+            > emulator.log 2>&1 &
+          echo $! > emulator.pid
+          adb start-server
+          for i in $(seq 1 120); do
+            if adb devices | grep -q '^emulator-'; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          adb devices | grep '^emulator-'
+          for i in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          adb shell input keyevent 82 || true
+          adb shell settings put global window_animation_scale 0.5
+          adb shell settings put global transition_animation_scale 0.5
+          adb shell settings put global animator_duration_scale 0.5
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+
+      - name: Install and launch Steamforge
+        run: |
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb shell am force-stop com.steamforge.game
+          adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
+          sleep 5
+
+      - name: Verify active run survives process recreation
+        run: bash tools/check-process-recreation.sh
+
+      - name: Upload process recreation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-process-recreation
+          path: |
+            ci-process-recreation/
+            emulator.log
+          if-no-files-found: warn
+          retention-days: 3
