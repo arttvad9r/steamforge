@@ -1,0 +1,33 @@
+name: Finish Idempotency Patch
+
+on:
+  push:
+    branches:
+      - feature/finish-persistence-recovery
+    paths:
+      - '.github/workflows/finish-idempotency-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feature/finish-persistence-recovery
+          fetch-depth: 0
+      - name: Apply idempotency patch
+        run: python3 .github/finish-idempotency-patch.py
+      - name: Commit product changes
+        run: |
+          git diff --check
+          git config user.name 'steamforge-ci'
+          git config user.email 'steamforge-ci@users.noreply.github.com'
+          git add app/src/main/java/com/steamforge/game/data/SteamforgeRepository.kt
+          git add app/src/main/java/com/steamforge/game/ui/game/GameViewModel.kt
+          git add app/src/test/java/com/steamforge/game/data/FakeDataRepo.kt
+          git add app/src/test/java/com/steamforge/game/ui/game/FinishPersistenceRetryTest.kt
+          git commit -m 'fix: make terminal finish retry idempotent'
+          git push origin HEAD:feature/finish-persistence-recovery
