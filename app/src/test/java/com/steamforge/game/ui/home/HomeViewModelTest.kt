@@ -11,21 +11,34 @@ import com.steamforge.game.progression.EventScoringRule
 import com.steamforge.game.progression.EventTheme
 import com.steamforge.game.progression.LiveOpsLedger
 import com.steamforge.game.progression.PlayerProgress
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() = Dispatchers.setMain(dispatcher)
+
+    @After
+    fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `home event card follows scheduled remote event`() = runTest {
+    fun `home event card follows scheduled remote event`() = runTest(dispatcher) {
         val day = 25_000L
         val event = LocalDefaultConfig.foundryTemplate.instantiateForEpochDay(day).copy(
             id = "maintenance-week",
