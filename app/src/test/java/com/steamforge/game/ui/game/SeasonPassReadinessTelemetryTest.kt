@@ -70,7 +70,10 @@ class SeasonPassReadinessTelemetryTest {
                 moves = 20,
             ),
             seed = seed,
+            pressure = 0,
+            overdriveRemaining = 0,
             freeUndosLeft = 2,
+            rngDraws = 0L,
         )
     }
 
