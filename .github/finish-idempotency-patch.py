@@ -9,20 +9,23 @@ def once(text: str, old: str, new: str, label: str) -> str:
 
 repo_path = Path('app/src/main/java/com/steamforge/game/data/SteamforgeRepository.kt')
 repo = repo_path.read_text()
-repo = once(
-    repo,
-    '''        context.dataStore.edit { prefs ->
-            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val finalSaved = GameSaveCodec.decode(record.state)''',
-    '''        context.dataStore.edit { prefs ->
-            val existingFinished = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
+method_anchor = '''    override suspend fun applyGameFinish(
+        record: FinishedGameRecord,
+        finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
+    ) {
+        context.dataStore.edit { prefs ->
+'''
+if repo.count(method_anchor) != 1:
+    raise SystemExit(f'repository method anchor mismatch: {repo.count(method_anchor)}')
+repo = repo.replace(
+    method_anchor,
+    method_anchor + '''            val existingFinished = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
             if (existingFinished?.id == record.id) {
                 prefs.remove(Keys.game)
                 return@edit
             }
-            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val finalSaved = GameSaveCodec.decode(record.state)''',
-    'repository finish idempotency',
+''',
+    1,
 )
 repo_path.write_text(repo)
 
