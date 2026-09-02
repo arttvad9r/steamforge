@@ -8,12 +8,14 @@ on:
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/main/java/com/steamforge/game/ui/game/**'
       - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
       - '.github/workflows/high-tier-tile-smoke.yml'
   pull_request:
     paths:
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/main/java/com/steamforge/game/ui/game/**'
       - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
       - '.github/workflows/high-tier-tile-smoke.yml'
   workflow_dispatch:
 
@@ -53,7 +55,7 @@ jobs:
             'build-tools;36.0.0' \
             'system-images;android-36;google_apis;x86_64'
 
-      - name: Build debug and high-tier instrumentation APKs
+      - name: Build debug and board instrumentation APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleDebugAndroidTest
 
       - name: Create and boot emulator
@@ -106,6 +108,16 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
+      - name: Verify board swipe input semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.BoardSwipeInputTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee board-input-instrumentation.txt
+          grep -F 'OK (1 test)' board-input-instrumentation.txt
+
       - name: Verify and capture high-tier board
         shell: bash
         run: |
@@ -124,7 +136,7 @@ jobs:
           print(f'high-tier-board.png: {len(data)} bytes')
           PY
 
-      - name: Upload high-tier diagnostics
+      - name: Upload board diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -132,6 +144,7 @@ jobs:
           path: |
             high-tier-board.png
             high-tier-instrumentation.txt
+            board-input-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -143,5 +156,7 @@ jobs:
           tail -400 emulator.log || true
           echo '=== adb devices ==='
           adb devices -l || true
-          echo '=== instrumentation ==='
+          echo '=== board input instrumentation ==='
+          cat board-input-instrumentation.txt || true
+          echo '=== high-tier instrumentation ==='
           cat high-tier-instrumentation.txt || true
