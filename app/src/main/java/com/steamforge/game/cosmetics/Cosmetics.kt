@@ -18,15 +18,34 @@ object CosmeticCatalog {
 data class CosmeticLoadout(
     val tileSet: String = CosmeticCatalog.TILE_CLASSIC,
     val workshopTheme: String = CosmeticCatalog.WORKSHOP_CLASSIC,
-)
+) {
+    /** Paid presentation is only effective while the corresponding entitlement is owned. */
+    fun effective(
+        tileSetOwned: Boolean,
+        workshopThemeOwned: Boolean,
+    ): CosmeticLoadout = copy(
+        tileSet = if (tileSet == CosmeticCatalog.TILE_PATINA && tileSetOwned) tileSet else CosmeticCatalog.TILE_CLASSIC,
+        workshopTheme = if (workshopTheme == CosmeticCatalog.WORKSHOP_FOUNDRY && workshopThemeOwned) {
+            workshopTheme
+        } else {
+            CosmeticCatalog.WORKSHOP_CLASSIC
+        },
+    )
+}
+
+interface CosmeticLoadoutRepository {
+    val loadout: Flow<CosmeticLoadout>
+    suspend fun equipTileSet(id: String)
+    suspend fun equipWorkshopTheme(id: String)
+}
 
 private val Context.cosmeticDataStore by preferencesDataStore(name = "steamforge_cosmetics")
 
 /** Equipped cosmetic choices are presentation preferences, independent from game progress and billing ownership. */
-class CosmeticLoadoutStore(context: Context) {
+class CosmeticLoadoutStore(context: Context) : CosmeticLoadoutRepository {
     private val appContext = context.applicationContext
 
-    val loadout: Flow<CosmeticLoadout> = appContext.cosmeticDataStore.data
+    override val loadout: Flow<CosmeticLoadout> = appContext.cosmeticDataStore.data
         .map { prefs ->
             CosmeticLoadout(
                 tileSet = prefs[TILE_SET] ?: CosmeticCatalog.TILE_CLASSIC,
@@ -35,12 +54,12 @@ class CosmeticLoadoutStore(context: Context) {
         }
         .distinctUntilChanged()
 
-    suspend fun equipTileSet(id: String) {
+    override suspend fun equipTileSet(id: String) {
         require(id == CosmeticCatalog.TILE_CLASSIC || id == CosmeticCatalog.TILE_PATINA)
         appContext.cosmeticDataStore.edit { it[TILE_SET] = id }
     }
 
-    suspend fun equipWorkshopTheme(id: String) {
+    override suspend fun equipWorkshopTheme(id: String) {
         require(id == CosmeticCatalog.WORKSHOP_CLASSIC || id == CosmeticCatalog.WORKSHOP_FOUNDRY)
         appContext.cosmeticDataStore.edit { it[WORKSHOP_THEME] = id }
     }
