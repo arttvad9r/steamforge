@@ -308,6 +308,13 @@ jobs:
           shot '04-settings.png'
           dump_ui '04-settings-window'
           assert_toggle_accessibility 'Звук' '04-sound-toggle-a11y'
+          scroll_until_text 'ОТКРЫТЬ ОФОРМЛЕНИЕ' '04-cosmetics-scroll-window'
+          tap_node 'ОТКРЫТЬ ОФОРМЛЕНИЕ' 'cosmetics-open'
+          wait_for_text 'НАБОР ПЛИТОК' '04-cosmetics-window'
+          shot '04-cosmetics.png'
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
+          wait_for_text 'Оформление мастерской' '04-back-to-settings-window'
           scroll_until_text 'СБРОСИТЬ ПРОГРЕСС' '05-reset-scroll-window'
           tap_node 'СБРОСИТЬ ПРОГРЕСС' 'reset-open'
           wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
