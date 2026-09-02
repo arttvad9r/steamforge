@@ -56,8 +56,11 @@ jobs:
           PY
 
           git diff --check
+          # GITHUB_TOKEN may not update workflow files without the workflows permission.
+          # Keep the android-ci guard change for a separate connector commit.
+          git checkout -- .github/workflows/android-ci.yml
           git config user.name "steamforge-ci"
           git config user.email "steamforge-ci@users.noreply.github.com"
-          git add app tools .github/workflows/android-ci.yml
+          git add app tools
           git commit -m "feat: wire cosmetic purchases and visual themes"
           git push origin HEAD:feature/cosmetics
