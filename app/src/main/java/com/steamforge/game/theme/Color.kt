@@ -40,7 +40,7 @@ private val rawTileColors = listOf(
     RawTileColor(Color(0xFF567A78), Color(0xFFF2E9D8)), // 128 oxidized metal
     RawTileColor(Color(0xFF3F6F72), Color(0xFFF2E9D8)), // 256 deep patina
     RawTileColor(Color(0xFF8E6B34), Color(0xFFF7EAD2)), // 512 dark brass
-    RawTileColor(Color(0xFFB9853B), Color(0xFFFFEFD2)), // 1024 polished brass
+    RawTileColor(Color(0xFFB9853B), Color(0xFF172029)), // 1024 polished brass, dark ink for readable contrast
     RawTileColor(Color(0xFFD1A45A), Color(0xFF172029)), // 2048 mechanical core
 )
 
