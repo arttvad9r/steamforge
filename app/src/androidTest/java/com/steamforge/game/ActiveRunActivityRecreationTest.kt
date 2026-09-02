@@ -41,15 +41,15 @@ class ActiveRunActivityRecreationTest {
             waitForText("ИГРАТЬ")
             composeRule.onNodeWithText("ИГРАТЬ").performClick()
             waitForContentDescription(SCORE_DESCRIPTION)
+            waitForContentDescription(MOVE_DESCRIPTION)
 
-            composeRule.onNodeWithText(MOVE_TEXT).fetchSemanticsNode()
             val beforePid = Process.myPid()
             val beforeTiles = tileBounds()
 
             scenario.recreate()
 
             waitForContentDescription(SCORE_DESCRIPTION)
-            composeRule.onNodeWithText(MOVE_TEXT).fetchSemanticsNode()
+            waitForContentDescription(MOVE_DESCRIPTION)
             val afterTiles = tileBounds()
 
             assertEquals("ActivityScenario.recreate must keep the app Linux process alive", beforePid, Process.myPid())
@@ -82,7 +82,7 @@ class ActiveRunActivityRecreationTest {
 
     private companion object {
         const val SCORE_DESCRIPTION = "СЧЁТ: 96"
-        const val MOVE_TEXT = "ХОД 7"
+        const val MOVE_DESCRIPTION = "ХОДЫ: 7"
 
         val TILE_DESCRIPTIONS = listOf(
             "Уголь, 2",
