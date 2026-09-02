@@ -8,8 +8,8 @@ on:
       - 'app/src/main/**'
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
+      - 'gradle/libs.versions.toml'
       - 'tools/check-active-run-interruptions.sh'
-      - 'tools/check-screen-off-restoration.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   pull_request:
     branches:
@@ -19,8 +19,8 @@ on:
       - 'app/src/main/**'
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
+      - 'gradle/libs.versions.toml'
       - 'tools/check-active-run-interruptions.sh'
-      - 'tools/check-screen-off-restoration.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   workflow_dispatch:
 
@@ -51,9 +51,7 @@ jobs:
           packages: platform-tools
 
       - name: Verify smoke script syntax
-        run: |
-          bash -n tools/check-active-run-interruptions.sh
-          bash -n tools/check-screen-off-restoration.sh
+        run: bash -n tools/check-active-run-interruptions.sh
 
       - name: Install emulator packages
         run: |
@@ -114,17 +112,29 @@ jobs:
           adb shell wm size 1080x2400
           adb shell wm density 420
 
-      - name: Verify Activity recreation with ActivityScenario
+      - name: Install debug and instrumentation APKs
         run: |
-          set -o pipefail
           mkdir -p ci-process-recreation
           adb install -r -t app/build/outputs/apk/debug/app-debug.apk
           adb install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+      - name: Verify Activity recreation with ActivityScenario
+        run: |
+          set -o pipefail
           adb shell am instrument -w \
             -e class com.steamforge.game.ActiveRunActivityRecreationTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
             | tee ci-process-recreation/activity-recreation-instrumentation.txt
           grep -Fq 'OK (1 test)' ci-process-recreation/activity-recreation-instrumentation.txt
+
+      - name: Verify screen off and wake with UiDevice
+        run: |
+          set -o pipefail
+          adb shell am instrument -w \
+            -e class com.steamforge.game.ActiveRunScreenOffTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee ci-process-recreation/screen-off-instrumentation.txt
+          grep -Fq 'OK (1 test)' ci-process-recreation/screen-off-instrumentation.txt
 
       - name: Launch clean Steamforge for interruption smoke
         run: |
@@ -134,9 +144,6 @@ jobs:
 
       - name: Verify active run survives interruptions
         run: bash tools/check-active-run-interruptions.sh
-
-      - name: Verify active run survives screen off and wake
-        run: bash tools/check-screen-off-restoration.sh
 
       - name: Upload active run lifecycle diagnostics
         if: always()
