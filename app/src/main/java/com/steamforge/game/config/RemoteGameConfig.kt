@@ -104,6 +104,7 @@ data class RemoteGameConfig(
     val rewardMultiplierPercent: Int = 100,
     val scheduledEvents: List<EventDefinition> = emptyList(),
     val fallbackEvent: EventTemplateConfig = LocalDefaultConfig.foundryTemplate,
+    val fallbackEventRotation: List<EventTemplateConfig> = emptyList(),
     val features: FeatureFlags = FeatureFlags(),
 ) {
     val safeRewardMultiplierPercent: Int get() = rewardMultiplierPercent.coerceIn(0, 500)
@@ -117,7 +118,12 @@ data class RemoteGameConfig(
 
     fun activeEvent(epochDay: Long): EventDefinition? {
         if (!features.liveOps) return null
-        return scheduledEvents.firstOrNull { it.isActive(epochDay) } ?: fallbackEvent.instantiateForEpochDay(epochDay)
+        scheduledEvents.firstOrNull { it.isActive(epochDay) }?.let { return it }
+
+        val rotation = fallbackEventRotation.filter { it.idPrefix.isNotBlank() }.ifEmpty { listOf(fallbackEvent) }
+        val weekIndex = Math.floorDiv(epochDay + 3L, 7L)
+        val rotationIndex = Math.floorMod(weekIndex, rotation.size.toLong()).toInt()
+        return rotation[rotationIndex].instantiateForEpochDay(epochDay)
     }
 }
 
@@ -128,6 +134,14 @@ object LocalDefaultConfig {
         EventMilestone("pressure-500", 500, EventReward(gems = 12)),
         EventMilestone("pressure-900", 900, EventReward(gems = 18)),
         EventMilestone("pressure-1500", 1500, EventReward(gems = 30, blueprintPieces = 1)),
+    )
+
+    val calibrationMilestones = listOf(
+        EventMilestone("calibration-10", 10, EventReward(gems = 4)),
+        EventMilestone("calibration-25", 25, EventReward(gems = 7)),
+        EventMilestone("calibration-50", 50, EventReward(gems = 11)),
+        EventMilestone("calibration-90", 90, EventReward(gems = 17)),
+        EventMilestone("calibration-150", 150, EventReward(gems = 28, blueprintPieces = 1)),
     )
 
     val foundryTemplate = EventTemplateConfig(
@@ -150,5 +164,28 @@ object LocalDefaultConfig {
         featureFlags = setOf("event_milestones", "high_merge_scoring"),
     )
 
-    val value = RemoteGameConfig(fallbackEvent = foundryTemplate)
+    val calibrationTemplate = EventTemplateConfig(
+        idPrefix = "calibration-week",
+        durationDays = 7,
+        scoringRule = EventScoringRule(EventMetric.SCORE, pointsPerUnit = 1, unitsPerStep = 250),
+        milestones = calibrationMilestones,
+        theme = EventTheme(
+            id = "calibration",
+            title = "CALIBRATION WEEK",
+            subtitle = "Калибруйте точность механического ядра",
+            accent = "patina-teal",
+            scoreLabel = "CALIBRATION",
+            compactUnit = "calibration",
+            milestoneUnit = "CALIBRATION",
+            milestonesTitle = "ЭТАПЫ КАЛИБРОВКИ",
+            rulesText = "Каждые 250 очков партии дают 1 Calibration Point. Калибровка копится в обычных партиях до конца события. Достигнутые этапы можно забрать один раз до ротации события.",
+        ),
+        collection = "steam_engine",
+        featureFlags = setOf("event_milestones", "score_scoring", "patina_cycle"),
+    )
+
+    val value = RemoteGameConfig(
+        fallbackEvent = foundryTemplate,
+        fallbackEventRotation = listOf(calibrationTemplate, foundryTemplate),
+    )
 }

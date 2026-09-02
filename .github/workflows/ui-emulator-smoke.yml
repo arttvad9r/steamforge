@@ -205,6 +205,26 @@ jobs:
             return 1
           }
 
+          open_active_event() {
+            local label="$1"
+            for i in $(seq 1 6); do
+              dump_ui "$label"
+              if grep -Fqi 'FOUNDRY WEEK' /tmp/window.xml; then
+                tap_node 'FOUNDRY WEEK' "${label}-foundry"
+                return 0
+              fi
+              if grep -Fqi 'CALIBRATION WEEK' /tmp/window.xml; then
+                tap_node 'CALIBRATION WEEK' "${label}-calibration"
+                return 0
+              fi
+              adb shell input swipe 540 2050 540 850 450
+              sleep 1
+            done
+            echo 'Active event entry not found'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           open_workshop_from_shell() {
             local label="$1"
             for i in $(seq 1 10); do
@@ -284,8 +304,7 @@ jobs:
 
           wait_for_shell '01-shell-window'
           shot '01-shell.png'
-          scroll_until_text 'FOUNDRY WEEK' '01-event-entry-window'
-          tap_node 'FOUNDRY WEEK' 'event-open'
+          open_active_event '01-event-entry-window'
           wait_for_text 'ПУТЬ НАГРАД · БЕСПЛАТНЫЙ' '01-event-reward-track-window'
           shot '01-event-reward-track.png'
           adb shell input keyevent KEYCODE_BACK
