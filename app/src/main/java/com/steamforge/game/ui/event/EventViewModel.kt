@@ -2,6 +2,8 @@ package com.steamforge.game.ui.event
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.EventDefinition
 import com.steamforge.game.progression.EventMilestone
@@ -35,7 +37,23 @@ data class EventUiState(
 class EventViewModel(
     private val repo: DataRepo,
     private val today: () -> Long = { LocalDay.todayEpochDay() },
+    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
+
+    init {
+        val day = today()
+        val event = LiveOpsCatalog.activeForEpochDay(day)
+        analytics.logEvent(
+            "event_entered",
+            mapOf(
+                "event_id" to event.id,
+                "theme_id" to event.theme.id,
+                "surface" to "reward_track",
+                "track_levels" to event.milestones.size,
+                "days_remaining" to (event.endEpochDayExclusive - day).coerceAtLeast(0L).toInt(),
+            ),
+        )
+    }
 
     val ui: StateFlow<EventUiState> = repo.progress.map { progress ->
         val day = today()
@@ -66,6 +84,23 @@ class EventViewModel(
 
     fun claim(rewardId: String) {
         val event = ui.value.event
-        viewModelScope.launch { repo.claimEventMilestone(event, rewardId) }
+        val milestone = event.milestones.firstOrNull { it.id == rewardId } ?: return
+        viewModelScope.launch {
+            val granted = repo.claimEventMilestone(event, rewardId)
+            if (granted) {
+                analytics.logEvent(
+                    "event_milestone",
+                    mapOf(
+                        "event_id" to event.id,
+                        "milestone_id" to milestone.id,
+                        "target_points" to milestone.targetPoints,
+                        "event_points" to ui.value.points,
+                        "reward_gems" to milestone.reward.gems,
+                        "reward_blueprint_pieces" to milestone.reward.blueprintPieces,
+                        "reward_cosmetic" to (milestone.reward.cosmeticId ?: "none"),
+                    ),
+                )
+            }
+        }
     }
 }

@@ -189,7 +189,12 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<FoundryEvent> {
-                val vm: EventViewModel = viewModel { EventViewModel(container.repo) }
+                val vm: EventViewModel = viewModel {
+                    EventViewModel(
+                        repo = container.repo,
+                        analytics = container.analytics,
+                    )
+                }
                 EventScreen(
                     vm = vm,
                     onBack = { back() },
