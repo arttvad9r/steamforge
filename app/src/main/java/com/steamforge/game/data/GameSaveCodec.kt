@@ -13,6 +13,12 @@ data class SavedGame(
     val freeUndosLeft: Int,
     /** Количество nextBits-вызовов детерминированного RNG, уже потреблённых в этой партии. */
     val rngDraws: Long = 0L,
+    /** Сессионные счётчики нужны для точной статистики после process death. */
+    val mergesTotal: Int = 0,
+    val maxMergesInOneMove: Int = 0,
+    val overdrivesSession: Int = 0,
+    val undosSession: Int = 0,
+    val highMergesSession: Int = 0,
 )
 
 /**
@@ -20,10 +26,13 @@ data class SavedGame(
  * v1: v1|size|score|nextTileId|won|moves|tiles
  * v2: v2|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|tiles
  * v3: v3|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|tiles
+ * v4: v4|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|
+ *     mergesTotal|maxMergesInOneMove|overdrivesSession|undosSession|highMergesSession|tiles
  */
 object GameSaveCodec {
 
-    private const val VERSION = "v3"
+    private const val VERSION = "v4"
+    private const val MAX_COUNTER = 1_000_000
 
     fun encode(game: SavedGame): String = buildString {
         append(VERSION).append('|')
@@ -37,15 +46,21 @@ object GameSaveCodec {
         append(game.overdriveRemaining).append('|')
         append(game.freeUndosLeft).append('|')
         append(game.rngDraws.coerceAtLeast(0L)).append('|')
+        append(game.mergesTotal.coerceAtLeast(0)).append('|')
+        append(game.maxMergesInOneMove.coerceAtLeast(0)).append('|')
+        append(game.overdrivesSession.coerceAtLeast(0)).append('|')
+        append(game.undosSession.coerceAtLeast(0)).append('|')
+        append(game.highMergesSession.coerceAtLeast(0)).append('|')
         game.state.tiles.joinTo(this, ";") { "${it.id},${it.level},${it.row},${it.col}" }
     }
 
     fun decode(raw: String): SavedGame? {
         val parts = raw.split('|')
+        val isV4 = parts.size == 17 && parts[0] == "v4"
         val isV3 = parts.size == 12 && parts[0] == "v3"
         val isV2 = parts.size == 11 && parts[0] == "v2"
         val isV1 = parts.size == 7 && parts[0] == "v1"
-        if (!isV3 && !isV2 && !isV1) return null
+        if (!isV4 && !isV3 && !isV2 && !isV1) return null
         return runCatching {
             val size = parts[1].toInt().also { require(it in 2..8) }
             val score = parts[2].toInt().also { require(it >= 0) }
@@ -58,8 +73,26 @@ object GameSaveCodec {
             var overdrive = 0
             var freeUndos = 0
             var rngDraws = 0L
+            var mergesTotal = 0
+            var maxMergesInOneMove = 0
+            var overdrivesSession = 0
+            var undosSession = 0
+            var highMergesSession = 0
             val tilesIndex: Int
             when {
+                isV4 -> {
+                    seed = parts[6].toLong().takeIf { it >= 0 }
+                    pressure = parts[7].toInt().coerceIn(0, 1000)
+                    overdrive = parts[8].toInt().coerceIn(0, 1000)
+                    freeUndos = parts[9].toInt().coerceIn(0, 1000)
+                    rngDraws = parts[10].toLong().coerceIn(0L, 1_000_000L)
+                    mergesTotal = parts[11].toInt().coerceIn(0, MAX_COUNTER)
+                    maxMergesInOneMove = parts[12].toInt().coerceIn(0, MAX_COUNTER)
+                    overdrivesSession = parts[13].toInt().coerceIn(0, MAX_COUNTER)
+                    undosSession = parts[14].toInt().coerceIn(0, MAX_COUNTER)
+                    highMergesSession = parts[15].toInt().coerceIn(0, MAX_COUNTER)
+                    tilesIndex = 16
+                }
                 isV3 -> {
                     seed = parts[6].toLong().takeIf { it >= 0 }
                     pressure = parts[7].toInt().coerceIn(0, 1000)
@@ -110,6 +143,11 @@ object GameSaveCodec {
                 overdriveRemaining = overdrive,
                 freeUndosLeft = freeUndos,
                 rngDraws = rngDraws,
+                mergesTotal = mergesTotal,
+                maxMergesInOneMove = maxMergesInOneMove,
+                overdrivesSession = overdrivesSession,
+                undosSession = undosSession,
+                highMergesSession = highMergesSession,
             )
         }.getOrNull()
     }

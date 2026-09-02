@@ -90,7 +90,17 @@ class GameViewModel(
 
     private var undoSnapshot: UndoSnapshot? = null
 
-    private data class UndoSnapshot(val state: GameState, val pressure: Int, val overdriveRemaining: Int)
+    private data class UndoSnapshot(
+        val state: GameState,
+        val pressure: Int,
+        val overdriveRemaining: Int,
+        val rngDraws: Long,
+        val mergesTotal: Int,
+        val maxMergesInOneMove: Int,
+        val overdrivesSession: Int,
+        val undosSession: Int,
+        val highMergesSession: Int,
+    )
 
     init {
         viewModelScope.launch {
@@ -110,6 +120,11 @@ class GameViewModel(
                             freeUndosLeft = restored.freeUndosLeft,
                             canUndo = false,
                             winCelebrated = restored.state.won,
+                            mergesTotal = restored.mergesTotal,
+                            maxMergesInOneMove = restored.maxMergesInOneMove,
+                            overdrivesSession = restored.overdrivesSession,
+                            undosSession = restored.undosSession,
+                            highMergesSession = restored.highMergesSession,
                         )
                     }
                 } else {
@@ -165,7 +180,17 @@ class GameViewModel(
     fun onMove(move: Move) {
         val s = _ui.value
         if (s.finished || s.removingMode || finishStarted) return
-        val snapshot = UndoSnapshot(s.state, s.pressure, s.overdriveRemaining)
+        val snapshot = UndoSnapshot(
+            state = s.state,
+            pressure = s.pressure,
+            overdriveRemaining = s.overdriveRemaining,
+            rngDraws = rng.draws,
+            mergesTotal = s.mergesTotal,
+            maxMergesInOneMove = s.maxMergesInOneMove,
+            overdrivesSession = s.overdrivesSession,
+            undosSession = s.undosSession,
+            highMergesSession = s.highMergesSession,
+        )
         val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
         val result = engine.applyMove(s.state, move, rng, multiplier)
         if (!result.moved) return
@@ -213,23 +238,32 @@ class GameViewModel(
     fun undo() {
         val s = _ui.value
         val snap = undoSnapshot ?: return
-        if (s.finished || finishStarted) return
-        if (s.freeUndosLeft > 0) {
+        if (s.finished || s.removingMode || finishStarted) return
+        val paidUndo = s.freeUndosLeft <= 0
+        if (!paidUndo) {
             _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
         } else if (s.gems >= cfg.undoGemsCost) {
-            writesScope.launch { repo.updateProgress { p -> p.copy(gems = p.gems - cfg.undoGemsCost) } }
+            writesScope.launch {
+                repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.undoGemsCost).coerceAtLeast(0)) }
+            }
         } else {
             return
         }
+        rng = ReplayableRandom(sessionSeed ?: 0L, snap.rngDraws)
         _ui.update {
             it.copy(
                 state = snap.state,
+                gems = if (paidUndo) (it.gems - cfg.undoGemsCost).coerceAtLeast(0) else it.gems,
                 pressure = snap.pressure,
                 overdriveRemaining = snap.overdriveRemaining,
                 lastResult = null,
                 previousTiles = emptyList(),
                 canUndo = false,
-                undosSession = it.undosSession + 1,
+                mergesTotal = snap.mergesTotal,
+                maxMergesInOneMove = snap.maxMergesInOneMove,
+                overdrivesSession = snap.overdrivesSession,
+                undosSession = snap.undosSession + 1,
+                highMergesSession = snap.highMergesSession,
             )
         }
         undoSnapshot = null
@@ -238,23 +272,38 @@ class GameViewModel(
     }
 
     fun toggleRemovingMode() {
-        if (finishStarted) return
-        _ui.update { it.copy(removingMode = !it.removingMode) }
+        val s = _ui.value
+        if (finishStarted || s.finished) return
+        if (s.removingMode) {
+            _ui.update { it.copy(removingMode = false) }
+            return
+        }
+        if (s.gems < cfg.wrenchGemsCost) return
+        _ui.update { it.copy(removingMode = true) }
     }
 
-    fun canRemoveTile(tile: Tile): Boolean =
-        !finishStarted && tile.level in 1..cfg.wrenchMaxTileLevel && _ui.value.gems >= cfg.wrenchGemsCost
+    fun canRemoveTile(tile: Tile): Boolean {
+        val s = _ui.value
+        return !finishStarted &&
+            !s.finished &&
+            s.removingMode &&
+            tile.level in 1..cfg.wrenchMaxTileLevel &&
+            s.gems >= cfg.wrenchGemsCost
+    }
 
     fun removeTile(tile: Tile) {
-        if (finishStarted) return
         val s = _ui.value
+        if (finishStarted || s.finished || !s.removingMode) return
         if (!canRemoveTile(tile)) return
         val tiles = s.state.tiles.filterNot { it.id == tile.id }
         if (tiles.size == s.state.tiles.size) return
-        writesScope.launch { repo.updateProgress { p -> p.copy(gems = p.gems - cfg.wrenchGemsCost) } }
+        writesScope.launch {
+            repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.wrenchGemsCost).coerceAtLeast(0)) }
+        }
         _ui.update {
             it.copy(
                 state = s.state.copy(tiles = tiles, status = GameStatus.PLAYING),
+                gems = (it.gems - cfg.wrenchGemsCost).coerceAtLeast(0),
                 removingMode = false,
                 canUndo = false,
             )
@@ -380,6 +429,11 @@ class GameViewModel(
                     overdriveRemaining = s.overdriveRemaining,
                     freeUndosLeft = s.freeUndosLeft,
                     rngDraws = rng.draws,
+                    mergesTotal = s.mergesTotal,
+                    maxMergesInOneMove = s.maxMergesInOneMove,
+                    overdrivesSession = s.overdrivesSession,
+                    undosSession = s.undosSession,
+                    highMergesSession = s.highMergesSession,
                 ),
             ),
         )
@@ -437,6 +491,11 @@ class GameViewModel(
                     overdriveRemaining = s.overdriveRemaining,
                     freeUndosLeft = s.freeUndosLeft,
                     rngDraws = rng.draws,
+                    mergesTotal = s.mergesTotal,
+                    maxMergesInOneMove = s.maxMergesInOneMove,
+                    overdrivesSession = s.overdrivesSession,
+                    undosSession = s.undosSession,
+                    highMergesSession = s.highMergesSession,
                 ),
             )
         }
