@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -60,9 +59,9 @@ class HighTierBoardReadabilityTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("Турбина, 512").assertExists()
-        composeRule.onNodeWithContentDescription("Реактор, 1024").assertExists()
-        composeRule.onNodeWithContentDescription("Механическое ядро, 2048").assertExists()
+        composeRule.onNodeWithContentDescription("Турбина, 512").fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription("Реактор, 1024").fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription("Механическое ядро, 2048").fetchSemanticsNode()
         composeRule.waitForIdle()
 
         val output = File(
