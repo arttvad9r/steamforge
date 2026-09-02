@@ -31,3 +31,4 @@ jobs:
           git add app/src/test/java/com/steamforge/game/ui/game/FinishPersistenceRetryTest.kt
           git commit -m 'fix: make terminal finish retry idempotent'
           git push origin HEAD:feature/finish-persistence-recovery
+      # Trigger token: v2
