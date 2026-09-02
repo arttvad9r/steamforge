@@ -112,6 +112,11 @@ android {
                 }
             }
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -188,4 +193,7 @@ dependencies {
   // Current RuStore Pay SDK is release-only: debug/emulator builds use DisabledBillingProvider.
   releaseImplementation(platform("ru.rustore.sdk:bom:2026.08.01"))
   releaseImplementation("ru.rustore.sdk:pay")
+
+  // Macrobenchmark-only helper for profile capture/reset; production release dependency graph is unchanged.
+  add("benchmarkImplementation", libs.androidx.profileinstaller)
 }
