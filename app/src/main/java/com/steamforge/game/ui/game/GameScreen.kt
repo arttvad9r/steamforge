@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -198,142 +200,308 @@ fun GameScreen(
                 true
             },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .wrapContentWidth(Alignment.CenterHorizontally)
-                .widthIn(max = 560.dp)
-                .padding(horizontal = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BrassRoundButton("←", if (weeklyMode) "К недельному турниру" else "В мастерскую", ::leave)
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("STEAMFORGE", style = MaterialTheme.typography.titleMedium, color = BrassBright, maxLines = 1, softWrap = false)
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compactLandscape = maxWidth > maxHeight && maxHeight < 600.dp
+            if (compactLandscape) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1.05f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val boardSize = minOf(maxWidth, maxHeight)
+                        BoardView(
+                            state = ui.state,
+                            lastResult = ui.lastResult,
+                            previousTiles = ui.previousTiles,
+                            animationsActive = ui.animationsActive,
+                            removingMode = ui.removingMode,
+                            canRemove = vm::canRemoveTile,
+                            onTileClick = vm::removeTile,
+                            onSwipe = vm::onMove,
+                            tileSet = tileSet,
+                            modifier = Modifier.size(boardSize),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(0.95f)
+                            .fillMaxHeight()
+                            .widthIn(max = 400.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            BrassRoundButton("←", if (weeklyMode) "К недельному турниру" else "В мастерскую", ::leave)
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("STEAMFORGE", style = MaterialTheme.typography.titleMedium, color = BrassBright, maxLines = 1, softWrap = false)
+                                Text(
+                                    when {
+                                        weeklyMode -> "WEEKLY CHALLENGE"
+                                        ui.daily != null -> "ИСПЫТАНИЕ ДНЯ"
+                                        else -> "МЕХАНИЧЕСКОЕ ЯДРО"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (weeklyMode) TealGlow else TextMuted,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                            Text("ХОД ${ui.state.moves}", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                        }
+                        Spacer(Modifier.height(6.dp))
+
+                        SteamPanel(
+                            modifier = Modifier.fillMaxWidth(),
+                            highlighted = ui.overdriveRemaining > 0,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                HudMetric("СЧЁТ", ui.state.score.toString(), BrassBright, Modifier.weight(1f))
+                                HudMetric(if (weeklyMode) "WEEKLY BEST" else "ЛУЧШИЙ", ui.best.toString(), TextWarm, Modifier.weight(1f))
+                                HudMetric(
+                                    if (weeklyMode) "ХОДЫ" else "ГЕМЫ",
+                                    if (weeklyMode) ui.state.moves.toString() else ui.gems.toString(),
+                                    if (weeklyMode) BrassBright else TealGlow,
+                                    Modifier.weight(0.72f),
+                                )
+                            }
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                if (ui.overdriveRemaining > 0) "OVERDRIVE ×2 · ${ui.overdriveRemaining} объедин." else "ДАВЛЕНИЕ ${ui.pressure}%",
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (ui.overdriveRemaining > 0) TealGlow else TextMuted,
+                                textAlign = TextAlign.Center,
+                            )
+                            ui.daily?.let { daily ->
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    dailyGoalText(daily) + if (ui.dailySatisfied) " · выполнено" else "",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (ui.dailySatisfied) TealGlow else TextWarm,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                            if (weeklyMode) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "ЕДИНЫЙ SEED · REPLAY VERIFIED",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TealGlow,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+
+                        if (weeklyMode) {
+                            SteamPanel(
+                                Modifier.fillMaxWidth(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    "СОРЕВНОВАТЕЛЬНЫЙ РЕЖИМ · ОТМЕНА И КЛЮЧ ОТКЛЮЧЕНЫ",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        } else {
+                            SteamPanel(
+                                Modifier.fillMaxWidth(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    ToolButton(
+                                        symbol = "↶",
+                                        label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
+                                        active = ui.canUndo && !ui.finished,
+                                        onClick = {
+                                            val beforeUndo = vm.ui.value.state
+                                            vm.undo()
+                                            if (vm.ui.value.state != beforeUndo) {
+                                                sfx.play(Sfx.UNDO)
+                                                performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    ToolButton(
+                                        symbol = "⚒",
+                                        label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
+                                        active = !ui.finished,
+                                        selected = ui.removingMode,
+                                        onClick = vm::toggleRemovingMode,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (weeklyMode) "Свайпните по полю · каждый валидный ход войдёт в replay" else "Свайпните по полю · одинаковые детали объединяются",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 560.dp)
+                        .padding(horizontal = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        BrassRoundButton("←", if (weeklyMode) "К недельному турниру" else "В мастерскую", ::leave)
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("STEAMFORGE", style = MaterialTheme.typography.titleMedium, color = BrassBright, maxLines = 1, softWrap = false)
+                            Text(
+                                when {
+                                    weeklyMode -> "WEEKLY CHALLENGE"
+                                    ui.daily != null -> "ИСПЫТАНИЕ ДНЯ"
+                                    else -> "МЕХАНИЧЕСКОЕ ЯДРО"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (weeklyMode) TealGlow else TextMuted,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                        Text("ХОД ${ui.state.moves}", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    SteamPanel(
+                        modifier = Modifier.fillMaxWidth(),
+                        highlighted = ui.overdriveRemaining > 0,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            HudMetric("СЧЁТ", ui.state.score.toString(), BrassBright, Modifier.weight(1f))
+                            HudMetric(if (weeklyMode) "WEEKLY BEST" else "ЛУЧШИЙ", ui.best.toString(), TextWarm, Modifier.weight(1f))
+                            HudMetric(
+                                if (weeklyMode) "ХОДЫ" else "ГЕМЫ",
+                                if (weeklyMode) ui.state.moves.toString() else ui.gems.toString(),
+                                if (weeklyMode) BrassBright else TealGlow,
+                                Modifier.weight(0.72f),
+                            )
+                        }
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            if (ui.overdriveRemaining > 0) "OVERDRIVE ×2 · ${ui.overdriveRemaining} объедин." else "ДАВЛЕНИЕ ${ui.pressure}%",
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (ui.overdriveRemaining > 0) TealGlow else TextMuted,
+                            textAlign = TextAlign.Center,
+                        )
+                        ui.daily?.let { daily ->
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                dailyGoalText(daily) + if (ui.dailySatisfied) " · выполнено" else "",
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (ui.dailySatisfied) TealGlow else TextWarm,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        if (weeklyMode) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                "ЕДИНЫЙ SEED · REPLAY VERIFIED",
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TealGlow,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    BoardView(
+                        state = ui.state,
+                        lastResult = ui.lastResult,
+                        previousTiles = ui.previousTiles,
+                        animationsActive = ui.animationsActive,
+                        removingMode = ui.removingMode,
+                        canRemove = vm::canRemoveTile,
+                        onTileClick = vm::removeTile,
+                        onSwipe = vm::onMove,
+                        tileSet = tileSet,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    )
+                    Spacer(Modifier.height(9.dp))
+
+                    if (weeklyMode) {
+                        SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
+                            Text(
+                                "СОРЕВНОВАТЕЛЬНЫЙ РЕЖИМ · ОТМЕНА И КЛЮЧ ОТКЛЮЧЕНЫ",
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextMuted,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    } else {
+                        SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(7.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                ToolButton(
+                                    symbol = "↶",
+                                    label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
+                                    active = ui.canUndo && !ui.finished,
+                                    onClick = {
+                                        val beforeUndo = vm.ui.value.state
+                                        vm.undo()
+                                        if (vm.ui.value.state != beforeUndo) {
+                                            sfx.play(Sfx.UNDO)
+                                            performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                ToolButton(
+                                    symbol = "⚒",
+                                    label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
+                                    active = !ui.finished,
+                                    selected = ui.removingMode,
+                                    onClick = vm::toggleRemovingMode,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        when {
-                            weeklyMode -> "WEEKLY CHALLENGE"
-                            ui.daily != null -> "ИСПЫТАНИЕ ДНЯ"
-                            else -> "МЕХАНИЧЕСКОЕ ЯДРО"
-                        },
+                        if (weeklyMode) "Свайпните по полю · каждый валидный ход войдёт в replay" else "Свайпните по полю · одинаковые детали объединяются",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (weeklyMode) TealGlow else TextMuted,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                }
-                Text("ХОД ${ui.state.moves}", style = MaterialTheme.typography.labelMedium, color = TextMuted)
-            }
-            Spacer(Modifier.height(8.dp))
-
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                highlighted = ui.overdriveRemaining > 0,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudMetric("СЧЁТ", ui.state.score.toString(), BrassBright, Modifier.weight(1f))
-                    HudMetric(if (weeklyMode) "WEEKLY BEST" else "ЛУЧШИЙ", ui.best.toString(), TextWarm, Modifier.weight(1f))
-                    HudMetric(
-                        if (weeklyMode) "ХОДЫ" else "ГЕМЫ",
-                        if (weeklyMode) ui.state.moves.toString() else ui.gems.toString(),
-                        if (weeklyMode) BrassBright else TealGlow,
-                        Modifier.weight(0.72f),
-                    )
-                }
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    if (ui.overdriveRemaining > 0) "OVERDRIVE ×2 · ${ui.overdriveRemaining} объедин." else "ДАВЛЕНИЕ ${ui.pressure}%",
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (ui.overdriveRemaining > 0) TealGlow else TextMuted,
-                    textAlign = TextAlign.Center,
-                )
-                ui.daily?.let { daily ->
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        dailyGoalText(daily) + if (ui.dailySatisfied) " · выполнено" else "",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (ui.dailySatisfied) TealGlow else TextWarm,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                if (weeklyMode) {
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        "ЕДИНЫЙ SEED · REPLAY VERIFIED",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TealGlow,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-
-            BoardView(
-                state = ui.state,
-                lastResult = ui.lastResult,
-                previousTiles = ui.previousTiles,
-                animationsActive = ui.animationsActive,
-                removingMode = ui.removingMode,
-                canRemove = vm::canRemoveTile,
-                onTileClick = vm::removeTile,
-                onSwipe = vm::onMove,
-                tileSet = tileSet,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            )
-            Spacer(Modifier.height(9.dp))
-
-            if (weeklyMode) {
-                SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
-                    Text(
-                        "СОРЕВНОВАТЕЛЬНЫЙ РЕЖИМ · ОТМЕНА И КЛЮЧ ОТКЛЮЧЕНЫ",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.labelMedium,
                         color = TextMuted,
                         textAlign = TextAlign.Center,
                     )
                 }
-            } else {
-                SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(7.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        ToolButton(
-                            symbol = "↶",
-                            label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
-                            active = ui.canUndo && !ui.finished,
-                            onClick = {
-                                val beforeUndo = vm.ui.value.state
-                                vm.undo()
-                                if (vm.ui.value.state != beforeUndo) {
-                                    sfx.play(Sfx.UNDO)
-                                    performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ToolButton(
-                            symbol = "⚒",
-                            label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
-                            active = !ui.finished,
-                            selected = ui.removingMode,
-                            onClick = vm::toggleRemovingMode,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                if (weeklyMode) "Свайпните по полю · каждый валидный ход войдёт в replay" else "Свайпните по полю · одинаковые детали объединяются",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 
