@@ -8,6 +8,8 @@ import com.steamforge.game.progression.EventMilestone
 import com.steamforge.game.progression.LiveOpsCatalog
 import com.steamforge.game.progression.LiveOpsProgression
 import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.progression.RewardTrackProgression
+import com.steamforge.game.progression.RewardTrackSnapshot
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -27,6 +29,7 @@ data class EventUiState(
     val daysRemaining: Int = 0,
     val gems: Int = 0,
     val milestones: List<EventMilestoneUi> = emptyList(),
+    val rewardTrack: RewardTrackSnapshot = RewardTrackSnapshot(),
 )
 
 class EventViewModel(
@@ -38,10 +41,16 @@ class EventViewModel(
         val day = today()
         val event = LiveOpsCatalog.activeForEpochDay(day)
         val ledger = LiveOpsProgression.normalized(progress.liveOps, event)
+        val track = RewardTrackProgression.forEvent(event)
+        val trackSnapshot = RewardTrackProgression.snapshot(
+            definition = track,
+            progress = ledger.totalPoints,
+            claimedFreeIds = ledger.claimedMilestones,
+        )
         EventUiState(
             event = event,
             points = ledger.totalPoints,
-            nextTarget = LiveOpsProgression.nextMilestone(ledger, event)?.targetPoints,
+            nextTarget = trackSnapshot.nextLevel?.progressRequirement,
             daysRemaining = (event.endEpochDayExclusive - day).coerceAtLeast(0L).toInt(),
             gems = progress.gems,
             milestones = event.milestones.map { milestone ->
@@ -51,11 +60,12 @@ class EventViewModel(
                     claimable = LiveOpsProgression.canClaim(ledger, event, milestone),
                 )
             },
+            rewardTrack = trackSnapshot,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EventUiState())
 
-    fun claim(milestoneId: String) {
+    fun claim(rewardId: String) {
         val event = ui.value.event
-        viewModelScope.launch { repo.claimEventMilestone(event, milestoneId) }
+        viewModelScope.launch { repo.claimEventMilestone(event, rewardId) }
     }
 }
