@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.steamforge.game.cosmetics.CosmeticCatalog
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
 import com.steamforge.game.theme.Brass
@@ -40,6 +41,7 @@ fun MilestoneGameScreen(
     sfx: SfxPlayer,
     ads: AdsManager,
     onExit: () -> Unit,
+    tileSet: String = CosmeticCatalog.TILE_CLASSIC,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -49,6 +51,7 @@ fun MilestoneGameScreen(
         sfx = sfx,
         ads = ads,
         onExit = onExit,
+        tileSet = tileSet,
         modifier = modifier,
     )
 

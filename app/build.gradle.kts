@@ -46,8 +46,16 @@ val keystoreProps = Properties().apply {
 
 val rustoreConsoleAppId = providers.gradleProperty("steamforge.rustoreConsoleAppId").orElse("").get()
 val rustoreRemoveAdsProductId = providers.gradleProperty("steamforge.removeAdsProductId").orElse("").get()
+val rustoreTileCosmeticProductId = providers.gradleProperty("steamforge.tileCosmeticProductId").orElse("").get()
+val rustoreWorkshopCosmeticProductId = providers.gradleProperty("steamforge.workshopCosmeticProductId").orElse("").get()
+val rustoreStarterCosmeticBundleProductId = providers.gradleProperty("steamforge.starterCosmeticBundleProductId").orElse("").get()
 val rustorePayScheme = providers.gradleProperty("steamforge.rustorePayScheme").orElse("steamforge-pay").get()
-val rustorePayConfigured = rustoreConsoleAppId.isNotBlank() && rustoreRemoveAdsProductId.isNotBlank()
+val rustorePayConfigured = rustoreConsoleAppId.isNotBlank() && listOf(
+    rustoreRemoveAdsProductId,
+    rustoreTileCosmeticProductId,
+    rustoreWorkshopCosmeticProductId,
+    rustoreStarterCosmeticBundleProductId,
+).all { it.isNotBlank() }
 
 val generateLauncherIcon = tasks.register<GenerateLauncherIconTask>("generateLauncherIcon") {
     parts.from(fileTree("src/main/icon-assets") {
@@ -69,6 +77,9 @@ android {
         buildConfigField("String", "APPMETRICA_API_KEY", prop("steamforge.appmetricaApiKey", ""))
         buildConfigField("String", "PRIVACY_POLICY_URL", prop("steamforge.privacyPolicyUrl", ""))
         buildConfigField("String", "RUSTORE_REMOVE_ADS_PRODUCT_ID", quoted(rustoreRemoveAdsProductId))
+        buildConfigField("String", "RUSTORE_TILE_COSMETIC_PRODUCT_ID", quoted(rustoreTileCosmeticProductId))
+        buildConfigField("String", "RUSTORE_WORKSHOP_COSMETIC_PRODUCT_ID", quoted(rustoreWorkshopCosmeticProductId))
+        buildConfigField("String", "RUSTORE_STARTER_COSMETIC_BUNDLE_PRODUCT_ID", quoted(rustoreStarterCosmeticBundleProductId))
         buildConfigField("boolean", "RUSTORE_PAY_CONFIGURED", rustorePayConfigured.toString())
         // RuStore Pay auto-initializes from manifest resources. 0 is a non-production sentinel used
         // only when release CI builds without store credentials; BillingProvider stays disabled then.

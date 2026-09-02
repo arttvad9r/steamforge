@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.steamforge.game.cosmetics.CosmeticCatalog
 import com.steamforge.game.sound.Sfx
 import com.steamforge.game.sound.SfxPlayer
 import com.steamforge.game.theme.Brass
@@ -74,10 +75,16 @@ fun WorkshopScreen(
     onDaily: () -> Unit,
     onAchievements: () -> Unit,
     onSettings: () -> Unit,
+    workshopTheme: String = CosmeticCatalog.WORKSHOP_CLASSIC,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val accent = if (ui.goldGaugeCosmetic) BrassBright else TealGlow
+    val foundryTheme = workshopTheme == CosmeticCatalog.WORKSHOP_FOUNDRY
+    val accent = when {
+        ui.goldGaugeCosmetic -> BrassBright
+        foundryTheme -> Copper
+        else -> TealGlow
+    }
     val haptics = LocalHapticFeedback.current
 
     SteamBackdrop(modifier) {
@@ -96,6 +103,7 @@ fun WorkshopScreen(
             WorkshopHeader(
                 gems = ui.gems,
                 streak = ui.dailyRewardStreak,
+                foundryTheme = foundryTheme,
             )
             Spacer(Modifier.height(12.dp))
 
@@ -107,6 +115,7 @@ fun WorkshopScreen(
                 animationsEnabled = ui.animationsEnabled,
                 accent = accent,
                 steamEngineUnlocked = ui.steamEngineUnlocked,
+                foundryTheme = foundryTheme,
             )
             Spacer(Modifier.height(12.dp))
 
@@ -166,7 +175,7 @@ fun WorkshopScreen(
 }
 
 @Composable
-private fun WorkshopHeader(gems: Int, streak: Int) {
+private fun WorkshopHeader(gems: Int, streak: Int, foundryTheme: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -175,7 +184,7 @@ private fun WorkshopHeader(gems: Int, streak: Int) {
             Text("STEAMFORGE", style = MaterialTheme.typography.labelLarge, color = BrassBright)
             Text("Мастерская", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
             Text(
-                "Восстанавливайте ядро и открывайте новые механизмы",
+                if (foundryTheme) "FOUNDRY THEME · медь, латунь и тёмная сталь" else "Восстанавливайте ядро и открывайте новые механизмы",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextMuted,
             )
@@ -221,6 +230,7 @@ private fun WorkshopConsole(
     animationsEnabled: Boolean,
     accent: Color,
     steamEngineUnlocked: Boolean,
+    foundryTheme: Boolean,
 ) {
     SteamPanel(
         modifier = Modifier.fillMaxWidth(),
@@ -239,7 +249,7 @@ private fun WorkshopConsole(
                     .height(if (steamEngineUnlocked) 194.dp else 174.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                WorkshopScene(animationsEnabled, accent, steamEngineUnlocked)
+                WorkshopScene(animationsEnabled, accent, steamEngineUnlocked, foundryTheme)
                 Box(
                     Modifier
                         .size(74.dp)
@@ -328,6 +338,7 @@ private fun WorkshopScene(
     animationsEnabled: Boolean,
     accent: Color,
     steamEngineUnlocked: Boolean,
+    foundryTheme: Boolean,
 ) {
     val angle = if (animationsEnabled) {
         val transition = rememberInfiniteTransition(label = "gears")
@@ -352,9 +363,9 @@ private fun WorkshopScene(
             },
     ) {
         val c = center
-        drawCircle(accent.copy(alpha = 0.075f), radius = size.minDimension * 0.48f, center = c)
-        drawCircle(Brass.copy(alpha = 0.06f), radius = size.minDimension * 0.40f, center = c)
-        drawGear(c, size.minDimension * 0.30f, angle, Brass.copy(alpha = 0.66f))
+        drawCircle((if (foundryTheme) Copper else accent).copy(alpha = if (foundryTheme) 0.13f else 0.075f), radius = size.minDimension * 0.48f, center = c)
+        drawCircle((if (foundryTheme) BrassBright else Brass).copy(alpha = if (foundryTheme) 0.09f else 0.06f), radius = size.minDimension * 0.40f, center = c)
+        drawGear(c, size.minDimension * 0.30f, angle, (if (foundryTheme) Copper else Brass).copy(alpha = 0.70f))
         drawGear(
             Offset(size.width * 0.69f, size.height * 0.69f),
             size.minDimension * 0.105f,

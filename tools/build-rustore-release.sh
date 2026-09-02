@@ -69,6 +69,9 @@ sensitive_project_props=(
   steamforge.interstitialAdUnitId
   steamforge.rustoreConsoleAppId
   steamforge.removeAdsProductId
+  steamforge.tileCosmeticProductId
+  steamforge.workshopCosmeticProductId
+  steamforge.starterCosmeticBundleProductId
   steamforge.rustorePayScheme
 )
 for key in "${sensitive_project_props[@]}"; do
@@ -122,6 +125,9 @@ required_gradle_props=(
   steamforge.interstitialAdUnitId
   steamforge.rustoreConsoleAppId
   steamforge.removeAdsProductId
+  steamforge.tileCosmeticProductId
+  steamforge.workshopCosmeticProductId
+  steamforge.starterCosmeticBundleProductId
   steamforge.rustorePayScheme
 )
 
@@ -139,6 +145,9 @@ INTERSTITIAL_ID="$(read_prop steamforge.interstitialAdUnitId)"
 PRIVACY_URL="$(read_prop steamforge.privacyPolicyUrl)"
 RUSTORE_CONSOLE_APP_ID="$(read_prop steamforge.rustoreConsoleAppId)"
 REMOVE_ADS_PRODUCT_ID="$(read_prop steamforge.removeAdsProductId)"
+TILE_COSMETIC_PRODUCT_ID="$(read_prop steamforge.tileCosmeticProductId)"
+WORKSHOP_COSMETIC_PRODUCT_ID="$(read_prop steamforge.workshopCosmeticProductId)"
+STARTER_COSMETIC_BUNDLE_PRODUCT_ID="$(read_prop steamforge.starterCosmeticBundleProductId)"
 RUSTORE_PAY_SCHEME="$(read_prop steamforge.rustorePayScheme)"
 
 [[ ${#APPMETRICA_KEY} -ge 20 ]] || fail 'steamforge.appmetricaApiKey looks too short for a production key'
@@ -147,6 +156,11 @@ RUSTORE_PAY_SCHEME="$(read_prop steamforge.rustorePayScheme)"
 [[ "$PRIVACY_URL" == https://* ]] || fail 'steamforge.privacyPolicyUrl must be an HTTPS URL'
 [[ "$RUSTORE_CONSOLE_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail 'steamforge.rustoreConsoleAppId must be a positive numeric RuStore console application ID'
 [[ "$REMOVE_ADS_PRODUCT_ID" != *[[:space:]]* ]] || fail 'steamforge.removeAdsProductId must not contain whitespace'
+[[ "$TILE_COSMETIC_PRODUCT_ID" != *[[:space:]]* ]] || fail 'steamforge.tileCosmeticProductId must not contain whitespace'
+[[ "$WORKSHOP_COSMETIC_PRODUCT_ID" != *[[:space:]]* ]] || fail 'steamforge.workshopCosmeticProductId must not contain whitespace'
+[[ "$STARTER_COSMETIC_BUNDLE_PRODUCT_ID" != *[[:space:]]* ]] || fail 'steamforge.starterCosmeticBundleProductId must not contain whitespace'
+PRODUCT_IDS=("$REMOVE_ADS_PRODUCT_ID" "$TILE_COSMETIC_PRODUCT_ID" "$WORKSHOP_COSMETIC_PRODUCT_ID" "$STARTER_COSMETIC_BUNDLE_PRODUCT_ID")
+[[ "$(printf '%s\n' "${PRODUCT_IDS[@]}" | sort -u | wc -l)" -eq "${#PRODUCT_IDS[@]}" ]] || fail 'RuStore non-consumable product IDs must be unique'
 [[ "$RUSTORE_PAY_SCHEME" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] || fail 'steamforge.rustorePayScheme must be a valid URI scheme'
 
 command -v curl >/dev/null 2>&1 || fail 'curl is required to validate the published Privacy Policy'
