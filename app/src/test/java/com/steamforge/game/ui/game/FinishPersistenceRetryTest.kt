@@ -169,6 +169,79 @@ class FinishPersistenceRetryTest {
         assertEquals(1, analytics.names.count { it == "game_finish_save_recovered" })
     }
 
+    @Test
+    fun `process recreation after failed terminal write restores last durable run`() = runTest(dispatcher) {
+        val initial = finishingSavedGame()
+        val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial))
+        val first = GameViewModel(
+            repo = repo,
+            analytics = RecordingAnalytics(),
+            seedProvider = { 17L },
+            savedGameProvider = { initial },
+        )
+        advanceUntilIdle()
+
+        first.onMove(Move.LEFT)
+        advanceUntilIdle()
+
+        assertTrue(first.ui.value.finishPersistenceFailed)
+        assertEquals(GameStatus.GAME_OVER, first.ui.value.state.status)
+        assertNull(repo.currentFinished)
+        assertEquals(0, repo.currentProgress.stats.gamesPlayed)
+
+        val recreated = GameViewModel(
+            repo = repo,
+            analytics = RecordingAnalytics(),
+            seedProvider = { 17L },
+        )
+        advanceUntilIdle()
+
+        assertFalse(recreated.ui.value.finished)
+        assertFalse(recreated.ui.value.finishPersistenceFailed)
+        assertEquals(initial.state, recreated.ui.value.state)
+        assertNull(repo.currentFinished)
+        assertEquals(0, repo.currentProgress.stats.gamesPlayed)
+        assertEquals(1, repo.finishAttempts)
+    }
+
+    @Test
+    fun `process recreation after ambiguous durable commit restores finish without replay`() = runTest(dispatcher) {
+        val initial = finishingSavedGame()
+        val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial)).apply { commitBeforeFailure = true }
+        val first = GameViewModel(
+            repo = repo,
+            analytics = RecordingAnalytics(),
+            seedProvider = { 17L },
+            savedGameProvider = { initial },
+        )
+        advanceUntilIdle()
+
+        first.onMove(Move.LEFT)
+        advanceUntilIdle()
+
+        assertTrue(first.ui.value.finishPersistenceFailed)
+        val durable = requireNotNull(repo.currentFinished)
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+        assertEquals(1, repo.finishAttempts)
+
+        val recreated = GameViewModel(
+            repo = repo,
+            analytics = RecordingAnalytics(),
+            seedProvider = { 17L },
+        )
+        advanceUntilIdle()
+
+        assertTrue(recreated.ui.value.finished)
+        assertFalse(recreated.ui.value.finishPersistenceFailed)
+        assertFalse(recreated.ui.value.finishPersistenceInProgress)
+        assertEquals(durable.id, recreated.ui.value.gameResultId)
+        assertEquals(durable.score, recreated.ui.value.state.score)
+        assertEquals(durable.xpGained, recreated.ui.value.effects?.xpGained)
+        assertEquals(durable.gemsGained, recreated.ui.value.effects?.gemsGained)
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+        assertEquals(1, repo.finishAttempts)
+    }
+
     private fun finishingSavedGame(seed: Long = 17L): SavedGame {
         val levels = listOf(
             1, 1, 3, 4,
