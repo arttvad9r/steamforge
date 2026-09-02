@@ -54,6 +54,7 @@ class FinishPersistenceRetryTest {
         private val delegate: FakeDataRepo,
     ) : DataRepo by delegate {
         var remainingFinishFailures = 1
+        var commitBeforeFailure = false
         var finishAttempts = 0
         val attemptedIds = mutableListOf<String>()
 
@@ -71,6 +72,7 @@ class FinishPersistenceRetryTest {
             attemptedIds += record.id
             if (remainingFinishFailures > 0) {
                 remainingFinishFailures--
+                if (commitBeforeFailure) delegate.applyGameFinish(record, finisher)
                 throw IOException("ENOSPC")
             }
             delegate.applyGameFinish(record, finisher)
@@ -126,6 +128,45 @@ class FinishPersistenceRetryTest {
         advanceUntilIdle()
         assertEquals(2, repo.finishAttempts)
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+    }
+
+    @Test
+    fun `ambiguous io after durable commit retries idempotently`() = runTest(dispatcher) {
+        val initial = finishingSavedGame()
+        val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial)).apply { commitBeforeFailure = true }
+        val analytics = RecordingAnalytics()
+        val model = GameViewModel(
+            repo = repo,
+            analytics = analytics,
+            seedProvider = { 17L },
+            savedGameProvider = { initial },
+        )
+        advanceUntilIdle()
+
+        model.onMove(Move.LEFT)
+        advanceUntilIdle()
+
+        assertTrue(model.ui.value.finishPersistenceFailed)
+        assertFalse(model.ui.value.finished)
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+        val durable = requireNotNull(repo.currentFinished)
+        assertEquals(1, repo.finishAttempts)
+
+        model.retryFinishPersistence()
+        advanceUntilIdle()
+
+        assertTrue(model.ui.value.finished)
+        assertFalse(model.ui.value.finishPersistenceFailed)
+        assertEquals(2, repo.finishAttempts)
+        assertEquals(1, repo.attemptedIds.toSet().size)
+        assertEquals(durable.id, repo.currentFinished?.id)
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+        assertEquals(durable.xpGained, model.ui.value.effects?.xpGained)
+        assertEquals(durable.gemsGained, model.ui.value.effects?.gemsGained)
+        assertEquals(1, analytics.names.count { it == "game_finished" })
+        assertEquals(1, analytics.names.count { it == "game_finish_save_failed" })
+        assertEquals(1, analytics.names.count { it == "game_finish_save_retry" })
+        assertEquals(1, analytics.names.count { it == "game_finish_save_recovered" })
     }
 
     private fun finishingSavedGame(seed: Long = 17L): SavedGame {

@@ -178,6 +178,11 @@ class SteamforgeRepository(
         finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
     ) {
         context.dataStore.edit { prefs ->
+            val existingFinished = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
+            if (existingFinished?.id == record.id) {
+                prefs.remove(Keys.game)
+                return@edit
+            }
             val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
             val finalSaved = GameSaveCodec.decode(record.state)
             val baseProgress = contractBaseForDay(mapProgress(prefs), record.day, previousSaved)
