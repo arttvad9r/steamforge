@@ -38,8 +38,8 @@ class ActiveRunActivityRecreationTest {
         }
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitForText("ИГРАТЬ")
-            composeRule.onNodeWithText("ИГРАТЬ").performClick()
+            waitForText("ПРОДОЛЖИТЬ")
+            composeRule.onNodeWithText("ПРОДОЛЖИТЬ").performClick()
             waitForContentDescription(SCORE_DESCRIPTION)
             waitForContentDescription(MOVE_DESCRIPTION)
 
