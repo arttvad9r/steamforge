@@ -29,10 +29,16 @@ class RewardSystemTest {
     }
 
     @Test
-    fun `rejects negative and empty reward payloads`() {
-        val start = PlayerProgress(workshopParts = 8, gems = 9)
+    fun `rejects zero negative and empty reward payloads without mutating counters`() {
+        val start = PlayerProgress(
+            workshopParts = 8,
+            gems = 9,
+            stats = PlayerStats(gemsEarned = 17),
+        )
         val (updated, receipt) = RewardSystem.apply(
             start,
+            Reward.WorkshopParts(0),
+            Reward.Gems(0),
             Reward.WorkshopParts(-50),
             Reward.Gems(-50),
             Reward.BlueprintPiece("   "),
@@ -40,6 +46,7 @@ class RewardSystemTest {
         )
 
         assertEquals(start, updated)
+        assertEquals(17L, updated.stats.gemsEarned)
         assertTrue(receipt.isEmpty)
     }
 
