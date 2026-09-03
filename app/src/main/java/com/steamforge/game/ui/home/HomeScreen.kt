@@ -321,6 +321,7 @@ private fun HomeEntryCard(
     accent: Color = TealGlow,
 ) {
     val shape = RoundedCornerShape(12.dp)
+    val longBadge = icon.length > 2
     Row(
         modifier = modifier
             .height(58.dp)
@@ -344,13 +345,19 @@ private fun HomeEntryCard(
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(if (longBadge) 42.dp else 34.dp)
                 .clip(RoundedCornerShape(9.dp))
                 .background(Recess.copy(alpha = 0.50f))
                 .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(9.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, style = MaterialTheme.typography.labelLarge, color = accent, maxLines = 1)
+            Text(
+                icon,
+                style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+                color = accent,
+                maxLines = 1,
+                softWrap = false,
+            )
         }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
