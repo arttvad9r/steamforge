@@ -157,6 +157,21 @@ jobs:
             return 1
           }
 
+          wait_for_home() {
+            local label="$1"
+            for i in $(seq 1 15); do
+              if dump_ui "$label" \
+                && grep -Fqi 'MECHANICAL 2048' /tmp/window.xml \
+                && { grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml || grep -Fqi 'ИГРАТЬ' /tmp/window.xml; }; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo 'Home shell not found'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           wait_for_tile() {
             local label="${1:-02-game-window}"
             for i in $(seq 1 15); do
@@ -179,6 +194,30 @@ jobs:
             sleep 2
           }
 
+          play_from_home() {
+            local label="$1"
+            wait_for_home "$label"
+            if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
+              tap_node 'ПРОДОЛЖИТЬ' "${label}-continue"
+            else
+              tap_node 'ИГРАТЬ' "${label}-play"
+            fi
+          }
+
+          open_collection() {
+            local label="$1"
+            wait_for_text 'Коллекция' "$label"
+            tap_node 'Коллекция' "${label}-collection"
+            wait_for_text 'ПРОГРЕСС' "${label}-achievements"
+          }
+
+          open_settings() {
+            local label="$1"
+            wait_for_home "$label"
+            tap_node 'Настройки' "${label}-settings"
+            wait_for_text 'Звук' "${label}-settings-ready"
+          }
+
           assert_toggle_accessibility() {
             local needle="$1"
             local label="$2"
@@ -193,20 +232,13 @@ jobs:
           root = ET.parse("/tmp/window.xml").getroot()
 
           def node_label(node):
-              return (
-                  (node.attrib.get("text") or "")
-                  + " "
-                  + (node.attrib.get("content-desc") or "")
-              ).casefold()
+              return ((node.attrib.get("text") or "") + " " + (node.attrib.get("content-desc") or "")).casefold()
 
           candidates = [
               node for node in root.iter("node")
               if node.attrib.get("checkable") == "true"
               and node.attrib.get("clickable") == "true"
-              and (
-                  needle in node_label(node)
-                  or any(needle in node_label(descendant) for descendant in node.iter("node"))
-              )
+              and (needle in node_label(node) or any(needle in node_label(descendant) for descendant in node.iter("node")))
           ]
           assert candidates, f"interactive switch not found: {needle}"
           node = candidates[0]
@@ -228,27 +260,23 @@ jobs:
           wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
           shot '00-consent.png'
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
-          wait_for_text 'ИГРАТЬ' '01-workshop-window'
-          sleep 1
-          shot '01-workshop.png'
+          wait_for_home '01-home-window'
+          shot '01-home.png'
 
-          tap_node 'ИГРАТЬ' 'play'
+          play_from_home '01-home-play'
           wait_for_tile '02-game-window'
           shot '02-game.png'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
-          wait_for_text 'ДОСТИЖЕНИЯ' '02-back-to-workshop-window'
+          wait_for_home '02-back-to-home-window'
 
-          tap_node 'ДОСТИЖЕНИЯ' 'achievements'
-          sleep 2
+          open_collection '03-home'
           shot '03-achievements.png'
-          dump_ui '03-achievements-window' || true
           adb shell input keyevent KEYCODE_BACK
           sleep 2
-          wait_for_text 'НАСТРОЙКИ' '03-back-to-workshop-window'
+          wait_for_home '03-back-to-home-window'
 
-          tap_node 'НАСТРОЙКИ' 'settings'
-          sleep 2
+          open_settings '04-home'
           shot '04-settings.png'
           dump_ui '04-settings-window'
           assert_toggle_accessibility 'Звук' '04-sound-toggle-a11y'
@@ -258,26 +286,26 @@ jobs:
           tap_node 'ОТМЕНА' 'reset-cancel'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
-          wait_for_text 'ИГРАТЬ' '05-back-to-workshop-window'
+          wait_for_home '05-back-to-home-window'
 
           # Compact phone (360 x 800 dp): catches vertical and narrow-width regressions.
           adb shell wm size 720x1600
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          wait_for_text 'ИГРАТЬ' '10-compact-workshop-window'
-          shot '10-compact-workshop.png'
+          wait_for_home '10-compact-home-window'
+          shot '10-compact-home.png'
 
-          tap_node 'ИГРАТЬ' 'compact-play'
+          play_from_home '10-compact-home-play'
           wait_for_tile '11-compact-game-window'
           shot '11-compact-game.png'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
-          wait_for_text 'НАСТРОЙКИ' '11-compact-back-window'
-          tap_node 'НАСТРОЙКИ' 'compact-settings'
-          sleep 2
+          open_settings '11-compact-home'
           shot '12-compact-settings.png'
           dump_ui '12-compact-settings-window' || true
+          adb shell input keyevent KEYCODE_BACK
+          sleep 2
 
           # Large text on a standard phone. Functional navigation must remain reachable at 1.3x font scale.
           adb shell wm size 1080x2400
@@ -285,16 +313,14 @@ jobs:
           adb shell settings put system font_scale 1.3
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          wait_for_text 'ИГРАТЬ' '20-large-text-workshop-window'
-          shot '20-large-text-workshop.png'
-          tap_node 'ИГРАТЬ' 'large-text-play'
+          wait_for_home '20-large-text-home-window'
+          shot '20-large-text-home.png'
+          play_from_home '20-large-text-home-play'
           wait_for_tile '21-large-text-game-window'
           shot '21-large-text-game.png'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
-          wait_for_text 'НАСТРОЙКИ' '21-large-text-back-window'
-          tap_node 'НАСТРОЙКИ' 'large-text-settings'
-          wait_for_text 'Звук' '22-large-text-settings-window'
+          open_settings '21-large-text-home'
           shot '22-large-text-settings.png'
 
           # Expanded portrait surface (~800 x 1280 dp): catches width assumptions on tablets/large windows.
@@ -303,9 +329,9 @@ jobs:
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
-          wait_for_text 'ИГРАТЬ' '30-expanded-workshop-window'
-          shot '30-expanded-workshop.png'
-          tap_node 'ИГРАТЬ' 'expanded-play'
+          wait_for_home '30-expanded-home-window'
+          shot '30-expanded-home.png'
+          play_from_home '30-expanded-home-play'
           wait_for_tile '31-expanded-game-window'
           shot '31-expanded-game.png'
 

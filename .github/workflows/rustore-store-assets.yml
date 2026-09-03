@@ -11,6 +11,15 @@ on:
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/main/java/com/steamforge/game/ui/**'
       - '.github/workflows/rustore-store-assets.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'app/src/main/java/com/steamforge/game/MainActivity.kt'
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
+      - 'app/src/main/java/com/steamforge/game/theme/**'
+      - 'app/src/main/java/com/steamforge/game/ui/**'
+      - '.github/workflows/rustore-store-assets.yml'
 
 permissions:
   contents: read
@@ -163,6 +172,20 @@ jobs:
             return 1
           }
 
+          wait_for_home() {
+            for i in $(seq 1 15); do
+              if dump_ui \
+                && grep -Fqi 'MECHANICAL 2048' /tmp/window.xml \
+                && { grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml || grep -Fqi 'ИГРАТЬ' /tmp/window.xml; }; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo 'Home shell not found'
+            cat /tmp/window.xml || true
+            return 1
+          }
+
           wait_for_tile() {
             for i in $(seq 1 15); do
               if dump_ui && grep -Eqi 'content-desc="(Уголь|Медная шестерня),' /tmp/window.xml; then return 0; fi
@@ -182,6 +205,15 @@ jobs:
             sleep 1
           }
 
+          play_from_home() {
+            wait_for_home
+            if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
+              tap_node 'ПРОДОЛЖИТЬ'
+            else
+              tap_node 'ИГРАТЬ'
+            fi
+          }
+
           shot() {
             adb exec-out screencap -p > "store-screenshots/$1"
             test -s "store-screenshots/$1"
@@ -190,11 +222,11 @@ jobs:
           dismiss_immersive_confirmation
           wait_for_text 'ПРИВАТНОСТЬ'
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ'; fi
-          wait_for_text 'ИГРАТЬ'
+          wait_for_home
           sleep 1
-          shot '02-workshop-1080x1920.png'
+          shot '02-home-1080x1920.png'
 
-          tap_node 'ИГРАТЬ'
+          play_from_home
           wait_for_tile
 
           # Make the marketing gameplay frame representative instead of showing only two spawn tiles.
@@ -208,8 +240,9 @@ jobs:
           shot '01-game-1080x1920.png'
 
           adb shell input keyevent KEYCODE_BACK
-          wait_for_text 'ДОСТИЖЕНИЯ'
-          tap_node 'ДОСТИЖЕНИЯ'
+          wait_for_home
+          wait_for_text 'Коллекция'
+          tap_node 'Коллекция'
           wait_for_text 'ПРОГРЕСС'
           sleep 1
           shot '03-achievements-1080x1920.png'

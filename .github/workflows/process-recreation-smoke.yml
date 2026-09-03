@@ -9,7 +9,7 @@ on:
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
       - 'gradle/libs.versions.toml'
-      - 'tools/check-active-run-interruptions.sh'
+      - 'tools/check-active-run-home-lifecycle.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   pull_request:
     paths:
@@ -17,7 +17,7 @@ on:
       - 'app/src/androidTest/**'
       - 'app/build.gradle.kts'
       - 'gradle/libs.versions.toml'
-      - 'tools/check-active-run-interruptions.sh'
+      - 'tools/check-active-run-home-lifecycle.sh'
       - '.github/workflows/process-recreation-smoke.yml'
   workflow_dispatch:
 
@@ -48,7 +48,7 @@ jobs:
           packages: platform-tools
 
       - name: Verify smoke script syntax
-        run: bash -n tools/check-active-run-interruptions.sh
+        run: bash -n tools/check-active-run-home-lifecycle.sh
 
       - name: Install emulator packages
         run: |
@@ -128,7 +128,7 @@ jobs:
         run: |
           set -o pipefail
           adb shell am instrument -w \
-            -e class com.steamforge.game.ActiveRunScreenOffTest \
+            -e class com.steamforge.game.ActiveRunScreenOffHomeTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
             | tee ci-process-recreation/screen-off-instrumentation.txt
           grep -Fq 'OK (1 test)' ci-process-recreation/screen-off-instrumentation.txt
@@ -140,7 +140,7 @@ jobs:
           sleep 5
 
       - name: Verify active run survives interruptions
-        run: bash tools/check-active-run-interruptions.sh
+        run: bash tools/check-active-run-home-lifecycle.sh
 
       - name: Upload active run lifecycle diagnostics
         if: always()
