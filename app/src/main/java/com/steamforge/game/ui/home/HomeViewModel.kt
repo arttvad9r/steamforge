@@ -1,0 +1,47 @@
+package com.steamforge.game.ui.home
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.steamforge.game.data.DataRepo
+import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.progression.ProgressionConfig
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+
+data class HomeUiState(
+    val loaded: Boolean = false,
+    val gems: Int = 0,
+    val bestScore: Int = 0,
+    val workshopLevel: Int = 1,
+    val achievementsUnlocked: Int = 0,
+    val dailyDone: Boolean = false,
+    val dailyRewardStreak: Int = 0,
+    val hasSavedRun: Boolean = false,
+)
+
+class HomeViewModel(
+    repo: DataRepo,
+    private val cfg: ProgressionConfig = ProgressionConfig(),
+    private val today: () -> Long = { LocalDay.todayEpochDay() },
+) : ViewModel() {
+
+    val ui: StateFlow<HomeUiState> = combine(repo.progress, repo.savedGame) { progress, savedGame ->
+        val todayDay = today()
+        HomeUiState(
+            loaded = true,
+            gems = progress.gems,
+            bestScore = progress.bestScore,
+            workshopLevel = progress.levelInfo(cfg).level,
+            achievementsUnlocked = progress.unlockedAchievements.size,
+            dailyDone = progress.dailyChallengeDay == todayDay && progress.dailyChallengeDone,
+            dailyRewardStreak = if (progress.dailyRewardDay == todayDay || progress.dailyRewardDay == todayDay - 1) {
+                progress.dailyRewardStreak
+            } else {
+                0
+            },
+            hasSavedRun = savedGame != null,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+}
