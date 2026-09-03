@@ -24,26 +24,25 @@ val TextMuted = Color(0xFFA6AFB5)
 val Danger = Color(0xFFB95A3B)
 
 /**
- * Gameplay tiles stay intentionally restrained: tile-first, steampunk-second.
- * Low tiers read as quiet machined plates. Copper/brass/patina arrive gradually and the 2048 core is the only
- * deliberately luminous tier. This keeps the board readable while still giving progression a material payoff.
+ * Gameplay tiles follow the approved gameplay concept: pale machined metal -> warm copper -> antique gold ->
+ * oxidized green -> deep teal -> luminous teal core. Values remain the dominant visual information.
  */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFFAAA89F), Color(0xFF222B31)), // 2 aged nickel
-    RawTileColor(Color(0xFFA89B84), Color(0xFF232B31)), // 4 warm steel
-    RawTileColor(Color(0xFF927052), Color(0xFFF1E6D5)), // 8 muted bronze
-    RawTileColor(Color(0xFF9E7A3F), Color(0xFFF4E9D6)), // 16 antique brass
-    RawTileColor(Color(0xFFA25F38), Color(0xFFF5E7D5)), // 32 forged copper
-    RawTileColor(Color(0xFF884E3E), Color(0xFFF4E6D6)), // 64 heat-treated copper
-    RawTileColor(Color(0xFF55706E), Color(0xFFF0E8DB)), // 128 oxidized steel
-    RawTileColor(Color(0xFF3E696B), Color(0xFFF1E9DA)), // 256 deep patina
-    RawTileColor(Color(0xFF806632), Color(0xFFF3E8D3)), // 512 dark brass
-    RawTileColor(Color(0xFFB48742), Color(0xFF192127)), // 1024 polished brass
-    RawTileColor(Color(0xFFD0A45B), Color(0xFF172027)), // 2048 mechanical core
+    RawTileColor(Color(0xFFB8AD98), Color(0xFF293036)), // 2 pale aged metal
+    RawTileColor(Color(0xFF9C8F78), Color(0xFF272E33)), // 4 warm steel
+    RawTileColor(Color(0xFFB07A35), Color(0xFFF4E8D2)), // 8 warm bronze
+    RawTileColor(Color(0xFFB56431), Color(0xFFF5E8D3)), // 16 copper
+    RawTileColor(Color(0xFFA95832), Color(0xFFF4E5D1)), // 32 forged copper
+    RawTileColor(Color(0xFF983D2C), Color(0xFFF5E3CD)), // 64 red heat-treated copper
+    RawTileColor(Color(0xFFB4812F), Color(0xFFF5E8CF)), // 128 antique gold
+    RawTileColor(Color(0xFF9A732E), Color(0xFFF5E8CF)), // 256 dark antique gold
+    RawTileColor(Color(0xFF6D7B62), Color(0xFFF3E8D2)), // 512 oxidized green metal
+    RawTileColor(Color(0xFF176B73), Color(0xFFF3D99C)), // 1024 deep teal
+    RawTileColor(Color(0xFF32AEB1), Color(0xFFF8E2A8)), // 2048 energized teal core
 )
 
 fun tileColors(level: Int): TileColors {
