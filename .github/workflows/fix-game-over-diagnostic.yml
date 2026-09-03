@@ -1,0 +1,35 @@
+name: Fix Game Over Diagnostic Writer
+
+on:
+  push:
+    branches:
+      - diag/game-over-result-v1
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'Fix Game Over diagnostic writer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: diag/game-over-result-v1
+      - name: Fix decoded test writer
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/game-over-visual-diagnostic.yml')
+          text = path.read_text()
+          old = "test = base64.b64decode('"
+          assert old in text
+          text = text.replace("').decode()\n          path = Path('app/src/androidTest/java/com/steamforge/game/ui/game/GameOverResultOverlayDiagnosticTest.kt')", "')\n          path = Path('app/src/androidTest/java/com/steamforge/game/ui/game/GameOverResultOverlayDiagnosticTest.kt')", 1)
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/game-over-visual-diagnostic.yml
+          git commit -m "Fix Game Over diagnostic source writer"
+          git push origin HEAD:diag/game-over-result-v1
