@@ -40,16 +40,14 @@ class ActiveRunActivityRecreationTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitForText("ПРОДОЛЖИТЬ")
             composeRule.onNodeWithText("ПРОДОЛЖИТЬ").performClick()
-            waitForContentDescription(SCORE_DESCRIPTION)
-            waitForContentDescription(MOVE_DESCRIPTION)
+            TILE_DESCRIPTIONS.forEach(::waitForContentDescription)
 
             val beforePid = Process.myPid()
             val beforeTiles = tileBounds()
 
             scenario.recreate()
 
-            waitForContentDescription(SCORE_DESCRIPTION)
-            waitForContentDescription(MOVE_DESCRIPTION)
+            TILE_DESCRIPTIONS.forEach(::waitForContentDescription)
             val afterTiles = tileBounds()
 
             assertEquals("ActivityScenario.recreate must keep the app Linux process alive", beforePid, Process.myPid())
@@ -81,9 +79,6 @@ class ActiveRunActivityRecreationTest {
     }
 
     private companion object {
-        const val SCORE_DESCRIPTION = "СЧЁТ: 96"
-        const val MOVE_DESCRIPTION = "ХОДЫ: 7"
-
         val TILE_DESCRIPTIONS = listOf(
             "Уголь, 2",
             "Медная шестерня, 4",
