@@ -122,7 +122,7 @@ def bounds(n):
     if not m: return None
     a=tuple(map(int,m.groups()))
     return a if a[2]>a[0] and a[3]>a[1] else None
-for needle in ['уровень мастерской','механическое ядро','сломано','партий','рекорд','xp','нужно']:
+for needle in ['уровень мастерской','механическое ядро','усилено','партий','рекорд','xp','максимум']:
     matches=[n for n in root.iter('node') if needle in text(n) and bounds(n)]
     assert matches, f'{label}: missing visible {needle}'
     l,t,r,b=bounds(matches[0]); assert l>=0 and t>=0 and r<=width and b<=height, (label,needle,matches[0].attrib)
@@ -165,4 +165,4 @@ capture_shape '1080x2400' '420' '1.0' '10-standard'
 capture_shape '720x1600' '320' '1.0' '20-compact'
 capture_shape '1080x2400' '420' '1.3' '30-large-font'
 
-echo 'Workshop parts targeted capture OK.'
+echo 'Workshop max-stage targeted capture OK.'
