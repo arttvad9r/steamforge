@@ -1092,46 +1092,123 @@ private fun ResultNotice(icon: String, text: String, accent: Color) {
 @Composable
 private fun CoreOnlineOverlay(onContinue: () -> Unit, onExit: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)).padding(20.dp),
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.84f)).padding(18.dp),
         contentAlignment = Alignment.Center,
     ) {
-        SteamPanel(Modifier.fillMaxWidth().widthIn(max = 500.dp), highlighted = true) {
+        SteamPanel(Modifier.fillMaxWidth().widthIn(max = 480.dp), highlighted = true) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("CORE ONLINE", style = MaterialTheme.typography.displaySmall, color = BrassBright, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(8.dp))
+                Text(
+                    "ЯДРО СТАБИЛИЗИРОВАНО",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TealGlow,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+
                 Box(
-                    Modifier
-                        .size(150.dp)
+                    modifier = Modifier
+                        .size(184.dp)
                         .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(TealGlow.copy(alpha = 0.42f), TealSurface, Recess)))
-                        .border(4.dp, Brass, CircleShape),
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    TealGlow.copy(alpha = 0.34f),
+                                    TealSurface.copy(alpha = 0.96f),
+                                    Recess,
+                                ),
+                            ),
+                        )
+                        .border(1.dp, BrassBright.copy(alpha = 0.62f), CircleShape)
+                        .padding(13.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("ВЫ СОЗДАЛИ", style = MaterialTheme.typography.labelMedium, color = TextWarm)
-                        Text("2048", style = MaterialTheme.typography.displaySmall, color = BrassBright)
-                        Text("CORE", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(Recess.copy(alpha = 0.64f))
+                            .border(2.dp, Brass, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "CORE",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TextMuted,
+                            )
+                            Text(
+                                "2048",
+                                style = MaterialTheme.typography.displaySmall,
+                                color = BrassBright,
+                                textAlign = TextAlign.Center,
+                            )
+                            Text(
+                                "ONLINE",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TealGlow,
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                Text("ПОЗДРАВЛЯЕМ!", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
+
+                Spacer(Modifier.height(14.dp))
                 Text(
-                    "Механическое ядро собрано. Мастерская ожила: давление стабильно, лампы горят, механизмы запущены.",
+                    "МАСТЕРСКАЯ ОЖИЛА",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextWarm,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "Механическое ядро собрано. Давление стабильно, контуры запитаны, механизмы запущены.",
+                    modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
                     textAlign = TextAlign.Center,
                 )
+
                 Spacer(Modifier.height(12.dp))
-                SteamPanel(Modifier.fillMaxWidth()) {
-                    Text("ДОСТИЖЕНИЕ РАЗБЛОКИРОВАНО", modifier = Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-                    Text("Механическое ядро · 2048", modifier = Modifier.fillMaxWidth(), color = TextWarm, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    SteamButton("ПРОДОЛЖИТЬ", onContinue, Modifier.weight(1f), style = SteamButtonStyle.Teal)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Panel.copy(alpha = 0.54f))
+                        .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("✦", color = TealGlow, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.width(8.dp))
-                    SteamButton("В МАСТЕРСКУЮ", onExit, Modifier.weight(1f), style = SteamButtonStyle.Brass)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "ДОСТИЖЕНИЕ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TealGlow,
+                        )
+                        Text(
+                            "Механическое ядро · 2048",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextWarm,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+
+                Spacer(Modifier.height(14.dp))
+                SteamButton(
+                    "ПРОДОЛЖИТЬ ИГРУ",
+                    onContinue,
+                    Modifier.fillMaxWidth(),
+                    style = SteamButtonStyle.Teal,
+                )
+                Spacer(Modifier.height(7.dp))
+                SteamButton(
+                    "В МАСТЕРСКУЮ",
+                    onExit,
+                    Modifier.fillMaxWidth(),
+                    style = SteamButtonStyle.Dark,
+                )
             }
         }
     }
