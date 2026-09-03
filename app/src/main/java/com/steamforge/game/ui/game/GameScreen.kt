@@ -997,7 +997,7 @@ private fun GameOverOverlay(
                         style = MaterialTheme.typography.labelMedium,
                         textAlign = TextAlign.Center,
                     )
-                } else if (rewardedAvailable && gemsGained > 0) {
+                } else if (rewardedAvailable) {
                     Spacer(Modifier.height(11.dp))
                     Box(
                         modifier = Modifier
