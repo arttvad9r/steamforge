@@ -61,6 +61,12 @@ data class ProgressionConfig(
     val dailyRewardCycle: Int = 7,
     val dailyRewardGemsBase: Int = 5,
     val dailyRewardGemsStep: Int = 3,
+    val workshopPartsBase: Int = 4,
+    val workshopPartsMergeDivisor: Int = 12,
+    val workshopPartsMaxMergeBonus: Int = 10,
+    val workshopPartsPerMaxTileLevel: Int = 1,
+    val workshopPartsWinBonus: Int = 4,
+    val workshopCoreUpgradeCosts: List<Int> = listOf(20, 35, 55, 80),
 ) {
     fun pressureGainForMerge(mergedLevel: Int): Int = pressureBaseGain + pressureGainPerLevel * (mergedLevel - 1)
     fun levelUpGems(newLevel: Int): Int = levelUpGemsBase + newLevel * levelUpGemsPerLevel
@@ -92,6 +98,50 @@ object WorkshopProgression {
         // Daily completion bonus is granted exactly once by the repository's atomic daily claim.
         return xp
     }
+
+    fun partsForGame(summary: GameSummary, cfg: ProgressionConfig): Int {
+        val divisor = cfg.workshopPartsMergeDivisor.coerceAtLeast(1)
+        val mergeBonus = (summary.merges.coerceAtLeast(0) / divisor)
+            .coerceAtMost(cfg.workshopPartsMaxMergeBonus.coerceAtLeast(0))
+        val tileBonus = summary.maxTileLevel.coerceAtLeast(0) * cfg.workshopPartsPerMaxTileLevel.coerceAtLeast(0)
+        val winBonus = if (summary.won) cfg.workshopPartsWinBonus.coerceAtLeast(0) else 0
+        return (cfg.workshopPartsBase.coerceAtLeast(0) + mergeBonus + tileBonus + winBonus)
+            .coerceAtLeast(1)
+    }
+
+    fun maxCoreStage(cfg: ProgressionConfig): Int = cfg.workshopCoreUpgradeCosts.size
+
+    fun normalizedCoreStage(stage: Int, cfg: ProgressionConfig): Int =
+        stage.coerceIn(0, maxCoreStage(cfg))
+
+    fun coreStageLabel(stage: Int, cfg: ProgressionConfig): String = when (normalizedCoreStage(stage, cfg)) {
+        0 -> "СЛОМАНО"
+        1 -> "КАРКАС"
+        2 -> "МЕХАНИЗМЫ"
+        3 -> "РАБОТАЕТ"
+        else -> "УСИЛЕНО"
+    }
+
+    fun coreUpgradeCost(stage: Int, cfg: ProgressionConfig): Int? =
+        cfg.workshopCoreUpgradeCosts.getOrNull(normalizedCoreStage(stage, cfg))
+
+    fun canUpgradeCore(parts: Int, stage: Int, cfg: ProgressionConfig): Boolean {
+        val cost = coreUpgradeCost(stage, cfg) ?: return false
+        return parts >= cost
+    }
+
+    fun upgradeCore(progress: PlayerProgress, cfg: ProgressionConfig): PlayerProgress {
+        val stage = normalizedCoreStage(progress.workshopCoreStage, cfg)
+        val cost = coreUpgradeCost(stage, cfg)
+            ?: return if (stage == progress.workshopCoreStage) progress else progress.copy(workshopCoreStage = stage)
+        if (progress.workshopParts < cost) {
+            return if (stage == progress.workshopCoreStage) progress else progress.copy(workshopCoreStage = stage)
+        }
+        return progress.copy(
+            workshopParts = progress.workshopParts - cost,
+            workshopCoreStage = stage + 1,
+        )
+    }
 }
 
 data class FinishEffects(
@@ -108,7 +158,11 @@ fun applyGameFinished(
     cfg: ProgressionConfig,
 ): Pair<PlayerProgress, FinishEffects> {
     val xpGained = WorkshopProgression.xpForGame(summary, cfg)
+    val partsGained = WorkshopProgression.partsForGame(summary, cfg)
     val newXp = progress.totalXp + xpGained
+    val newWorkshopParts = (progress.workshopParts.toLong() + partsGained.toLong())
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
 
     val before = WorkshopProgression.levelInfo(progress.totalXp, cfg).level
     val after = WorkshopProgression.levelInfo(newXp, cfg).level
@@ -124,6 +178,7 @@ fun applyGameFinished(
         gems = progress.gems + levelGems + achievementGems,
         totalXp = newXp,
         bestScore = maxOf(progress.bestScore, summary.score),
+        workshopParts = newWorkshopParts,
         stats = finalStats,
         unlockedAchievements = progress.unlockedAchievements + candidates.map { it.id }.toSet(),
     )
@@ -154,6 +209,8 @@ data class PlayerProgress(
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
     val analyticsConsent: Boolean? = null,
+    val workshopParts: Int = 0,
+    val workshopCoreStage: Int = 0,
 ) {
     fun levelInfo(cfg: ProgressionConfig): LevelInfo = WorkshopProgression.levelInfo(totalXp, cfg)
 }
