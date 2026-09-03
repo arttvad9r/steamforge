@@ -2,6 +2,7 @@ package com.steamforge.game.ui.contracts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,12 +28,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.steamforge.game.theme.BrassBright
+import com.steamforge.game.theme.BrassDark
 import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.Recess
 import com.steamforge.game.theme.TealGlow
@@ -40,9 +44,6 @@ import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 import com.steamforge.game.ui.components.BrassRoundButton
 import com.steamforge.game.ui.components.SteamBackdrop
-import com.steamforge.game.ui.components.SteamButton
-import com.steamforge.game.ui.components.SteamButtonStyle
-import com.steamforge.game.ui.components.SteamPanel
 
 @Composable
 fun ContractsScreen(
@@ -64,58 +65,25 @@ fun ContractsScreen(
                 .padding(horizontal = 16.dp),
         ) {
             Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BrassRoundButton("←", "Назад", onBack)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("КОНТРАКТЫ", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
-                    Text(
-                        "3 задания · обновляются каждый день",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted,
-                    )
-                }
-                CompactGems(ui.gems)
-            }
+            ContractsHeader(gems = ui.gems, onBack = onBack)
             Spacer(Modifier.height(14.dp))
 
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("СЕГОДНЯ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
-                        Text(
-                            "Прогресс сохраняется вместе с партией",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextMuted,
-                        )
-                    }
-                    Text(
-                        "${ui.completed}/3",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = if (ui.completed == 3) TealGlow else TextWarm,
-                    )
-                }
-            }
-            Spacer(Modifier.height(10.dp))
+            TodaySummary(completed = ui.completed, total = ui.items.size.coerceAtLeast(1))
+            Spacer(Modifier.height(12.dp))
 
             ui.items.forEachIndexed { index, item ->
-                ContractCard(item = item, onClaim = { vm.claim(item.def.id) })
-                if (index != ui.items.lastIndex) Spacer(Modifier.height(9.dp))
+                ContractRow(item = item, onClaim = { vm.claim(item.def.id) })
+                if (index != ui.items.lastIndex) Spacer(Modifier.height(8.dp))
             }
 
             Spacer(Modifier.height(18.dp))
             Text(
-                "Незавершённая обычная партия учитывается через тот же autosave, поэтому прогресс не теряется после закрытия приложения.",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                style = MaterialTheme.typography.bodyMedium,
+                "Прогресс контрактов сохраняется автоматически.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
                 color = TextMuted,
-                textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(22.dp))
         }
@@ -123,80 +91,206 @@ fun ContractsScreen(
 }
 
 @Composable
-private fun ContractCard(item: ContractItemUi, onClaim: () -> Unit) {
+private fun ContractsHeader(gems: Int, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BrassRoundButton("←", "Назад", onBack)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("КОНТРАКТЫ", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
+            Text(
+                "Ежедневные задачи мастерской",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted,
+            )
+        }
+        CompactGems(gems)
+    }
+}
+
+@Composable
+private fun TodaySummary(completed: Int, total: Int) {
+    val shape = RoundedCornerShape(13.dp)
+    val fraction = completed.toFloat() / total.coerceAtLeast(1)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.50f))
+            .border(1.dp, BrassDark.copy(alpha = 0.28f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .semantics {
+                contentDescription = "Контракты сегодня: выполнено $completed из $total"
+            },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("СЕГОДНЯ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+                Text(
+                    if (completed >= total) "Все контракты выполнены" else "Выполняются в обычных партиях",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                "$completed/$total",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (completed >= total) TealGlow else TextWarm,
+            )
+        }
+        Spacer(Modifier.height(9.dp))
+        ContractProgress(fraction = fraction, modifier = Modifier.fillMaxWidth(), strong = completed >= total)
+    }
+}
+
+@Composable
+private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
     val accent = when {
-        item.claimed -> TealGlow.copy(alpha = 0.68f)
+        item.claimed -> TealGlow.copy(alpha = 0.62f)
         item.complete -> TealGlow
         else -> BrassBright
     }
-    SteamPanel(
+    val shape = RoundedCornerShape(13.dp)
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = if (item.complete && !item.claimed) 0.66f else 0.48f))
+            .border(
+                1.dp,
+                accent.copy(alpha = if (item.complete && !item.claimed) 0.34f else 0.16f),
+                shape,
+            )
+            .padding(horizontal = 11.dp, vertical = 10.dp)
             .semantics {
-                contentDescription = "${item.def.title}: ${item.progress} из ${item.def.target}"
+                contentDescription = "${item.def.title}: ${item.progress} из ${item.def.target}. Награда ${item.def.rewardGems} гемов"
             },
-        highlighted = item.complete && !item.claimed,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 11.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(Recess.copy(alpha = 0.76f))
-                    .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(11.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(contractIcon(item), style = MaterialTheme.typography.labelLarge, color = accent)
-            }
-            Spacer(Modifier.width(11.dp))
+            ContractBadge(icon = contractIcon(item), accent = accent)
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(item.def.title, style = MaterialTheme.typography.titleMedium, color = TextWarm)
-                Text(item.def.description, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                Text(
+                    item.def.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextWarm,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    item.def.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             Spacer(Modifier.width(8.dp))
-            Text("◆ ${item.def.rewardGems}", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+            Column(horizontalAlignment = Alignment.End) {
+                Text("◆ ${item.def.rewardGems}", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+                Text(
+                    when {
+                        item.claimed -> "ПОЛУЧЕНО"
+                        item.complete -> "ГОТОВО"
+                        else -> "НАГРАДА"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (item.complete) accent else TextMuted,
+                    maxLines = 1,
+                )
+            }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(9.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ContractProgress(item.fraction, Modifier.weight(1f))
-            Spacer(Modifier.width(10.dp))
+            ContractProgress(item.fraction, Modifier.weight(1f), strong = item.complete)
+            Spacer(Modifier.width(9.dp))
             Text(
                 if (item.claimed) "ГОТОВО" else "${item.progress}/${item.def.target}",
                 style = MaterialTheme.typography.labelMedium,
                 color = if (item.complete) TealGlow else TextMuted,
+                maxLines = 1,
             )
         }
 
         if (item.complete && !item.claimed) {
-            Spacer(Modifier.height(10.dp))
-            SteamButton(
-                text = "ПОЛУЧИТЬ ◆ ${item.def.rewardGems}",
-                onClick = onClaim,
-                modifier = Modifier.fillMaxWidth(),
-                style = SteamButtonStyle.Teal,
-            )
+            Spacer(Modifier.height(9.dp))
+            ContractClaimAction(reward = item.def.rewardGems, onClaim = onClaim)
         }
     }
 }
 
 @Composable
-private fun ContractProgress(fraction: Float, modifier: Modifier = Modifier) {
+private fun ContractBadge(icon: String, accent: Color) {
+    val longBadge = icon.length > 2
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .size(if (longBadge) 46.dp else 42.dp)
+            .clip(shape)
+            .background(Recess.copy(alpha = 0.66f))
+            .border(1.dp, accent.copy(alpha = 0.24f), shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            icon,
+            style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleSmall,
+            color = accent,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun ContractClaimAction(reward: Int, onClaim: () -> Unit) {
+    val shape = RoundedCornerShape(11.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(shape)
+            .background(TealGlow.copy(alpha = 0.14f))
+            .border(1.dp, TealGlow.copy(alpha = 0.46f), shape)
+            .clickable(onClick = onClaim)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Получить награду: $reward гемов"
+            }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("ПОЛУЧИТЬ", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+        Spacer(Modifier.weight(1f))
+        Text("◆ $reward", style = MaterialTheme.typography.labelLarge, color = TextWarm)
+    }
+}
+
+@Composable
+private fun ContractProgress(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    strong: Boolean = false,
+) {
     val shape = RoundedCornerShape(5.dp)
     Box(
         modifier = modifier
-            .height(8.dp)
+            .height(7.dp)
             .clip(shape)
             .background(Recess)
-            .border(1.dp, Color.White.copy(alpha = 0.055f), shape),
+            .border(1.dp, Color.White.copy(alpha = 0.05f), shape),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(8.dp)
+                .height(7.dp)
                 .clip(shape)
-                .background(TealGlow.copy(alpha = 0.72f)),
+                .background(TealGlow.copy(alpha = if (strong) 0.90f else 0.68f)),
         )
     }
 }
@@ -206,8 +300,8 @@ private fun CompactGems(gems: Int) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Panel.copy(alpha = 0.76f))
-            .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(10.dp))
+            .background(Panel.copy(alpha = 0.66f))
+            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
             .padding(horizontal = 9.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
