@@ -18,6 +18,7 @@
 - terminal Game Over persistence recovery с retry того же result ID и идемпотентным `applyGameFinish`;
 - process recreation smoke через production UI и `am force-stop`;
 - Activity recreation, Home/background-resume и screen-off/wake lifecycle gates;
+- offline active-run lifecycle gate: production app стартует без outbound connectivity, восстанавливает durable run, принимает новый ход и сохраняет его через повторный offline process recreation;
 - high-tier tile contrast regression и production `BoardView` capture;
 - swipe/touchSlop instrumentation: sub-slop drag не делает ход, один жест отправляет не более одного move;
 - semantic gameplay haptics и реальный Undo SFX только после успешной отмены;
@@ -49,7 +50,7 @@
 - Android CI проверяет unit tests, `lintDebug`, `lintRelease`, debug/release APK, Macrobenchmark compile, 16 KiB APK, `bundleRelease` и структуру release AAB.
 - Release AAB gate требует один непустой `.aab`, валидный ZIP, base manifest/resources и DEX payload.
 - UI Emulator Smoke существует для основных production экранов.
-- Active Run Lifecycle Smoke покрывает Activity recreation, background/resume, process recreation и screen-off/wake.
+- Active Run Lifecycle Smoke покрывает Activity recreation, background/resume, process recreation, screen-off/wake и offline process recreation с локальным autosave.
 - High Tier Tile Smoke покрывает contrast/render и production swipe detector.
 - Frame Timing Diagnostic Smoke исполняет release-like dense-merge workload на hosted emulator; physical-device `FrameTimingMetric` остаётся обязательным для performance acceptance.
 - Adaptive Gameplay Window Smoke проверяет production gameplay bounds на трёх window shapes.
@@ -70,7 +71,10 @@ Baseline проверяет:
 3. `am force-stop` → launcher relaunch → Home `ПРОДОЛЖИТЬ` → восстановление durable run;
 4. screen-off/wake через UI Automator;
 5. low-storage autosave failure/recovery;
-6. terminal finish retry/idempotency при I/O failure.
+6. terminal finish retry/idempotency при I/O failure;
+7. network-off startup (`airplane_mode_on=1`, outbound ping недоступен) → offline `ПРОДОЛЖИТЬ` → реальный swipe/autosave → повторный offline process recreation с точным восстановлением нового durable board state.
+
+Interrupted rewarded/interstitial уже после показа остаётся отдельным manual real-device release gate; offline lifecycle smoke не считается его заменой.
 
 При изменениях persistence/navigation/game UI эти workflows должны снова проходить на новом `master` head.
 
