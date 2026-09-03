@@ -13,16 +13,16 @@ class MergeFeedbackTest {
     }
 
     @Test
-    fun `combo pitch rises gradually and caps`() {
+    fun `combo pitch rises subtly and caps`() {
         assertEquals(1.00f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 1).playbackRate, 0.0001f)
-        assertEquals(1.04f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 2).playbackRate, 0.0001f)
-        assertEquals(1.08f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 3).playbackRate, 0.0001f)
-        assertEquals(1.12f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 4).playbackRate, 0.0001f)
-        assertEquals(1.12f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 8).playbackRate, 0.0001f)
+        assertEquals(1.025f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 2).playbackRate, 0.0001f)
+        assertEquals(1.05f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 3).playbackRate, 0.0001f)
+        assertEquals(1.075f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 4).playbackRate, 0.0001f)
+        assertEquals(1.075f, mergeFeedbackProfile(maxLevel = 5, mergeCount = 8).playbackRate, 0.0001f)
     }
 
     @Test
-    fun `merge pop grows by tier and combo without covering board`() {
+    fun `merge settle grows by tier without cartoon scale`() {
         val low = mergePopScale(level = 4, mergeCount = 1)
         val mid = mergePopScale(level = 5, mergeCount = 1)
         val high = mergePopScale(level = 8, mergeCount = 1)
@@ -33,6 +33,6 @@ class MergeFeedbackTest {
         assertTrue(mid < high)
         assertTrue(high < core)
         assertTrue(core < comboCore)
-        assertEquals(1.20f, comboCore, 0.0001f)
+        assertEquals(1.16f, comboCore, 0.0001f)
     }
 }

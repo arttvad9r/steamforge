@@ -3,45 +3,47 @@ package com.steamforge.game.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// Approved Steamforge palette: charcoal/deep navy base, warm brass, restrained teal/patina.
-val Background = Color(0xFF10161D)
-val SurfaceDark = Color(0xFF16202A)
-val Panel = Color(0xFF1C2731)
-val PanelRaised = Color(0xFF26323D)
-val Recess = Color(0xFF0C1218)
-val OutlineBrass = Color(0xFF76562A)
-val BrassDark = Color(0xFF64451F)
-val Brass = Color(0xFFA9782E)
-val BrassBright = Color(0xFFD1A45A)
-val Copper = Color(0xFFC76A2A)
-val Steel = Color(0xFF5B6773)
-val Patina = Color(0xFF3B9A9E)
-val TealSurface = Color(0xFF234F55)
-val TealGlow = Color(0xFF63B7BA)
-val TextWarm = Color(0xFFF0E5D0)
-val TextMuted = Color(0xFFAAB2B8)
-val Danger = Color(0xFFC7603A)
+// Approved Steamforge palette: deep workshop charcoal, warm aged brass and restrained patina.
+// The palette is intentionally low-saturation so material/light carry the premium feel instead of neon color.
+// Shared screens inherit these colors, but their SteamUi layout/drawing implementation remains unchanged in V1.
+val Background = Color(0xFF0D141B)
+val SurfaceDark = Color(0xFF141D25)
+val Panel = Color(0xFF1A242D)
+val PanelRaised = Color(0xFF26323C)
+val Recess = Color(0xFF090F14)
+val OutlineBrass = Color(0xFF72552D)
+val BrassDark = Color(0xFF5B421F)
+val Brass = Color(0xFFA17A3E)
+val BrassBright = Color(0xFFD0A45B)
+val Copper = Color(0xFFB86432)
+val Steel = Color(0xFF59656F)
+val Patina = Color(0xFF408C8D)
+val TealSurface = Color(0xFF20464C)
+val TealGlow = Color(0xFF61ADB0)
+val TextWarm = Color(0xFFF1E7D6)
+val TextMuted = Color(0xFFA6AFB5)
+val Danger = Color(0xFFB95A3B)
 
 /**
- * Gameplay tiles stay intentionally restrained: tile-first, steampunk-second.
- * Low tiers are quiet metal plates; richer material changes arrive gradually.
+ * Gameplay tiles follow the approved gameplay concept: pale machined metal -> warm copper -> antique gold ->
+ * oxidized green -> deep teal -> luminous teal core. Values remain the dominant visual information.
  */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFFC8BEAA), Color(0xFF27313A)), // 2 aged steel/ivory
-    RawTileColor(Color(0xFFBDAE93), Color(0xFF27313A)), // 4 warm steel
-    RawTileColor(Color(0xFF9E7651), Color(0xFFF3E8D4)), // 8 muted copper
-    RawTileColor(Color(0xFFA9782E), Color(0xFFF6EAD4)), // 16 brass
-    RawTileColor(Color(0xFFAF6534), Color(0xFFF7E8D4)), // 32 forged copper
-    RawTileColor(Color(0xFF96513C), Color(0xFFF7E8D4)), // 64 heat-treated copper
-    RawTileColor(Color(0xFF567A78), Color(0xFFF2E9D8)), // 128 oxidized metal
-    RawTileColor(Color(0xFF3F6F72), Color(0xFFF2E9D8)), // 256 deep patina
-    RawTileColor(Color(0xFF8E6B34), Color(0xFFF7EAD2)), // 512 dark brass
-    RawTileColor(Color(0xFFB9853B), Color(0xFF172029)), // 1024 polished brass, dark ink for readable contrast
-    RawTileColor(Color(0xFFD1A45A), Color(0xFF172029)), // 2048 mechanical core
+    RawTileColor(Color(0xFFB8AD98), Color(0xFF293036)), // 2 pale aged metal
+    RawTileColor(Color(0xFF9C8F78), Color(0xFF272E33)), // 4 warm steel
+    RawTileColor(Color(0xFFB07A35), Color(0xFFF4E8D2)), // 8 warm bronze
+    RawTileColor(Color(0xFFB56431), Color(0xFFF5E8D3)), // 16 copper
+    RawTileColor(Color(0xFFA95832), Color(0xFFF4E5D1)), // 32 forged copper
+    RawTileColor(Color(0xFF983D2C), Color(0xFFF5E3CD)), // 64 red heat-treated copper
+    RawTileColor(Color(0xFFAD7826), Color(0xFFF5E8CF)), // 128 antique gold
+    RawTileColor(Color(0xFF9A732E), Color(0xFFF5E8CF)), // 256 dark antique gold
+    RawTileColor(Color(0xFF6D7B62), Color(0xFFF3E8D2)), // 512 oxidized green metal
+    RawTileColor(Color(0xFF176B73), Color(0xFFF3D99C)), // 1024 deep teal
+    RawTileColor(Color(0xFF247F85), Color(0xFFF8E2A8)), // 2048 energized teal core; glow supplies the bright edge energy
 )
 
 fun tileColors(level: Int): TileColors {
@@ -49,22 +51,37 @@ fun tileColors(level: Int): TileColors {
     return TileColors(raw.bg, raw.content, glow = level >= 11)
 }
 
+/**
+ * A machined-metal bevel with enough light separation to read on a real device. The face stays broad and calm while
+ * the top lip catches workshop light and the lower edge falls into a noticeably heavier shadow.
+ */
 fun tileBevel(level: Int): Brush {
     val material = tileColors(level).background
     val highTier = level >= 9
     return Brush.verticalGradient(
         listOf(
-            material.lighten(if (highTier) 1.10f else 1.07f),
-            material.lighten(1.035f),
+            material.lighten(if (highTier) 1.20f else 1.14f),
+            material.lighten(if (highTier) 1.11f else 1.075f),
+            material.lighten(1.025f),
             material,
-            material.darken(if (highTier) 0.90f else 0.92f),
-            material.darken(if (highTier) 0.80f else 0.84f),
+            material.darken(if (highTier) 0.83f else 0.87f),
+            material.darken(if (highTier) 0.68f else 0.74f),
         ),
     )
 }
 
 private fun Color.darken(factor: Float): Color =
-    Color((red * factor).coerceIn(0f, 1f), (green * factor).coerceIn(0f, 1f), (blue * factor).coerceIn(0f, 1f), alpha)
+    Color(
+        (red * factor).coerceIn(0f, 1f),
+        (green * factor).coerceIn(0f, 1f),
+        (blue * factor).coerceIn(0f, 1f),
+        alpha,
+    )
 
 private fun Color.lighten(factor: Float): Color =
-    Color((red * factor).coerceIn(0f, 1f), (green * factor).coerceIn(0f, 1f), (blue * factor).coerceIn(0f, 1f), alpha)
+    Color(
+        (red * factor).coerceIn(0f, 1f),
+        (green * factor).coerceIn(0f, 1f),
+        (blue * factor).coerceIn(0f, 1f),
+        alpha,
+    )
