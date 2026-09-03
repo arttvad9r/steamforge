@@ -25,7 +25,9 @@
 - release-like AndroidX Macrobenchmark harness для production `BoardView` + `GameEngine`;
 - hosted API 36 frame-timing execution diagnostic; его числа являются диагностикой, а не performance SLA;
 - adaptive production `GameScreen`: portrait baseline + compact-landscape layout с board слева и HUD/Undo/Wrench справа;
-- отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape.
+- отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape;
+- Home как Navigation3 root с одним Play/Continue CTA и отдельными входами в Workshop, Daily, Contracts, Collection и Settings;
+- ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave и атомарные идемпотентные gem claims.
 
 Полный branch decision log: `docs/BRANCH_AUDIT_2026-09-01.md`.
 
@@ -38,6 +40,8 @@
 - Terminal finish хранит один pending result; retry использует тот же result ID и не должен повторно начислять progression/reward.
 - Ambiguous terminal I/O после фактического commit восстанавливает persisted finish effects вместо повторного начисления.
 - Save codec v4 сохраняет board/meta/RNG + session statistics и читает старые форматы.
+- Home является production root; незавершённая normal run возвращается через `ПРОДОЛЖИТЬ`.
+- Contracts имеют отдельный экран и persistent daily ledger; progress записывается внутри существующих save/finish транзакций без второго DataStore write на каждый swipe.
 - Rewarded x2 защищён от повторной выдачи по `gameResultId`.
 - Daily reward защищён по `epochDay`.
 - Android CI проверяет unit tests, `lintDebug`, `lintRelease`, debug/release APK, Macrobenchmark compile, 16 KiB APK, `bundleRelease` и структуру release AAB.
@@ -60,7 +64,7 @@ Baseline проверяет:
 
 1. `ActivityScenario.recreate()` с сохранением production Game route/state;
 2. Home/background → launcher resume без потери active run;
-3. `am force-stop` → launcher relaunch → восстановление durable run;
+3. `am force-stop` → launcher relaunch → Home `ПРОДОЛЖИТЬ` → восстановление durable run;
 4. screen-off/wake через UI Automator;
 5. low-storage autosave failure/recovery;
 6. terminal finish retry/idempotency при I/O failure.
@@ -153,8 +157,6 @@ Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
 
 Следующие старые stacked PR существуют в истории, но пока не считаются частью consolidated V1 `master`:
 
-- Home navigation;
-- Contracts;
 - Blueprint Collection;
 - Weekly Challenge;
 - forgiving streak extension;
