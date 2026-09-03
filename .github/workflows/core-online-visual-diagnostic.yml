@@ -1,0 +1,91 @@
+name: Core Online Visual Diagnostic
+
+on:
+  push:
+    branches:
+      - diag/core-online-hero-v1
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install emulator packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'emulator' 'platforms;android-36' 'build-tools;36.0.0' 'system-images;android-36;google_apis;x86_64'
+      - name: Prepare production overlay diagnostic
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          game = Path('app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt')
+          text = game.read_text()
+          marker = '@Composable\nprivate fun CoreOnlineOverlay('
+          assert marker in text
+          game.write_text(text.replace(marker, '@Composable\nfun CoreOnlineOverlay(', 1))
+          data = base64.b64decode('cGFja2FnZSBjb20uc3RlYW1mb3JnZS5nYW1lLnVpLmdhbWUKCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkJpdG1hcAppbXBvcnQgYW5kcm9pZHguY29tcG9zZS5mb3VuZGF0aW9uLmJhY2tncm91bmQKaW1wb3J0IGFuZHJvaWR4LmNvbXBvc2UuZm91bmRhdGlvbi5sYXlvdXQuQm94CmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLmZvdW5kYXRpb24ubGF5b3V0LmZpbGxNYXhTaXplCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLk1vZGlmaWVyCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLmdyYXBoaWNzLmFzQW5kcm9pZEJpdG1hcAppbXBvcnQgYW5kcm9pZHguY29tcG9zZS51aS50ZXN0LmNhcHR1cmVUb0ltYWdlCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLnRlc3QuanVuaXQ0LmNyZWF0ZUNvbXBvc2VSdWxlCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLnRlc3Qub25Sb290CmltcG9ydCBhbmRyb2lkeC50ZXN0LmV4dC5qdW5pdC5ydW5uZXJzLkFuZHJvaWRKVW5pdDQKaW1wb3J0IGFuZHJvaWR4LnRlc3QucGxhdGZvcm0uYXBwLkluc3RydW1lbnRhdGlvblJlZ2lzdHJ5CmltcG9ydCBjb20uc3RlYW1mb3JnZS5nYW1lLnRoZW1lLkJhY2tncm91bmQKaW1wb3J0IGNvbS5zdGVhbWZvcmdlLmdhbWUudGhlbWUuU3RlYW1mb3JnZVRoZW1lCmltcG9ydCBqYXZhLmlvLkZpbGUKaW1wb3J0IGphdmEuaW8uRmlsZU91dHB1dFN0cmVhbQppbXBvcnQgb3JnLmp1bml0LkFzc2VydC5hc3NlcnRUcnVlCmltcG9ydCBvcmcuanVuaXQuUnVsZQppbXBvcnQgb3JnLmp1bml0LlRlc3QKaW1wb3J0IG9yZy5qdW5pdC5ydW5uZXIuUnVuV2l0aAoKQFJ1bldpdGgoQW5kcm9pZEpVbml0NDo6Y2xhc3MpCmNsYXNzIENvcmVPbmxpbmVEaWFnbm9zdGljVGVzdCB7CiAgICBAZ2V0OlJ1bGUKICAgIHZhbCBjb21wb3NlUnVsZSA9IGNyZWF0ZUNvbXBvc2VSdWxlKCkKCiAgICBAVGVzdAogICAgZnVuIGNvcmVPbmxpbmVSZW5kZXJzKCkgewogICAgICAgIGNvbXBvc2VSdWxlLnNldENvbnRlbnQgewogICAgICAgICAgICBTdGVhbWZvcmdlVGhlbWUgewogICAgICAgICAgICAgICAgQm94KE1vZGlmaWVyLmZpbGxNYXhTaXplKCkuYmFja2dyb3VuZChCYWNrZ3JvdW5kKSkgewogICAgICAgICAgICAgICAgICAgIENvcmVPbmxpbmVPdmVybGF5KG9uQ29udGludWUgPSB7fSwgb25FeGl0ID0ge30pCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgY29tcG9zZVJ1bGUud2FpdEZvcklkbGUoKQogICAgICAgIHZhbCBvdXRwdXQgPSBGaWxlKAogICAgICAgICAgICBJbnN0cnVtZW50YXRpb25SZWdpc3RyeS5nZXRJbnN0cnVtZW50YXRpb24oKS50YXJnZXRDb250ZXh0LmNhY2hlRGlyLAogICAgICAgICAgICAiY29yZS1vbmxpbmUucG5nIiwKICAgICAgICApCiAgICAgICAgRmlsZU91dHB1dFN0cmVhbShvdXRwdXQpLnVzZSB7IHN0cmVhbSAtPgogICAgICAgICAgICB2YWwgd3JpdHRlbiA9IGNvbXBvc2VSdWxlLm9uUm9vdCgpLmNhcHR1cmVUb0ltYWdlKCkuYXNBbmRyb2lkQml0bWFwKCkKICAgICAgICAgICAgICAgIC5jb21wcmVzcyhCaXRtYXAuQ29tcHJlc3NGb3JtYXQuUE5HLCAxMDAsIHN0cmVhbSkKICAgICAgICAgICAgYXNzZXJ0VHJ1ZSh3cml0dGVuKQogICAgICAgIH0KICAgICAgICBhc3NlcnRUcnVlKG91dHB1dC5sZW5ndGgoKSA+IDBMKQogICAgfQp9Cg==')
+          path = Path('app/src/androidTest/java/com/steamforge/game/ui/game/CoreOnlineDiagnosticTest.kt')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(data)
+          PY
+      - name: Build debug and instrumentation APKs
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleDebugAndroidTest
+      - name: Boot emulator
+        run: |
+          sudo chmod 666 /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$ANDROID_HOME/cmdline-tools/16.0/bin/avdmanager" create avd -n core_online_v1 -k 'system-images;android-36;google_apis;x86_64' -d pixel_6 --force
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" -avd core_online_v1 -no-window -noaudio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on > emulator.log 2>&1 &
+          adb start-server
+          for i in $(seq 1 120); do adb devices | grep -q '^emulator-' && break; sleep 2; done
+          for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break; sleep 2; done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Install APKs
+        run: |
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      - name: Capture Core Online surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          capture() {
+            local name="$1" size="$2" density="$3" font="$4"
+            adb shell wm size "$size"
+            adb shell wm density "$density"
+            adb shell settings put system font_scale "$font"
+            adb shell am instrument -w -r -e class com.steamforge.game.ui.game.CoreOnlineDiagnosticTest com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner | tee "${name}.txt"
+            grep -F 'OK (1 test)' "${name}.txt"
+            adb exec-out run-as com.steamforge.game cat cache/core-online.png > "${name}.png"
+            test -s "${name}.png"
+          }
+          capture core-online-standard 1080x2400 420 1.0
+          capture core-online-compact 720x1280 320 1.0
+          capture core-online-large-text 1080x2400 420 1.3
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-core-online-visual-v1
+          path: |
+            core-online-*.png
+            core-online-*.txt
+            emulator.log
+          if-no-files-found: warn
+          retention-days: 3
