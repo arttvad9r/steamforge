@@ -9,7 +9,8 @@ internal data class MergeFeedbackProfile(
 
 /**
  * Feedback is deliberately restrained. Repeated merges gain a little urgency without drifting into arcade-pitch
- * squeaks, while the material tier remains the main signal of progression.
+ * squeaks, while the material tier remains the main signal of progression. This helper is presentation-only and
+ * never mutates gameplay state.
  */
 internal fun mergeFeedbackProfile(maxLevel: Int, mergeCount: Int): MergeFeedbackProfile {
     val tier = when {
