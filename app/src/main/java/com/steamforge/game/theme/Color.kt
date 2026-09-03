@@ -51,20 +51,20 @@ fun tileColors(level: Int): TileColors {
 }
 
 /**
- * A restrained machined-metal bevel. The highlight is concentrated toward the top and the lower tones carry more
- * weight, which reads as a physical plate rather than a flat mobile-game fill.
+ * A machined-metal bevel with enough light separation to read on a real device. The face stays broad and calm while
+ * the top lip catches workshop light and the lower edge falls into a noticeably heavier shadow.
  */
 fun tileBevel(level: Int): Brush {
     val material = tileColors(level).background
     val highTier = level >= 9
     return Brush.verticalGradient(
         listOf(
-            material.lighten(if (highTier) 1.13f else 1.09f),
-            material.lighten(if (highTier) 1.08f else 1.055f),
-            material.lighten(1.018f),
+            material.lighten(if (highTier) 1.20f else 1.14f),
+            material.lighten(if (highTier) 1.11f else 1.075f),
+            material.lighten(1.025f),
             material,
-            material.darken(if (highTier) 0.86f else 0.89f),
-            material.darken(if (highTier) 0.74f else 0.80f),
+            material.darken(if (highTier) 0.83f else 0.87f),
+            material.darken(if (highTier) 0.68f else 0.74f),
         ),
     )
 }
