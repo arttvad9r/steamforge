@@ -12,10 +12,12 @@ import org.json.JSONObject
 class AppMetricaAnalytics(context: Context, apiKey: String, private val debugLogging: Boolean) : Analytics {
 
     init {
-        // Минимизация данных: геолокация и рекламные идентификаторы аналитике не нужны
+        // Минимизация данных: геолокация и рекламные идентификаторы аналитике не нужны.
+        // ANR monitoring в AppMetrica выключен по умолчанию, поэтому включаем его явно для production observability.
         val config = AppMetricaConfig.newConfigBuilder(apiKey)
             .withLocationTracking(false)
             .withAdvIdentifiersTracking(false)
+            .withAnrMonitoring(true)
             .build()
         AppMetrica.activate(context.applicationContext, config)
     }
