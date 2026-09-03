@@ -606,7 +606,7 @@ fun BoardView(
     onSwipe: (Move) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
     BoxWithConstraints(modifier) {
         val board = maxWidth
         val gap = board * 0.021f
@@ -617,29 +617,40 @@ fun BoardView(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(8.dp, shape, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.48f))
+                .shadow(10.dp, shape, ambientColor = Color.Black.copy(alpha = 0.40f), spotColor = Color.Black.copy(alpha = 0.56f))
                 .clip(shape)
-                .background(Brush.verticalGradient(listOf(Color(0xFF172029), Recess)))
-                .border(1.dp, BrassDark.copy(alpha = 0.78f), shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Panel.copy(alpha = 0.94f),
+                            Color(0xFF131C24),
+                            Color(0xFF0D151B),
+                            Recess,
+                        ),
+                    ),
+                )
+                .border(1.dp, Brass.copy(alpha = 0.48f), shape)
                 .swipeDetector(onSwipe),
         ) {
             for (r in 0 until state.size) {
                 for (c in 0 until state.size) {
                     val off = cellOffset(r, c)
+                    val cellShape = RoundedCornerShape(11.dp)
                     Box(
                         modifier = Modifier
                             .offset(off.x, off.y)
                             .size(cell)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(cellShape)
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Recess.copy(alpha = 0.88f),
-                                        Panel.copy(alpha = 0.42f),
+                                        Color(0xFF0A1015),
+                                        Recess.copy(alpha = 0.98f),
+                                        Color(0xFF101820),
                                     ),
                                 ),
                             )
-                            .border(1.dp, Color.White.copy(alpha = 0.035f), RoundedCornerShape(10.dp)),
+                            .border(1.dp, Color.White.copy(alpha = 0.045f), cellShape),
                     )
                 }
             }
