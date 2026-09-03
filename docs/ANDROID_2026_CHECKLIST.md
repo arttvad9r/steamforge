@@ -1,6 +1,6 @@
 # Steamforge — Android 2026 Technical Checklist
 
-**Актуальность:** 1 сентября 2026 года.  
+**Актуальность:** 3 сентября 2026 года.  
 **Основа:** проектный Android standard, применённый к фактическому Steamforge.
 
 ## Текущий stack
@@ -45,8 +45,9 @@ Steamforge itself does not contain a custom NDK/game-engine layer, но third-pa
 - [x] Keyboard arrows в gameplay.
 - [x] Compact UI handling.
 - [x] Semantics/content descriptions в ключевых custom controls.
-- [ ] Продолжать проверять 48dp touch targets, large font, TalkBack и safe areas при изменениях UI.
-- [ ] Visual Bible changes не должны ухудшать gameplay readability.
+- [x] Accessibility UI Smoke проверяет production Home/Game при font scale 1.3, critical clickable targets >=48dp и runtime bounds внутри display.
+- [ ] Перед production release выполнить ручной TalkBack smoke и spot-check дополнительных real-device safe-area/system-inset вариантов.
+- [ ] Visual Bible changes не должны ухудшать gameplay readability; при изменениях gameplay UI сохранять зелёными high-tier, adaptive-window и accessibility gates.
 
 ## Performance
 
@@ -65,7 +66,8 @@ Steamforge itself does not contain a custom NDK/game-engine layer, но third-pa
 1. Unit tests и lint зелёные.
 2. Debug + release build зелёные.
 3. Android 17 / 16 KiB smoke зелёный либо инфраструктурный сбой явно отделён от app failure.
-4. Real-device smoke core/save/privacy/ads.
-5. Production credentials только вне git.
-6. Signed artifact SHA-256 зафиксирован; загружается тот же artifact.
-7. Crash/ANR monitoring включён для production.
+4. Accessibility UI Smoke зелёный на актуальном UI baseline.
+5. Real-device smoke core/save/privacy/ads + TalkBack/large-text spot-check.
+6. Production credentials только вне git.
+7. Signed artifact SHA-256 зафиксирован; загружается тот же artifact.
+8. Crash/ANR monitoring включён для production.
