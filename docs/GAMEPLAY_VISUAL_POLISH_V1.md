@@ -10,7 +10,8 @@ This pass moves Steamforge closer to the approved premium industrial-steampunk d
 - low tiers read as quiet machined metal;
 - copper and antique gold build through the mid tiers;
 - 512 shifts into oxidized green metal, 1024 into deep teal, and 2048 becomes the energized teal core from the approved gameplay concept;
-- merge feedback should feel mechanical and weighted, not bouncy or arcade-like.
+- merge feedback should feel mechanical and weighted, not bouncy or arcade-like;
+- shared panels should look fabricated and dimensional without turning every surface into a gear collage.
 
 ## Implemented in this pass
 
@@ -19,7 +20,10 @@ This pass moves Steamforge closer to the approved premium industrial-steampunk d
 - tile progression aligned to the approved gameplay concept: pale metal → copper → antique gold → oxidized green → deep teal → energized teal;
 - denser multi-step tile bevel for a machined plate appearance;
 - reduced merge scale amplitude;
-- reduced combo pitch escalation while preserving tier hierarchy.
+- reduced combo pitch escalation while preserving tier hierarchy;
+- deeper shared panel/button gradients with restrained fasteners and edge highlights;
+- quieter industrial side rails and painterly warm/teal light pools in the common backdrop;
+- refined pressure dial depth and needle hierarchy.
 
 ## Explicit non-goals
 
@@ -31,4 +35,4 @@ This pass moves Steamforge closer to the approved premium industrial-steampunk d
 
 ## Next visual pass
 
-Recompose the gameplay HUD and board framing around the same material system, then propagate the refined surface language to Workshop/Home and secondary screens.
+Recompose the gameplay HUD and board framing around the same material system, then propagate the refined hierarchy to Workshop/Home and secondary screens.
