@@ -118,6 +118,7 @@ jobs:
       - name: Verify Activity recreation with ActivityScenario
         run: |
           set -o pipefail
+          adb logcat -c
           adb shell am instrument -w \
             -e class com.steamforge.game.ActiveRunActivityRecreationTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
@@ -141,6 +142,17 @@ jobs:
 
       - name: Verify active run survives interruptions
         run: bash tools/check-active-run-home-lifecycle.sh
+
+      - name: Collect lifecycle diagnostics
+        if: always()
+        run: |
+          mkdir -p ci-process-recreation
+          adb logcat -d -v threadtime > ci-process-recreation/logcat.txt || true
+          adb shell dumpsys activity activities > ci-process-recreation/activity-activities.txt || true
+          adb shell dumpsys activity processes > ci-process-recreation/activity-processes.txt || true
+          adb shell dumpsys meminfo com.steamforge.game > ci-process-recreation/app-meminfo.txt || true
+          adb shell pidof com.steamforge.game > ci-process-recreation/app-pid.txt || true
+          adb shell pidof com.steamforge.game.test > ci-process-recreation/test-pid.txt || true
 
       - name: Upload active run lifecycle diagnostics
         if: always()
