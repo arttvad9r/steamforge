@@ -1,0 +1,48 @@
+name: Apply Gameplay Overlay Adaptive V1
+
+on:
+  push:
+    branches:
+      - diag/gameplay-overlay-adaptive-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout production target
+        uses: actions/checkout@v6
+        with:
+          ref: feat/gameplay-overlay-adaptive-v1
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout diagnostic patch source
+        uses: actions/checkout@v6
+        with:
+          ref: diag/gameplay-overlay-adaptive-v1
+          path: .patch-source
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply adaptive overlay patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt')
+          text = path.read_text()
+          marker = '@Composable\nprivate fun GameOverOverlay('
+          assert marker in text
+          patch_root = Path('.patch-source/.tmp')
+          encoded = ''.join((patch_root / f'adaptive-tail.part{i}').read_text().strip() for i in range(1, 6))
+          replacement = base64.b64decode(encoded).decode()
+          path.write_text(text[:text.index(marker)] + replacement)
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt
+          git diff --cached --check
+          git commit -m "Make gameplay result overlays adaptive"
+          git push origin HEAD:feat/gameplay-overlay-adaptive-v1
