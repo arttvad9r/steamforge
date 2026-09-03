@@ -145,6 +145,7 @@ data class PlayerProgress(
     val unlockedAchievements: Set<String> = emptySet(),
     val achievementDays: Map<String, Long> = emptyMap(),
     val unlockedCosmetics: Set<String> = emptySet(),
+    val blueprintPieces: Set<String> = emptySet(),
     val dailyChallengeDay: Long = -1L,
     val dailyChallengeDone: Boolean = false,
     val dailyRewardDay: Long = -1L,
