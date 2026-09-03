@@ -51,8 +51,7 @@ import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 
-private val FrameShape = RoundedCornerShape(16.dp)
-private val InnerShape = RoundedCornerShape(13.dp)
+private val FrameShape = RoundedCornerShape(15.dp)
 
 @Composable
 fun SteamBackdrop(
@@ -65,41 +64,59 @@ fun SteamBackdrop(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF0B1118),
+                        Color(0xFF081018),
                         Background,
-                        Color(0xFF0C1218),
+                        Color(0xFF0B1218),
+                        Color(0xFF080D12),
                     ),
                 ),
             ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val sideMetal = BrassDark.copy(alpha = 0.20f)
-            val sideHighlight = Copper.copy(alpha = 0.10f)
-            val tealAtmosphere = TealGlow.copy(alpha = 0.055f)
-            val warmAtmosphere = BrassBright.copy(alpha = 0.035f)
-            val margin = 11.dp.toPx()
+            val rail = BrassDark.copy(alpha = 0.20f)
+            val railHighlight = BrassBright.copy(alpha = 0.07f)
+            val copperBounce = Copper.copy(alpha = 0.045f)
+            val tealAtmosphere = TealGlow.copy(alpha = 0.050f)
+            val warmAtmosphere = BrassBright.copy(alpha = 0.040f)
+            val margin = 10.dp.toPx()
 
+            // Painterly light pools imply a workshop beyond the UI without putting props under gameplay content.
             drawCircle(
                 warmAtmosphere,
-                radius = 180.dp.toPx(),
-                center = Offset(size.width * 0.56f, size.height * 0.02f),
+                radius = 210.dp.toPx(),
+                center = Offset(size.width * 0.74f, size.height * 0.03f),
+            )
+            drawCircle(
+                copperBounce,
+                radius = 155.dp.toPx(),
+                center = Offset(size.width * 0.08f, size.height * 0.18f),
             )
             drawCircle(
                 tealAtmosphere,
-                radius = 120.dp.toPx(),
-                center = Offset(size.width * 0.05f, size.height * 0.34f),
+                radius = 150.dp.toPx(),
+                center = Offset(size.width * 0.02f, size.height * 0.58f),
             )
             drawCircle(
-                tealAtmosphere.copy(alpha = 0.038f),
-                radius = 150.dp.toPx(),
-                center = Offset(size.width * 0.97f, size.height * 0.78f),
+                tealAtmosphere.copy(alpha = 0.032f),
+                radius = 190.dp.toPx(),
+                center = Offset(size.width * 0.96f, size.height * 0.86f),
             )
 
-            // Industrial context stays at the edges; gameplay content remains visually quiet.
-            drawLine(sideMetal, Offset(margin, 0f), Offset(margin, size.height), 3.dp.toPx(), StrokeCap.Round)
-            drawLine(sideMetal, Offset(size.width - margin, 0f), Offset(size.width - margin, size.height), 3.dp.toPx(), StrokeCap.Round)
-            drawLine(sideHighlight, Offset(margin + 1.dp.toPx(), 0f), Offset(margin + 1.dp.toPx(), size.height), 1.dp.toPx())
-            drawLine(sideHighlight, Offset(size.width - margin + 1.dp.toPx(), 0f), Offset(size.width - margin + 1.dp.toPx(), size.height), 1.dp.toPx())
+            // Quiet side rails give the shell an industrial frame while keeping the center clean.
+            drawLine(rail, Offset(margin, 0f), Offset(margin, size.height), 3.dp.toPx(), StrokeCap.Round)
+            drawLine(rail, Offset(size.width - margin, 0f), Offset(size.width - margin, size.height), 3.dp.toPx(), StrokeCap.Round)
+            drawLine(railHighlight, Offset(margin + 1.dp.toPx(), 0f), Offset(margin + 1.dp.toPx(), size.height), 1.dp.toPx())
+            drawLine(railHighlight, Offset(size.width - margin + 1.dp.toPx(), 0f), Offset(size.width - margin + 1.dp.toPx(), size.height), 1.dp.toPx())
+
+            val rivet = Brass.copy(alpha = 0.18f)
+            val rivetCore = Color.Black.copy(alpha = 0.28f)
+            val rivetYs = listOf(size.height * 0.14f, size.height * 0.50f, size.height * 0.86f)
+            rivetYs.forEach { y ->
+                drawCircle(rivet, 2.2.dp.toPx(), Offset(margin, y))
+                drawCircle(rivetCore, 0.9.dp.toPx(), Offset(margin, y))
+                drawCircle(rivet, 2.2.dp.toPx(), Offset(size.width - margin, y))
+                drawCircle(rivetCore, 0.9.dp.toPx(), Offset(size.width - margin, y))
+            }
         }
         content()
     }
@@ -173,37 +190,62 @@ fun SteamPanel(
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(10.dp),
     content: @Composable () -> Unit,
 ) {
-    val border = if (highlighted) Brass.copy(alpha = 0.78f) else BrassDark.copy(alpha = 0.62f)
+    val border = if (highlighted) Brass.copy(alpha = 0.76f) else BrassDark.copy(alpha = 0.54f)
     Box(
         modifier = modifier
-            .shadow(7.dp, FrameShape, ambientColor = Color.Black.copy(alpha = 0.32f), spotColor = Color.Black.copy(alpha = 0.45f))
+            .shadow(
+                9.dp,
+                FrameShape,
+                ambientColor = Color.Black.copy(alpha = 0.34f),
+                spotColor = Color.Black.copy(alpha = 0.50f),
+            )
             .clip(FrameShape)
             .background(
                 Brush.verticalGradient(
                     listOf(
                         PanelRaised.copy(alpha = 0.96f),
-                        Panel.copy(alpha = 0.98f),
-                        Recess.copy(alpha = 0.95f),
+                        Panel.copy(alpha = 0.985f),
+                        Color(0xFF111A22),
+                        Recess.copy(alpha = 0.98f),
                     ),
                 ),
             )
             .border(1.dp, border, FrameShape),
     ) {
         Canvas(Modifier.matchParentSize()) {
-            val lineInset = 16.dp.toPx()
-            if (size.width > lineInset * 2f && size.height > 10.dp.toPx()) {
+            val edgeInset = 13.dp.toPx()
+            val top = 3.5.dp.toPx()
+            val bottom = size.height - 3.5.dp.toPx()
+            if (size.width > edgeInset * 2f && size.height > 12.dp.toPx()) {
                 drawLine(
-                    Color.White.copy(alpha = if (highlighted) 0.075f else 0.045f),
-                    Offset(lineInset, 4.dp.toPx()),
-                    Offset(size.width - lineInset, 4.dp.toPx()),
+                    Color.White.copy(alpha = if (highlighted) 0.085f else 0.052f),
+                    Offset(edgeInset, top),
+                    Offset(size.width - edgeInset, top),
                     1.dp.toPx(),
                 )
                 drawLine(
-                    Color.Black.copy(alpha = 0.24f),
-                    Offset(lineInset, size.height - 4.dp.toPx()),
-                    Offset(size.width - lineInset, size.height - 4.dp.toPx()),
+                    BrassBright.copy(alpha = if (highlighted) 0.10f else 0.045f),
+                    Offset(edgeInset + 5.dp.toPx(), top + 2.dp.toPx()),
+                    Offset(size.width - edgeInset - 5.dp.toPx(), top + 2.dp.toPx()),
+                    0.7.dp.toPx(),
+                )
+                drawLine(
+                    Color.Black.copy(alpha = 0.32f),
+                    Offset(edgeInset, bottom),
+                    Offset(size.width - edgeInset, bottom),
                     1.dp.toPx(),
                 )
+            }
+
+            // Two tiny fasteners are enough to sell a fabricated panel; avoid gear/rivet wallpaper.
+            if (size.width > 56.dp.toPx() && size.height > 28.dp.toPx()) {
+                val bolt = Brass.copy(alpha = if (highlighted) 0.40f else 0.24f)
+                val boltCore = Recess.copy(alpha = 0.90f)
+                val y = 9.dp.toPx()
+                listOf(10.dp.toPx(), size.width - 10.dp.toPx()).forEach { x ->
+                    drawCircle(bolt, 2.0.dp.toPx(), Offset(x, y))
+                    drawCircle(boltCore, 0.8.dp.toPx(), Offset(x, y))
+                }
             }
         }
         Column(modifier = Modifier.padding(contentPadding)) {
@@ -222,19 +264,27 @@ fun SteamButton(
     icon: String? = null,
 ) {
     val (start, end, border, content) = when (style) {
-        SteamButtonStyle.Teal -> listOf(TealSurface, Color(0xFF17373D), TealGlow, TextWarm)
-        SteamButtonStyle.Brass -> listOf(Color(0xFF755427), Color(0xFF3A2A18), BrassBright, TextWarm)
+        SteamButtonStyle.Teal -> listOf(Color(0xFF285B60), Color(0xFF15353A), TealGlow, TextWarm)
+        SteamButtonStyle.Brass -> listOf(Color(0xFF7B5A2B), Color(0xFF352615), BrassBright, TextWarm)
         SteamButtonStyle.Dark -> listOf(PanelRaised, Recess, BrassDark, TextWarm)
-        SteamButtonStyle.Danger -> listOf(Color(0xFF6B3324), Color(0xFF341B17), Color(0xFFC7603A), TextWarm)
+        SteamButtonStyle.Danger -> listOf(Color(0xFF653023), Color(0xFF2F1814), Color(0xFFB95A3B), TextWarm)
     }
-    val shape = RoundedCornerShape(13.dp)
+    val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = modifier
             .height(54.dp)
-            .shadow(6.dp, shape)
+            .shadow(7.dp, shape, ambientColor = Color.Black.copy(alpha = 0.28f), spotColor = Color.Black.copy(alpha = 0.42f))
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(start, end)))
-            .border(1.dp, border.copy(alpha = if (enabled) 0.84f else 0.30f), shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        start.copy(alpha = if (enabled) 1f else 0.58f),
+                        start.copy(alpha = if (enabled) 0.92f else 0.52f),
+                        end.copy(alpha = if (enabled) 1f else 0.64f),
+                    ),
+                ),
+            )
+            .border(1.dp, border.copy(alpha = if (enabled) 0.82f else 0.28f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp)
             .semantics {
@@ -269,10 +319,18 @@ fun BrassRoundButton(
     Box(
         modifier = modifier
             .size(48.dp)
-            .shadow(5.dp, CircleShape)
+            .shadow(6.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.30f), spotColor = Color.Black.copy(alpha = 0.44f))
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf(PanelRaised, Recess)))
-            .border(1.dp, Brass.copy(alpha = 0.78f), CircleShape)
+            .background(
+                Brush.radialGradient(
+                    listOf(
+                        PanelRaised,
+                        Panel,
+                        Recess,
+                    ),
+                ),
+            )
+            .border(1.dp, Brass.copy(alpha = 0.74f), CircleShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         contentAlignment = Alignment.Center,
@@ -332,8 +390,12 @@ fun MechanicalToggle(
             .width(94.dp)
             .height(48.dp)
             .clip(shape)
-            .background(track)
-            .border(1.dp, if (checked) TealGlow.copy(alpha = 0.82f) else BrassDark.copy(alpha = 0.66f), shape)
+            .background(
+                Brush.verticalGradient(
+                    if (checked) listOf(TealSurface, Color(0xFF153238)) else listOf(Panel, Recess),
+                ),
+            )
+            .border(1.dp, if (checked) TealGlow.copy(alpha = 0.76f) else BrassDark.copy(alpha = 0.58f), shape)
             .toggleable(
                 value = checked,
                 role = Role.Switch,
@@ -348,8 +410,8 @@ fun MechanicalToggle(
             Modifier
                 .size(30.dp)
                 .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(BrassBright, BrassDark)))
-                .border(1.dp, BrassBright.copy(alpha = 0.48f), CircleShape),
+                .background(Brush.radialGradient(listOf(BrassBright, Brass, BrassDark)))
+                .border(1.dp, BrassBright.copy(alpha = 0.44f), CircleShape),
         )
         if (checked) Spacer(Modifier.weight(1f))
     }
@@ -364,12 +426,15 @@ fun PressureDial(
     val active = overdriveRemaining > 0
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val stroke = 11.dp.toPx()
+            val stroke = 10.dp.toPx()
             val inset = stroke / 2f
             val rect = Rect(inset, inset, size.width - inset, size.height - inset)
-            drawArc(Color(0xFF29464B), 150f, 80f, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = rect.topLeft, size = rect.size)
+
+            drawArc(Color.Black.copy(alpha = 0.34f), 148f, 244f, false, style = Stroke(stroke + 4.dp.toPx(), cap = StrokeCap.Round), topLeft = rect.topLeft, size = rect.size)
+            drawArc(Color(0xFF28454A), 150f, 80f, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = rect.topLeft, size = rect.size)
             drawArc(Color(0xFF776331), 230f, 55f, false, style = Stroke(stroke, cap = StrokeCap.Butt), topLeft = rect.topLeft, size = rect.size)
-            drawArc(Color(0xFF87513A), 285f, 105f, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = rect.topLeft, size = rect.size)
+            drawArc(Color(0xFF7D4938), 285f, 105f, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = rect.topLeft, size = rect.size)
+
             val normalized = if (active) 1f else pressure.coerceIn(0, 100) / 100f
             val angle = Math.toRadians((150f + 240f * normalized).toDouble())
             val center = Offset(size.width / 2f, size.height / 2f)
@@ -378,8 +443,11 @@ fun PressureDial(
                 center.x + kotlin.math.cos(angle).toFloat() * radius,
                 center.y + kotlin.math.sin(angle).toFloat() * radius,
             )
-            drawLine(if (active) TealGlow else BrassBright, center, end, 3.dp.toPx(), StrokeCap.Round)
-            drawCircle(BrassBright, 6.dp.toPx(), center)
+            drawLine(Color.Black.copy(alpha = 0.42f), center, end, 5.dp.toPx(), StrokeCap.Round)
+            drawLine(if (active) TealGlow else BrassBright, center, end, 2.6.dp.toPx(), StrokeCap.Round)
+            drawCircle(BrassDark, 7.dp.toPx(), center)
+            drawCircle(BrassBright, 4.5.dp.toPx(), center)
+            drawCircle(Recess, 1.8.dp.toPx(), center)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(if (active) "OVERDRIVE" else "ДАВЛЕНИЕ", style = MaterialTheme.typography.labelMedium, color = if (active) TealGlow else TextMuted)
