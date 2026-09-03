@@ -262,11 +262,6 @@ fun GameScreen(
                                     softWrap = false,
                                 )
                             }
-                            Text(
-                                "ХОД ${ui.state.moves}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted,
-                            )
                         }
                         Spacer(Modifier.height(4.dp))
 
@@ -274,40 +269,20 @@ fun GameScreen(
                             StatPlate("СЧЁТ", ui.state.score.toString(), Modifier.weight(1f), BrassBright)
                             Spacer(Modifier.width(5.dp))
                             StatPlate("ЛУЧШИЙ", ui.best.toString(), Modifier.weight(1f), TextWarm)
-                            Spacer(Modifier.width(5.dp))
-                            StatPlate("ГЕМЫ", ui.gems.toString(), Modifier.weight(0.78f), TealGlow)
                         }
                         Spacer(Modifier.height(4.dp))
 
                         SteamPanel(
                             modifier = Modifier.fillMaxWidth(),
                             highlighted = ui.overdriveRemaining > 0,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                HudMetric(
-                                    label = "ХОДЫ",
-                                    value = ui.state.moves.toString(),
-                                    accent = BrassBright,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                PressureGauge(
-                                    pressure = ui.pressure,
-                                    overdriveRemaining = ui.overdriveRemaining,
-                                    animationsActive = ui.animationsActive,
-                                    modifier = Modifier.size(82.dp),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                HudMetric(
-                                    label = "ОТМЕНА",
-                                    value = if (ui.freeUndosLeft > 0) "${ui.freeUndosLeft} бесплатно" else "◆ 5",
-                                    accent = if (ui.freeUndosLeft > 0) TealGlow else BrassBright,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
+                            PressureStrip(
+                                pressure = ui.pressure,
+                                overdriveRemaining = ui.overdriveRemaining,
+                            )
                             ui.daily?.let { daily ->
-                                Spacer(Modifier.height(2.dp))
+                                Spacer(Modifier.height(4.dp))
                                 Text(
                                     dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
                                     modifier = Modifier.fillMaxWidth(),
@@ -325,6 +300,15 @@ fun GameScreen(
                             Modifier.fillMaxWidth(),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
                         ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("ИНСТРУМЕНТЫ", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                Spacer(Modifier.weight(1f))
+                                Text("◆ ${ui.gems}", style = MaterialTheme.typography.labelMedium, color = TealGlow)
+                            }
+                            Spacer(Modifier.height(4.dp))
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -390,11 +374,6 @@ fun GameScreen(
                                 softWrap = false,
                             )
                         }
-                        Text(
-                            "ХОД ${ui.state.moves}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextMuted,
-                        )
                     }
                     Spacer(Modifier.height(8.dp))
 
@@ -416,34 +395,22 @@ fun GameScreen(
                                 accent = TextWarm,
                                 modifier = Modifier.weight(1f),
                             )
-                            HudMetric(
-                                label = "ГЕМЫ",
-                                value = ui.gems.toString(),
-                                accent = TealGlow,
-                                modifier = Modifier.weight(0.72f),
-                            )
                         }
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            if (ui.overdriveRemaining > 0) {
-                                "OVERDRIVE ×2 · ${ui.overdriveRemaining} объедин."
-                            } else {
-                                "ДАВЛЕНИЕ ${ui.pressure}%"
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (ui.overdriveRemaining > 0) TealGlow else TextMuted,
-                            textAlign = TextAlign.Center,
+                        Spacer(Modifier.height(6.dp))
+                        PressureStrip(
+                            pressure = ui.pressure,
+                            overdriveRemaining = ui.overdriveRemaining,
                         )
                         val daily = ui.daily
                         if (daily != null) {
-                            Spacer(Modifier.height(3.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 dailyGoalText(daily) + if (ui.dailySatisfied) " · выполнено" else "",
                                 modifier = Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (ui.dailySatisfied) TealGlow else TextWarm,
                                 textAlign = TextAlign.Center,
+                                maxLines = 1,
                             )
                         }
                     }
@@ -463,6 +430,15 @@ fun GameScreen(
                     Spacer(Modifier.height(9.dp))
 
                     SteamPanel(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(7.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("ИНСТРУМЕНТЫ", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                            Spacer(Modifier.weight(1f))
+                            Text("◆ ${ui.gems}", style = MaterialTheme.typography.labelMedium, color = TealGlow)
+                        }
+                        Spacer(Modifier.height(5.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             ToolButton(
                                 symbol = "↶",
@@ -547,6 +523,58 @@ private fun HudMetric(
             maxLines = 1,
             softWrap = false,
         )
+    }
+}
+
+@Composable
+private fun PressureStrip(
+    pressure: Int,
+    overdriveRemaining: Int,
+    modifier: Modifier = Modifier,
+) {
+    val active = overdriveRemaining > 0
+    val fraction = if (active) 1f else pressure.coerceIn(0, 100) / 100f
+    val description = if (active) {
+        "Overdrive x2, осталось $overdriveRemaining объединений"
+    } else {
+        "Давление $pressure процентов"
+    }
+    val shape = RoundedCornerShape(99.dp)
+
+    Column(modifier = modifier.semantics { contentDescription = description }) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                if (active) "OVERDRIVE ×2" else "ДАВЛЕНИЕ",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) TealGlow else TextMuted,
+            )
+            Text(
+                if (active) "$overdriveRemaining объедин." else "$pressure%",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) TealGlow else TextWarm,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(shape)
+                .background(Recess.copy(alpha = 0.92f))
+                .border(1.dp, BrassDark.copy(alpha = 0.45f), shape),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .clip(shape)
+                    .background(if (active) TealGlow else Brass),
+            )
+        }
     }
 }
 
