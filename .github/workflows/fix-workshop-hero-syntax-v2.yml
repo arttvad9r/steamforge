@@ -1,0 +1,34 @@
+name: Fix Workshop Hero Syntax V2
+
+on:
+  push:
+    branches:
+      - diag/workshop-hero-syntax-fix-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout production target
+        uses: actions/checkout@v6
+        with:
+          ref: feat/workshop-hero-composition-v2
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout patch source
+        uses: actions/checkout@v6
+        with:
+          ref: diag/workshop-hero-syntax-fix-v2
+          path: patch-source
+      - name: Repair Workshop function boundaries
+        shell: bash
+        run: |
+          python3 patch-source/.github/workshop_hero_syntax_fix_v2.py
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/com/steamforge/game/ui/workshop/WorkshopScreen.kt
+          git commit -m "Fix Workshop hero function boundaries"
+          git push origin HEAD:feat/workshop-hero-composition-v2
