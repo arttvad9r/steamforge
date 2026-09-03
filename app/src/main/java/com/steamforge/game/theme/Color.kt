@@ -3,58 +3,62 @@ package com.steamforge.game.theme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// Premium stylized steampunk: dark workshop, warm brass/copper, restrained teal energy accent.
-val Background = Color(0xFF0D0A07)
-val SurfaceDark = Color(0xFF17110D)
-val Panel = Color(0xFF211813)
-val PanelRaised = Color(0xFF30231A)
-val Recess = Color(0xFF090705)
-val OutlineBrass = Color(0xFF7A5628)
-val BrassDark = Color(0xFF573817)
-val Brass = Color(0xFFB77B2C)
-val BrassBright = Color(0xFFE1B35C)
-val Copper = Color(0xFFA6532D)
-val Steel = Color(0xFF6E7474)
-val Patina = Color(0xFF5B8A80)
-val TealSurface = Color(0xFF174A48)
-val TealGlow = Color(0xFF59D9D1)
-val TextWarm = Color(0xFFF0DFC0)
-val TextMuted = Color(0xFFB8A584)
-val Danger = Color(0xFFC65332)
+// Approved Steamforge palette: charcoal/deep navy base, warm brass, restrained teal/patina.
+val Background = Color(0xFF10161D)
+val SurfaceDark = Color(0xFF16202A)
+val Panel = Color(0xFF1C2731)
+val PanelRaised = Color(0xFF26323D)
+val Recess = Color(0xFF0C1218)
+val OutlineBrass = Color(0xFF76562A)
+val BrassDark = Color(0xFF64451F)
+val Brass = Color(0xFFA9782E)
+val BrassBright = Color(0xFFD1A45A)
+val Copper = Color(0xFFC76A2A)
+val Steel = Color(0xFF5B6773)
+val Patina = Color(0xFF3B9A9E)
+val TealSurface = Color(0xFF234F55)
+val TealGlow = Color(0xFF63B7BA)
+val TextWarm = Color(0xFFF0E5D0)
+val TextMuted = Color(0xFFAAB2B8)
+val Danger = Color(0xFFC7603A)
 
-/** Tile material palette derived from the visual concept: ivory, copper, bronze, patina and core gold. */
+/**
+ * Gameplay tiles stay intentionally restrained: tile-first, steampunk-second.
+ * Low tiers are quiet metal plates; richer material changes arrive gradually.
+ */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFFD7C5A2), Color(0xFF472A15)), // 2 aged ivory brass
-    RawTileColor(Color(0xFFC8AE7D), Color(0xFF432814)), // 4 warm brass
-    RawTileColor(Color(0xFFA95F39), Color(0xFFF4DEBD)), // 8 copper
-    RawTileColor(Color(0xFFA97734), Color(0xFFF6E3C1)), // 16 bronze
-    RawTileColor(Color(0xFFBC582B), Color(0xFFF7E0C0)), // 32 hot copper
-    RawTileColor(Color(0xFF99392D), Color(0xFFF8E2C8)), // 64 red copper
-    RawTileColor(Color(0xFF4C7B70), Color(0xFFF2E4C7)), // 128 oxidized brass
-    RawTileColor(Color(0xFF356862), Color(0xFFF2E4C7)), // 256 deep patina
-    RawTileColor(Color(0xFFA96F27), Color(0xFFF9E8C7)), // 512 dark gold
-    RawTileColor(Color(0xFFC08B31), Color(0xFF172029)), // 1024 bright gold, dark ink for readable contrast
-    RawTileColor(Color(0xFFD4A647), Color(0xFF241508)), // 2048 mechanical core
+    RawTileColor(Color(0xFFC8BEAA), Color(0xFF27313A)), // 2 aged steel/ivory
+    RawTileColor(Color(0xFFBDAE93), Color(0xFF27313A)), // 4 warm steel
+    RawTileColor(Color(0xFF9E7651), Color(0xFFF3E8D4)), // 8 muted copper
+    RawTileColor(Color(0xFFA9782E), Color(0xFFF6EAD4)), // 16 brass
+    RawTileColor(Color(0xFFAF6534), Color(0xFFF7E8D4)), // 32 forged copper
+    RawTileColor(Color(0xFF96513C), Color(0xFFF7E8D4)), // 64 heat-treated copper
+    RawTileColor(Color(0xFF567A78), Color(0xFFF2E9D8)), // 128 oxidized metal
+    RawTileColor(Color(0xFF3F6F72), Color(0xFFF2E9D8)), // 256 deep patina
+    RawTileColor(Color(0xFF8E6B34), Color(0xFFF7EAD2)), // 512 dark brass
+    RawTileColor(Color(0xFFB9853B), Color(0xFF172029)), // 1024 polished brass, dark ink for readable contrast
+    RawTileColor(Color(0xFFD1A45A), Color(0xFF172029)), // 2048 mechanical core
 )
 
 fun tileColors(level: Int): TileColors {
     val raw = rawTileColors[(level - 1).coerceIn(0, rawTileColors.lastIndex)]
-    return TileColors(raw.bg, raw.content, glow = level >= 10)
+    return TileColors(raw.bg, raw.content, glow = level >= 11)
 }
 
 fun tileBevel(level: Int): Brush {
     val material = tileColors(level).background
+    val highTier = level >= 9
     return Brush.verticalGradient(
         listOf(
-            material.lighten(1.17f),
-            material.lighten(1.07f),
+            material.lighten(if (highTier) 1.10f else 1.07f),
+            material.lighten(1.035f),
             material,
-            material.darken(0.84f),
-            material.darken(0.64f),
+            material.darken(if (highTier) 0.90f else 0.92f),
+            material.darken(if (highTier) 0.80f else 0.84f),
         ),
     )
 }
