@@ -81,6 +81,69 @@ PY
   sleep 2
 }
 
+tap_node_if_visible() {
+  local needle="$1"
+  local label="$2"
+  dump_ui "$label"
+  if ! python3 - "$needle" > /tmp/tap.txt <<'PY'
+import re
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+needle = sys.argv[1].casefold()
+root = ET.parse('/tmp/window.xml').getroot()
+parents = {child: parent for parent in root.iter() for child in parent}
+
+def label(node):
+    return ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
+
+matches = [node for node in root.iter('node') if needle in label(node)]
+if not matches:
+    raise SystemExit(2)
+original = matches[0]
+chain = [original]
+current = original
+for _ in range(3):
+    current = parents.get(current)
+    if current is None:
+        break
+    chain.append(current)
+node = next((candidate for candidate in chain if candidate.attrib.get('clickable') == 'true'), original)
+match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
+if not match:
+    raise SystemExit(3)
+left, top, right, bottom = map(int, match.groups())
+size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
+sizes = re.findall(r'(\d+)x(\d+)', size_text)
+if not sizes:
+    raise SystemExit(4)
+width, height = map(int, sizes[-1])
+x = (left + right) // 2
+y = (top + bottom) // 2
+if not (0 <= x < width and 0 <= y < height):
+    raise SystemExit(5)
+print(x, y)
+PY
+  then
+    return 1
+  fi
+  read -r x y < /tmp/tap.txt
+  adb shell input tap "$x" "$y"
+  sleep 2
+}
+
+scroll_home_up() {
+  local size_text width height x start_y end_y
+  size_text="$(adb shell wm size | tail -1 | tr -d '\r')"
+  read -r width height < <(printf '%s\n' "$size_text" | sed -E 's/.*: ([0-9]+)x([0-9]+)/\1 \2/')
+  x=$((width / 2))
+  start_y=$((height * 4 / 5))
+  end_y=$((height * 2 / 5))
+  adb shell input swipe "$x" "$start_y" "$x" "$end_y" 280
+  sleep 1
+}
+
 wait_for_game() {
   local label="$1"
   local attempt
@@ -94,6 +157,31 @@ wait_for_game() {
     sleep 2
   done
   echo 'Production game surface not found' >&2
+  cat /tmp/window.xml >&2 || true
+  return 1
+}
+
+enter_game_from_home() {
+  local label="$1"
+  local attempt entry
+  for attempt in $(seq 1 15); do
+    dump_ui "${label}-home-${attempt}"
+    if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
+      entry='ПРОДОЛЖИТЬ'
+    elif grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then
+      entry='ИГРАТЬ'
+    else
+      entry=''
+    fi
+
+    if [[ -n "$entry" ]] && tap_node_if_visible "$entry" "${label}-tap-${attempt}"; then
+      if wait_for_game "${label}-game"; then
+        return 0
+      fi
+    fi
+    scroll_home_up
+  done
+  echo 'Play/Continue entry not reachable from Home' >&2
   cat /tmp/window.xml >&2 || true
   return 1
 }
@@ -163,7 +251,7 @@ prepare_consent() {
   if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then
     tap_node 'ОТКЛЮЧИТЬ' '00-disable-analytics'
   fi
-  wait_for_text 'ИГРАТЬ' '01-workshop'
+  wait_for_text 'MECHANICAL 2048' '01-home'
 }
 
 verify_shape() {
@@ -173,9 +261,8 @@ verify_shape() {
 
   set_window "$size" "$density"
   launch_app
-  wait_for_text 'ИГРАТЬ' "${label}-workshop"
-  tap_node 'ИГРАТЬ' "${label}-play"
-  wait_for_game "${label}-game"
+  wait_for_text 'MECHANICAL 2048' "${label}-home"
+  enter_game_from_home "$label"
   assert_game_inside_display "${label}-bounds" | tee "$ARTIFACT_DIR/${label}-bounds.txt"
   capture "${label}-game"
   adb shell input keyevent KEYCODE_BACK
@@ -184,13 +271,13 @@ verify_shape() {
 
 prepare_consent
 
-# 360 x 640 dp, classic 16:9 portrait.
+# 360 x 640 dp, classic 16:9 portrait. Starts a real production run.
 verify_shape '720x1280' '320' '10-portrait-16x9'
 
-# 390 x 845 dp, approximately 19.5:9 portrait.
+# 390 x 845 dp, approximately 19.5:9 portrait. Resumes the same saved run.
 verify_shape '780x1690' '320' '20-portrait-19_5x9'
 
-# 640 x 360 dp, classic 16:9 landscape.
+# 640 x 360 dp, classic 16:9 landscape. Resumes the same saved run after scrolling Home if needed.
 verify_shape '1280x720' '320' '30-landscape-16x9'
 
 adb shell wm size reset || true
