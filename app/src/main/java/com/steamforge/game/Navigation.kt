@@ -35,6 +35,8 @@ import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
 import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.game.PersistenceGuardedGameScreen
+import com.steamforge.game.ui.home.HomeScreen
+import com.steamforge.game.ui.home.HomeViewModel
 import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
 import com.steamforge.game.ui.workshop.WorkshopScreen
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
+@Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
 @Serializable data class Game(val daily: Boolean = false) : NavKey
 @Serializable data object Achievements : NavKey
@@ -50,7 +53,7 @@ import kotlinx.serialization.Serializable
 
 @Composable
 fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
-    val backStack = rememberNavBackStack(Workshop)
+    val backStack = rememberNavBackStack(Home)
     val systemAnimationsEnabled = LocalContext.current.let {
         android.provider.Settings.Global.getFloat(
             it.contentResolver,
@@ -84,6 +87,17 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             rememberViewModelStoreNavEntryDecorator(),
         ),
         entryProvider = entryProvider {
+            entry<Home> {
+                val vm: HomeViewModel = viewModel { HomeViewModel(container.repo) }
+                HomeScreen(
+                    vm = vm,
+                    onPlay = { backStack.add(Game(daily = false)) },
+                    onWorkshop = { backStack.add(Workshop) },
+                    onDaily = { backStack.add(Game(daily = true)) },
+                    onAchievements = { backStack.add(Achievements) },
+                    onSettings = { backStack.add(Settings) },
+                )
+            }
             entry<Workshop> {
                 val vm: WorkshopViewModel = viewModel { WorkshopViewModel(container.repo) }
                 WorkshopScreen(
