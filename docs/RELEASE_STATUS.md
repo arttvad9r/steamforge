@@ -26,6 +26,7 @@
 - hosted API 36 frame-timing execution diagnostic; его числа являются диагностикой, а не performance SLA;
 - adaptive production `GameScreen`: portrait baseline + compact-landscape layout с board слева и HUD/Undo/Wrench справа;
 - отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape;
+- large-font Accessibility UI Smoke: production Home/Game при font scale 1.3, critical touch targets не меньше 48dp и runtime bounds внутри display;
 - curated V1 visual clean pass: спокойные Workshop/Achievements/Settings surfaces и выборочно адаптированный gameplay chrome без отката поздних contrast/input/feedback/adaptive fixes;
 - Home как Navigation3 root с одним Play/Continue CTA и отдельными входами в Workshop, Daily, Contracts, Collection и Settings;
 - ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave и атомарные идемпотентные gem claims.
@@ -52,6 +53,7 @@
 - High Tier Tile Smoke покрывает contrast/render и production swipe detector.
 - Frame Timing Diagnostic Smoke исполняет release-like dense-merge workload на hosted emulator; physical-device `FrameTimingMetric` остаётся обязательным для performance acceptance.
 - Adaptive Gameplay Window Smoke проверяет production gameplay bounds на трёх window shapes.
+- Accessibility UI Smoke запускает production app на API 36 при font scale 1.3, проходит Privacy → Home → Game и проверяет runtime touch geometry критичных controls, включая Undo/Wrench, а также board tile bounds.
 - Yandex Mobile Ads automatic initialization отключён в manifest; analytics/ads flow контролируется privacy decision.
 - Release signing/preflight tooling существует.
 - `targetSdk = 36`, `compileSdk = 36`, `minSdk = 24`, JDK 17.
@@ -85,6 +87,18 @@ Baseline проверяет:
 - touchSlop / one-command-per-gesture instrumentation;
 - adaptive landscape gameplay layout;
 - compact gameplay chrome с board-first hierarchy, единым спокойным HUD, restrained board frame и premium glow только на high tiers.
+
+## Accessibility status
+
+Автоматизированный accessibility baseline теперь включает:
+
+- production Home/Game launch при font scale 1.3;
+- проверку критичных Home controls и gameplay Undo/Wrench как реальных clickable targets не меньше 48dp;
+- проверку, что эти runtime bounds остаются внутри display;
+- проверку, что semantic gameplay tile остаётся видимым внутри display;
+- сохранение screenshots, UI XML и geometry diagnostics как CI artifact.
+
+Этот gate не заменяет ручной TalkBack smoke и real-device проверку дополнительных размеров/системных inset-вариантов перед production release.
 
 ## Performance status
 
@@ -148,14 +162,14 @@ Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
 
 ## Production gate — RuStore V1
 
-1. Получить зелёный canonical CI на актуальном `master`: Android CI, UI smoke, Android 17/16 KiB, lifecycle, high-tier/input, adaptive-window и применимые performance diagnostics.
+1. Получить зелёный canonical CI на актуальном `master`: Android CI, UI smoke, Android 17/16 KiB, lifecycle, high-tier/input, adaptive-window, accessibility UI и применимые performance diagnostics.
 2. Выполнить physical-device Macrobenchmark и сохранить реальные frame-timing результаты.
 3. Опубликовать Privacy Policy по постоянному HTTPS URL.
 4. Подключить production keystore и проверить backups.
 5. Добавить локально production AppMetrica/Yandex Ads IDs и Privacy Policy URL.
 6. Запустить `bash tools/build-rustore-release.sh`.
 7. Использовать только `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
-8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, rewarded, interstitial, reset progress, offline, Privacy Policy.
+8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, rewarded, interstitial, reset progress, offline, Privacy Policy, TalkBack/large text spot-check.
 9. Проверить AppMetrica до/после consent и production ad placements.
 10. Повторно сверить SHA-256 и загрузить проверенный APK + утверждённые store assets.
 11. Для первого релиза использовать ручную публикацию после модерации.
