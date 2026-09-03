@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -43,7 +42,6 @@ import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 import com.steamforge.game.ui.components.BrassRoundButton
 import com.steamforge.game.ui.components.SteamBackdrop
-import com.steamforge.game.ui.components.SteamPanel
 
 @Composable
 fun AchievementsScreen(
@@ -71,26 +69,18 @@ fun AchievementsScreen(
                 BrassRoundButton("←", "Назад", onBack)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Достижения", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
-                    Text("Коллекция мастерской", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                    Text("КОЛЛЕКЦИЯ", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
+                    Text("Достижения мастерской", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                 }
                 Text(
-                    "$unlocked / ${achievementItems.size}",
+                    "$unlocked/${achievementItems.size}",
                     style = MaterialTheme.typography.titleLarge,
-                    color = BrassBright,
+                    color = if (unlocked == achievementItems.size && achievementItems.isNotEmpty()) TealGlow else BrassBright,
                 )
             }
             Spacer(Modifier.height(12.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ПРОГРЕСС", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                Spacer(Modifier.width(10.dp))
-                ProgressLine(
-                    progress = unlocked,
-                    max = achievementItems.size.coerceAtLeast(1),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            CollectionSummary(unlocked = unlocked, total = achievementItems.size)
             Spacer(Modifier.height(12.dp))
 
             LazyColumn(
@@ -109,18 +99,62 @@ fun AchievementsScreen(
 }
 
 @Composable
+private fun CollectionSummary(unlocked: Int, total: Int) {
+    val shape = RoundedCornerShape(13.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.50f))
+            .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .semantics {
+                contentDescription = "Коллекция: открыто $unlocked из $total достижений"
+            },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("ПРОГРЕСС КОЛЛЕКЦИИ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+                Text(
+                    if (total > 0 && unlocked >= total) "Коллекция собрана" else "Открывайте достижения в обычной игре",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                if (total > 0) "${((unlocked.toFloat() / total) * 100).toInt()}%" else "0%",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (total > 0 && unlocked >= total) TealGlow else TextWarm,
+            )
+        }
+        Spacer(Modifier.height(9.dp))
+        ProgressLine(unlocked, total.coerceAtLeast(1), Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
 private fun AchievementRow(item: AchievementUi) {
     val unlocked = item.unlocked
     val hidden = item.def.hidden && !unlocked
     val iconText = achievementIcon(item.def.id, hidden)
+    val shape = RoundedCornerShape(13.dp)
+    val accent = if (unlocked) TealGlow else BrassBright
 
-    SteamPanel(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = if (unlocked) 0.58f else 0.42f))
+            .border(
+                1.dp,
+                accent.copy(alpha = if (unlocked) 0.28f else 0.10f),
+                shape,
+            )
+            .padding(horizontal = 11.dp, vertical = 10.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${if (hidden) "Скрытое достижение" else item.def.title}: ${if (unlocked) "разблокировано" else "заблокировано"}"
             },
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 11.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AchievementBadge(iconText, unlocked)
@@ -130,13 +164,13 @@ private fun AchievementRow(item: AchievementUi) {
                     if (hidden) "Скрытое достижение" else item.def.title,
                     style = MaterialTheme.typography.titleMedium,
                     color = if (unlocked) TextWarm else TextWarm.copy(alpha = 0.78f),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (hidden) "Условие откроется после выполнения" else item.def.description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -150,6 +184,7 @@ private fun AchievementRow(item: AchievementUi) {
                             "${item.progress}/${item.def.maxProgress}",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
+                            maxLines = 1,
                         )
                     }
                 }
@@ -162,17 +197,19 @@ private fun AchievementRow(item: AchievementUi) {
                     )
                 }
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(9.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     "◆ ${item.def.gemReward}",
                     color = if (unlocked) TealGlow else TextMuted,
                     style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
                 )
                 Text(
-                    if (unlocked) "ГОТОВО" else "НАГРАДА",
-                    color = TextMuted,
+                    if (unlocked) "ОТКРЫТО" else "НАГРАДА",
+                    color = if (unlocked) TealGlow.copy(alpha = 0.76f) else TextMuted,
                     style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
                 )
             }
         }
@@ -181,23 +218,27 @@ private fun AchievementRow(item: AchievementUi) {
 
 @Composable
 private fun AchievementBadge(icon: String, unlocked: Boolean) {
-    val shape = RoundedCornerShape(11.dp)
+    val longBadge = icon.length > 2
+    val shape = RoundedCornerShape(10.dp)
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .width(if (longBadge) 50.dp else 42.dp)
+            .height(42.dp)
             .clip(shape)
-            .background(if (unlocked) TealSurface.copy(alpha = 0.70f) else Panel)
+            .background(if (unlocked) TealSurface.copy(alpha = 0.62f) else Recess.copy(alpha = 0.66f))
             .border(
                 1.dp,
-                if (unlocked) TealGlow.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.055f),
+                if (unlocked) TealGlow.copy(alpha = 0.38f) else Color.White.copy(alpha = 0.045f),
                 shape,
             ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             icon,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleSmall,
             color = if (unlocked) BrassBright else TextMuted,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
