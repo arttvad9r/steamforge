@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -76,6 +77,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val compactHeader = LocalConfiguration.current.screenWidthDp < 390
 
     SteamBackdrop(modifier) {
         Column(
@@ -103,7 +105,7 @@ fun HomeScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "STEAMFORGE",
-                        style = MaterialTheme.typography.displaySmall,
+                        style = if (compactHeader) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displaySmall,
                         color = BrassBright,
                         textAlign = TextAlign.Center,
                     )
