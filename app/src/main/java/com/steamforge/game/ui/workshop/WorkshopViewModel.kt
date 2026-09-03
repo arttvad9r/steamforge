@@ -6,6 +6,8 @@ import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.Reward
+import com.steamforge.game.progression.RewardSystem
 import com.steamforge.game.progression.WorkshopProgression
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -91,14 +93,14 @@ class WorkshopViewModel(
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
                 val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
                 val day = (continuingStreak % cfg.dailyRewardCycle) + 1
-                val reward = cfg.dailyRewardGems(day)
-                val cosmetics = if (day == cfg.dailyRewardCycle) p.unlockedCosmetics + "gold_gauge" else p.unlockedCosmetics
-                p.copy(
-                    gems = p.gems + reward,
-                    stats = p.stats.copy(gemsEarned = p.stats.gemsEarned + reward),
+                val rewards = buildList<Reward> {
+                    add(Reward.Gems(cfg.dailyRewardGems(day)))
+                    if (day == cfg.dailyRewardCycle) add(Reward.CosmeticUnlock("gold_gauge"))
+                }
+                val (rewarded, _) = RewardSystem.apply(p, rewards)
+                rewarded.copy(
                     dailyRewardDay = todayDay,
                     dailyRewardStreak = day,
-                    unlockedCosmetics = cosmetics,
                 )
             }
         }
