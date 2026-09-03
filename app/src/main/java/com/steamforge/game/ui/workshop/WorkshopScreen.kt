@@ -102,20 +102,15 @@ fun WorkshopScreen(
                 levelInfo = ui.levelInfo,
                 animationsEnabled = ui.animationsEnabled,
                 accent = accent,
+                gamesPlayed = ui.gamesPlayed,
+                bestScore = ui.bestScore,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             SteamButton(
                 text = "ИГРАТЬ",
                 icon = "▶",
                 onClick = onPlay,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(10.dp))
-
-            WorkshopStatusRail(
-                gamesPlayed = ui.gamesPlayed,
-                bestScore = ui.bestScore,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(14.dp))
@@ -222,36 +217,49 @@ private fun WorkshopHero(
     levelInfo: com.steamforge.game.progression.LevelInfo,
     animationsEnabled: Boolean,
     accent: Color,
+    gamesPlayed: Int,
+    bestScore: Int,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            "УРОВЕНЬ МАСТЕРСКОЙ",
-            style = MaterialTheme.typography.labelLarge,
-            color = TextMuted,
-        )
-        Spacer(Modifier.height(1.dp))
-        Text(
-            level.toString(),
-            style = MaterialTheme.typography.displaySmall,
-            color = TextWarm,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "УРОВЕНЬ МАСТЕРСКОЙ",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextMuted,
+                )
+                Text(
+                    "МЕХАНИЧЕСКОЕ ЯДРО",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent,
+                )
+            }
+            Text(
+                level.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+                color = TextWarm,
+            )
+        }
 
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(188.dp),
+                .height(204.dp),
             contentAlignment = Alignment.Center,
         ) {
             WorkshopScene(animationsEnabled, accent)
             Box(
                 Modifier
-                    .size(78.dp)
-                    .clip(RoundedCornerShape(25.dp))
+                    .size(82.dp)
+                    .clip(RoundedCornerShape(26.dp))
                     .background(Recess.copy(alpha = 0.90f))
-                    .border(1.dp, accent.copy(alpha = 0.58f), RoundedCornerShape(25.dp)),
+                    .border(1.dp, accent.copy(alpha = 0.58f), RoundedCornerShape(26.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -276,32 +284,21 @@ private fun WorkshopHero(
                 color = TextMuted,
             )
         }
-    }
-}
 
-@Composable
-private fun WorkshopStatusRail(
-    gamesPlayed: Int,
-    bestScore: Int,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        modifier = modifier
-            .clip(shape)
-            .background(Panel.copy(alpha = 0.52f))
-            .border(1.dp, BrassDark.copy(alpha = 0.30f), shape)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        InlineMetric("ПАРТИЙ", gamesPlayed.toString(), Modifier.weight(1f))
-        Box(
-            Modifier
-                .width(1.dp)
-                .height(30.dp)
-                .background(Color.White.copy(alpha = 0.07f)),
-        )
-        InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
+        Spacer(Modifier.height(9.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            InlineMetric("ПАРТИЙ", gamesPlayed.toString(), Modifier.weight(1f))
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .height(26.dp)
+                    .background(Color.White.copy(alpha = 0.07f)),
+            )
+            InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
+        }
     }
 }
 
