@@ -37,7 +37,8 @@ Steamforge itself does not contain a custom NDK/game-engine layer, но third-pa
 - [x] Save format backward-readable.
 - [x] Rewarded result idempotent on-device.
 - [x] Daily reward защищён от повторной выдачи в тот же день.
-- [ ] Сохранять smoke coverage для Home/background/foreground, process kill, offline и interrupted ad flow.
+- [x] CI smoke покрывает Home/background/foreground, process kill и production-app offline startup/recovery/autosave при отключённой outbound connectivity.
+- [ ] Перед production release проверить на реальном устройстве interrupted rewarded/interstitial flow уже после показа fullscreen ad.
 
 ## Input / UI
 
