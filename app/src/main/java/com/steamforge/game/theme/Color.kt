@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 
 // Approved Steamforge palette: deep workshop charcoal, warm aged brass and restrained patina.
 // The palette is intentionally low-saturation so material/light carry the premium feel instead of neon color.
+// Shared screens inherit these colors, but their SteamUi layout/drawing implementation remains unchanged in V1.
 val Background = Color(0xFF0D141B)
 val SurfaceDark = Color(0xFF141D25)
 val Panel = Color(0xFF1A242D)
