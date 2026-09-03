@@ -40,6 +40,14 @@ Steamforge itself does not contain a custom NDK/game-engine layer, но third-pa
 - [x] CI smoke покрывает Home/background/foreground, process kill и production-app offline startup/recovery/autosave при отключённой outbound connectivity.
 - [ ] Перед production release проверить на реальном устройстве interrupted rewarded/interstitial flow уже после показа fullscreen ad.
 
+## Observability / privacy
+
+- [x] AppMetrica не активируется до положительного privacy-решения пользователя.
+- [x] AppMetrica crash reporting оставлен включённым по умолчанию SDK.
+- [x] AppMetrica ANR monitoring явно включён через `withAnrMonitoring(true)`; стандартный timeout SDK не переопределяется.
+- [x] AppMetrica location tracking и advertising identifiers tracking отключены.
+- [ ] Перед production release подтвердить, что crash/ANR reports реально поступают и читаются в production AppMetrica project.
+
 ## Input / UI
 
 - [x] Touch swipe input.
@@ -71,4 +79,4 @@ Steamforge itself does not contain a custom NDK/game-engine layer, но third-pa
 5. Real-device smoke core/save/privacy/ads + TalkBack/large-text spot-check.
 6. Production credentials только вне git.
 7. Signed artifact SHA-256 зафиксирован; загружается тот же artifact.
-8. Crash/ANR monitoring включён для production.
+8. Crash/ANR monitoring включён для production и проверен в AppMetrica.
