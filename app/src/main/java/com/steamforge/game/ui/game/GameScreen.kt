@@ -902,51 +902,129 @@ private fun GameOverOverlay(
     onRestart: () -> Unit,
     onExit: () -> Unit,
 ) {
+    val bestTile = if (ui.state.maxLevel > 0) (1 shl ui.state.maxLevel).toString() else "—"
+    val gemsGained = ui.effects?.gemsGained ?: 0
+    val xpGained = ui.effects?.xpGained ?: 0
+    val newBest = ui.effects?.newBest == true
+
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.80f)).padding(20.dp),
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.82f)).padding(18.dp),
         contentAlignment = Alignment.Center,
     ) {
         SteamPanel(Modifier.fillMaxWidth().widthIn(max = 500.dp), highlighted = true) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("ИГРА ОКОНЧЕНА", style = MaterialTheme.typography.displaySmall, color = BrassBright, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
-                ResultRow("★", "ИТОГОВЫЙ СЧЁТ", ui.state.score.toString(), if (ui.effects?.newBest == true) TealGlow else TextWarm)
-                ResultRow("▣", "ЛУЧШАЯ ПЛИТКА", if (ui.state.maxLevel > 0) (1 shl ui.state.maxLevel).toString() else "—", TextWarm)
-                ResultRow("↔", "ВСЕГО ХОДОВ", ui.state.moves.toString(), TextWarm)
-                ResultRow("◆", "ПОЛУЧЕНО ГЕМОВ", "+${ui.effects?.gemsGained ?: 0}", TealGlow)
-                ResultRow("XP", "ПОЛУЧЕНО ОПЫТА", "+${ui.effects?.xpGained ?: 0}", TealGlow)
-
-                if (ui.effects?.levelUps?.isNotEmpty() == true) {
-                    Spacer(Modifier.height(6.dp))
-                    Text("Мастерская: уровень ${ui.effects.levelUps.last()}!", color = BrassBright, style = MaterialTheme.typography.bodyLarge)
-                }
-                if (ui.effects?.newAchievements?.isNotEmpty() == true) {
+                Text(
+                    "ПАРТИЯ ЗАВЕРШЕНА",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextWarm,
+                    textAlign = TextAlign.Center,
+                )
+                if (newBest) {
+                    Spacer(Modifier.height(3.dp))
                     Text(
-                        "Открыто: " + ui.effects.newAchievements.joinToString { it.title },
-                        color = TextMuted,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
+                        "НОВЫЙ РЕКОРД",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TealGlow,
                     )
                 }
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    ui.state.score.toString(),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = if (newBest) TealGlow else BrassBright,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Text(
+                    "ИТОГОВЫЙ СЧЁТ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+
                 Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ResultMetric("ЛУЧШАЯ ПЛИТКА", bestTile, BrassBright, Modifier.weight(1f))
+                    ResultMetric("ХОДОВ", ui.state.moves.toString(), TextWarm, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ResultMetric("ГЕМЫ", "+$gemsGained", TealGlow, Modifier.weight(1f))
+                    ResultMetric("ОПЫТ", "+$xpGained XP", TealGlow, Modifier.weight(1f))
+                }
+
+                if (ui.effects?.levelUps?.isNotEmpty() == true) {
+                    Spacer(Modifier.height(9.dp))
+                    ResultNotice("⚙", "Мастерская · уровень ${ui.effects.levelUps.last()}", BrassBright)
+                }
+                if (ui.effects?.newAchievements?.isNotEmpty() == true) {
+                    Spacer(Modifier.height(6.dp))
+                    ResultNotice(
+                        "✦",
+                        "Открыто: " + ui.effects.newAchievements.joinToString { it.title },
+                        TealGlow,
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+                SteamButton(
+                    "СЫГРАТЬ СНОВА",
+                    onRestart,
+                    Modifier.fillMaxWidth(),
+                    style = SteamButtonStyle.Teal,
+                )
+                Spacer(Modifier.height(7.dp))
+                SteamButton(
+                    "В МАСТЕРСКУЮ",
+                    onExit,
+                    Modifier.fillMaxWidth(),
+                    style = SteamButtonStyle.Dark,
+                )
 
                 if (ui.rewardDoubled) {
-                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
-                        Text("◆ ГЕМЫ УДВОЕНЫ", modifier = Modifier.fillMaxWidth(), color = TealGlow, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-                    }
+                    Spacer(Modifier.height(11.dp))
+                    Text(
+                        "◆ Награда за партию удвоена",
+                        modifier = Modifier.fillMaxWidth(),
+                        color = TealGlow,
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center,
+                    )
                 } else if (rewardedAvailable) {
-                    SteamPanel(Modifier.fillMaxWidth(), highlighted = true) {
-                        Text("УДВОИТЬ ГЕМЫ?", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, color = TextWarm, textAlign = TextAlign.Center)
-                        Text("Видео необязательно · награда +${ui.effects?.gemsGained ?: 0} гемов", modifier = Modifier.fillMaxWidth(), color = TextMuted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(8.dp))
-                        SteamButton("СМОТРЕТЬ И УДВОИТЬ", onRewarded, Modifier.fillMaxWidth(), style = SteamButtonStyle.Teal, icon = "▶")
+                    Spacer(Modifier.height(11.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Recess.copy(alpha = 0.78f))
+                            .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(12.dp))
+                            .padding(9.dp),
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "Необязательно · ещё +$gemsGained гемов за видео",
+                                modifier = Modifier.fillMaxWidth(),
+                                color = TextMuted,
+                                style = MaterialTheme.typography.labelMedium,
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            SteamButton(
+                                "УДВОИТЬ ГЕМЫ",
+                                onRewarded,
+                                Modifier.fillMaxWidth(),
+                                style = SteamButtonStyle.Dark,
+                                icon = "▶",
+                            )
+                        }
                     }
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth()) {
-                    SteamButton("СЫГРАТЬ СНОВА", onRestart, Modifier.weight(1f), style = SteamButtonStyle.Teal)
-                    Spacer(Modifier.width(8.dp))
-                    SteamButton("В МАСТЕРСКУЮ", onExit, Modifier.weight(1f), style = SteamButtonStyle.Brass)
                 }
             }
         }
@@ -954,20 +1032,60 @@ private fun GameOverOverlay(
 }
 
 @Composable
-private fun ResultRow(icon: String, label: String, value: String, valueColor: Color) {
+private fun ResultMetric(
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(11.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(Recess.copy(alpha = 0.76f))
+            .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleLarge,
+            color = accent,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun ResultNotice(icon: String, text: String, accent: Color) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Panel.copy(alpha = 0.56f))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(38.dp).clip(CircleShape).background(TealSurface.copy(alpha = 0.55f)).border(1.dp, Brass, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(icon, color = BrassBright, style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.width(9.dp))
-        Text(label, modifier = Modifier.weight(1f), color = TextMuted, style = MaterialTheme.typography.labelMedium)
-        Text(value, color = valueColor, style = MaterialTheme.typography.titleLarge)
+        Text(icon, color = accent, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text,
+            modifier = Modifier.weight(1f),
+            color = TextWarm,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
     }
 }
 
