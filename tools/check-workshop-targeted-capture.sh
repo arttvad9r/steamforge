@@ -65,14 +65,14 @@ def bounds(n):
 for original in root.iter('node'):
     if needle not in text(original): continue
     current=original
-    chain=[]
     for _ in range(8):
         if current is None: break
-        chain.append(current); current=parents.get(current)
-    node=next((n for n in chain if n.attrib.get('clickable')=='true' and bounds(n)), None)
-    if node is None: node=next((n for n in chain if bounds(n)), None)
-    if node is None: continue
-    l,t,r,b=bounds(node); print((l+r)//2,(t+b)//2); raise SystemExit(0)
+        b=bounds(current)
+        if current.attrib.get('clickable')=='true' and b:
+            l,t,r,bottom=b
+            print((l+r)//2,(t+bottom)//2)
+            raise SystemExit(0)
+        current=parents.get(current)
 raise SystemExit(2)
 PY
   read -r x y < /tmp/tap.txt
@@ -93,12 +93,14 @@ open_workshop() {
   for i in $(seq 1 8); do
     dump_ui "${label}-home-${i}"
     if grep -Fqi 'Мастерская' /tmp/window.xml; then
-      if tap_node 'Мастерская' "${label}-tap-${i}" && wait_for_text 'МЕХАНИЧЕСКОЕ ЯДРО' "${label}-workshop"; then
+      if tap_node 'Мастерская' "${label}-tap-${i}" && wait_for_text 'УРОВЕНЬ МАСТЕРСКОЙ' "${label}-workshop"; then
         return 0
       fi
     fi
     scroll_home
   done
+  echo 'Workshop entry not reachable' >&2
+  cat /tmp/window.xml >&2 || true
   return 1
 }
 
@@ -120,7 +122,7 @@ def bounds(n):
     if not m: return None
     a=tuple(map(int,m.groups()))
     return a if a[2]>a[0] and a[3]>a[1] else None
-for needle in ['механическое ядро','партии','рекорд','xp']:
+for needle in ['уровень мастерской','механическое ядро','партии','рекорд','xp']:
     matches=[n for n in root.iter('node') if needle in text(n) and bounds(n)]
     assert matches, f'{label}: missing visible {needle}'
     l,t,r,b=bounds(matches[0]); assert l>=0 and t>=0 and r<=width and b<=height, (label,needle,matches[0].attrib)
