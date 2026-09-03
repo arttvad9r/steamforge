@@ -45,7 +45,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.steamforge.game.sound.Sfx
@@ -55,16 +54,13 @@ import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.BrassDark
 import com.steamforge.game.theme.Copper
 import com.steamforge.game.theme.Panel
-import com.steamforge.game.theme.PanelRaised
 import com.steamforge.game.theme.Recess
 import com.steamforge.game.theme.TealGlow
-import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
+import com.steamforge.game.ui.components.BrassRoundButton
 import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamButton
-import com.steamforge.game.ui.components.SteamButtonStyle
-import com.steamforge.game.ui.components.SteamPanel
 
 @Composable
 fun WorkshopScreen(
@@ -92,49 +88,50 @@ fun WorkshopScreen(
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             WorkshopHeader(
                 gems = ui.gems,
                 streak = ui.dailyRewardStreak,
+                onAchievements = onAchievements,
+                onSettings = onSettings,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
-            WorkshopConsole(
+            WorkshopHero(
                 level = ui.level,
                 levelInfo = ui.levelInfo,
-                gamesPlayed = ui.gamesPlayed,
-                bestScore = ui.bestScore,
                 animationsEnabled = ui.animationsEnabled,
                 accent = accent,
             )
             Spacer(Modifier.height(12.dp))
 
-            Row(Modifier.fillMaxWidth()) {
-                MenuCard("▶", "ИГРАТЬ", onPlay, Modifier.weight(1f), primary = true)
-                Spacer(Modifier.width(8.dp))
-                MenuCard("★", "ДОСТИЖЕНИЯ", onAchievements, Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
-                MenuCard("⚙", "НАСТРОЙКИ", onSettings, Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(14.dp))
-
-            MetaActionPanel(
-                badge = "2048",
-                title = "Ежедневное испытание",
-                subtitle = if (ui.dailyDone) "Сегодня выполнено" else "Новая задача на сегодня",
-                accent = if (ui.dailyDone) TealGlow else BrassBright,
-            ) {
-                SteamButton(
-                    text = if (ui.dailyDone) "ВЫПОЛНЕНО" else "ОТКРЫТЬ ИСПЫТАНИЕ",
-                    onClick = onDaily,
-                    enabled = !ui.dailyDone,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = if (ui.dailyDone) SteamButtonStyle.Dark else SteamButtonStyle.Brass,
-                )
-            }
+            SteamButton(
+                text = "ИГРАТЬ",
+                icon = "▶",
+                onClick = onPlay,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(10.dp))
 
-            MetaActionPanel(
+            WorkshopStatusRail(
+                gamesPlayed = ui.gamesPlayed,
+                bestScore = ui.bestScore,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(14.dp))
+
+            WorkshopMetaRow(
+                badge = "2048",
+                title = "Испытание дня",
+                subtitle = if (ui.dailyDone) "Сегодня выполнено" else "Новая задача на сегодня",
+                actionLabel = if (ui.dailyDone) "ВЫПОЛНЕНО" else "ОТКРЫТЬ",
+                accent = if (ui.dailyDone) TealGlow else BrassBright,
+                enabled = !ui.dailyDone,
+                onClick = onDaily,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            WorkshopMetaRow(
                 badge = "◆",
                 title = "Ежедневная награда",
                 subtitle = if (ui.dailyRewardAvailable) {
@@ -142,55 +139,55 @@ fun WorkshopScreen(
                 } else {
                     "Награда сегодня уже получена"
                 },
+                actionLabel = if (ui.dailyRewardAvailable) "ПОЛУЧИТЬ" else "ПОЛУЧЕНО",
                 accent = if (ui.dailyRewardAvailable) TealGlow else TextMuted,
-            ) {
-                if (ui.dailyRewardAvailable) {
-                    SteamButton(
-                        text = "ПОЛУЧИТЬ",
-                        icon = "◆",
-                        onClick = {
-                            sfx.play(Sfx.COIN)
-                            if (ui.hapticsEnabled) {
-                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            }
-                            vm.claimDailyReward()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+                enabled = ui.dailyRewardAvailable,
+                onClick = {
+                    sfx.play(Sfx.COIN)
+                    if (ui.hapticsEnabled) {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    }
+                    vm.claimDailyReward()
+                },
+            )
             Spacer(Modifier.height(22.dp))
         }
     }
 }
 
 @Composable
-private fun WorkshopHeader(gems: Int, streak: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "STEAMFORGE",
-                style = MaterialTheme.typography.labelLarge,
-                color = BrassBright,
-            )
-            Text(
-                "Мастерская",
-                style = MaterialTheme.typography.headlineSmall,
-                color = TextWarm,
-            )
-            Text(
-                "Восстанавливайте ядро и открывайте новые механизмы",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextMuted,
-            )
+private fun WorkshopHeader(
+    gems: Int,
+    streak: Int,
+    onAchievements: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "STEAMFORGE",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = BrassBright,
+                )
+                Text(
+                    "Мастерская",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TextWarm,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            BrassRoundButton("★", "Достижения", onAchievements)
+            Spacer(Modifier.width(6.dp))
+            BrassRoundButton("⚙", "Настройки", onSettings)
         }
-        Spacer(Modifier.width(12.dp))
-        Column(horizontalAlignment = Alignment.End) {
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             CompactResource("◆", gems.toString(), TealGlow, "Гемы: $gems")
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.width(8.dp))
             CompactResource("↟", streak.toString(), BrassBright, "Серия дней: $streak")
         }
     }
@@ -207,8 +204,8 @@ private fun CompactResource(
     Row(
         modifier = Modifier
             .clip(shape)
-            .background(Panel.copy(alpha = 0.82f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), shape)
+            .background(Panel.copy(alpha = 0.58f))
+            .border(1.dp, Color.White.copy(alpha = 0.05f), shape)
             .padding(horizontal = 10.dp, vertical = 6.dp)
             .semantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
@@ -220,74 +217,91 @@ private fun CompactResource(
 }
 
 @Composable
-private fun WorkshopConsole(
+private fun WorkshopHero(
     level: Int,
     levelInfo: com.steamforge.game.progression.LevelInfo,
-    gamesPlayed: Int,
-    bestScore: Int,
     animationsEnabled: Boolean,
     accent: Color,
 ) {
-    SteamPanel(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        highlighted = true,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "УРОВЕНЬ МАСТЕРСКОЙ",
-                style = MaterialTheme.typography.labelLarge,
-                color = TextMuted,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                level.toString(),
-                style = MaterialTheme.typography.displaySmall,
-                color = TextWarm,
-            )
-            Spacer(Modifier.height(2.dp))
+        Text(
+            "УРОВЕНЬ МАСТЕРСКОЙ",
+            style = MaterialTheme.typography.labelLarge,
+            color = TextMuted,
+        )
+        Spacer(Modifier.height(1.dp))
+        Text(
+            level.toString(),
+            style = MaterialTheme.typography.displaySmall,
+            color = TextWarm,
+        )
 
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(188.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            WorkshopScene(animationsEnabled, accent)
             Box(
                 Modifier
-                    .fillMaxWidth()
-                    .height(174.dp),
+                    .size(78.dp)
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(Recess.copy(alpha = 0.90f))
+                    .border(1.dp, accent.copy(alpha = 0.58f), RoundedCornerShape(25.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                WorkshopScene(animationsEnabled, accent)
-                Box(
-                    Modifier
-                        .size(74.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Recess.copy(alpha = 0.88f))
-                        .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(24.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "CORE",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = accent,
-                    )
-                }
-            }
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("XP", style = MaterialTheme.typography.labelLarge, color = accent)
-                Spacer(Modifier.width(8.dp))
-                GaugeBar(levelInfo.fraction, accent, Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
                 Text(
-                    "${levelInfo.xpIntoLevel}/${levelInfo.xpToNext}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextMuted,
+                    "CORE",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = accent,
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth()) {
-                InlineMetric("ПАРТИЙ", gamesPlayed.toString(), Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
-                InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
-            }
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("XP", style = MaterialTheme.typography.labelLarge, color = accent)
+            Spacer(Modifier.width(8.dp))
+            GaugeBar(levelInfo.fraction, accent, Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "${levelInfo.xpIntoLevel}/${levelInfo.xpToNext}",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextMuted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkshopStatusRail(
+    gamesPlayed: Int,
+    bestScore: Int,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = modifier
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.52f))
+            .border(1.dp, BrassDark.copy(alpha = 0.30f), shape)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        InlineMetric("ПАРТИЙ", gamesPlayed.toString(), Modifier.weight(1f))
+        Box(
+            Modifier
+                .width(1.dp)
+                .height(30.dp)
+                .background(Color.White.copy(alpha = 0.07f)),
+        )
+        InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
     }
 }
 
@@ -298,17 +312,12 @@ private fun InlineMetric(
     modifier: Modifier = Modifier,
     accent: Color = TextWarm,
 ) {
-    val shape = RoundedCornerShape(10.dp)
     Column(
-        modifier = modifier
-            .clip(shape)
-            .background(Recess.copy(alpha = 0.48f))
-            .border(1.dp, Color.White.copy(alpha = 0.05f), shape)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = TextMuted)
-        Text(value, style = MaterialTheme.typography.titleLarge, color = accent)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
+        Text(value, style = MaterialTheme.typography.titleMedium, color = accent, maxLines = 1)
     }
 }
 
@@ -396,80 +405,59 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGear(
 }
 
 @Composable
-private fun MenuCard(
-    icon: String,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    primary: Boolean = false,
-) {
-    val shape = RoundedCornerShape(13.dp)
-    val accent = if (primary) TealGlow else BrassBright
-    val background = if (primary) {
-        Brush.verticalGradient(listOf(TealSurface.copy(alpha = 0.82f), Panel, Recess))
-    } else {
-        Brush.verticalGradient(listOf(PanelRaised.copy(alpha = 0.88f), Panel, Recess))
-    }
-
-    Column(
-        modifier = modifier
-            .height(86.dp)
-            .clip(shape)
-            .background(background)
-            .border(1.dp, accent.copy(alpha = if (primary) 0.66f else 0.28f), shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 10.dp)
-            .semantics { role = Role.Button; contentDescription = label },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            icon,
-            style = MaterialTheme.typography.titleLarge,
-            color = accent,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = TextWarm,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-        )
-    }
-}
-
-@Composable
-private fun MetaActionPanel(
+private fun WorkshopMetaRow(
     badge: String,
     title: String,
     subtitle: String,
+    actionLabel: String,
     accent: Color,
-    action: @Composable () -> Unit,
+    enabled: Boolean,
+    onClick: () -> Unit,
 ) {
-    SteamPanel(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    val shape = RoundedCornerShape(13.dp)
+    val longBadge = badge.length > 2
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(66.dp)
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.58f))
+            .border(1.dp, accent.copy(alpha = if (enabled) 0.24f else 0.12f), shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 11.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = "$title. $subtitle. $actionLabel"
+            },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val shape = RoundedCornerShape(10.dp)
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .clip(shape)
-                    .background(PanelRaised.copy(alpha = 0.74f))
-                    .border(1.dp, accent.copy(alpha = 0.35f), shape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(badge, style = MaterialTheme.typography.labelLarge, color = accent)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = TextWarm)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = accent)
-            }
+        Box(
+            modifier = Modifier
+                .size(if (longBadge) 42.dp else 36.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Recess.copy(alpha = 0.62f))
+                .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                badge,
+                style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+                color = accent,
+                maxLines = 1,
+                softWrap = false,
+            )
         }
-        Spacer(Modifier.height(10.dp))
-        action()
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = TextWarm, maxLines = 1)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            actionLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (enabled) accent else TextMuted,
+            maxLines = 1,
+        )
     }
 }
