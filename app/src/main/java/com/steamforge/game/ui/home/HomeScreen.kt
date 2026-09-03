@@ -62,7 +62,6 @@ import com.steamforge.game.ui.components.BrassRoundButton
 import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
-import com.steamforge.game.ui.components.SteamPanel
 
 @Composable
 fun HomeScreen(
@@ -115,30 +114,24 @@ fun HomeScreen(
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
 
-            SteamPanel(
+            HomeCoreScene()
+            Text(
+                "СОБЕРИТЕ МЕХАНИЧЕСКОЕ ЯДРО",
                 modifier = Modifier.fillMaxWidth(),
-                highlighted = true,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            ) {
-                HomeCoreScene()
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "СОБЕРИТЕ МЕХАНИЧЕСКОЕ ЯДРО",
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextWarm,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    "Объединяйте детали, развивайте мастерскую и доберитесь до 2048.",
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted,
-                    textAlign = TextAlign.Center,
-                )
-            }
+                style = MaterialTheme.typography.titleMedium,
+                color = TextWarm,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "Объединяйте детали, развивайте мастерскую и доберитесь до 2048.",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted,
+                textAlign = TextAlign.Center,
+            )
             Spacer(Modifier.height(12.dp))
 
             SteamButton(
@@ -150,32 +143,33 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(10.dp))
 
-            Row(Modifier.fillMaxWidth()) {
-                HomeMetric("РЕКОРД", ui.bestScore.toString(), Modifier.weight(1f), BrassBright)
-                Spacer(Modifier.width(8.dp))
-                HomeMetric("МАСТЕРСКАЯ", "LV ${ui.workshopLevel}", Modifier.weight(1f), TextWarm)
-                Spacer(Modifier.width(8.dp))
-                HomeMetric("ГЕМЫ", ui.gems.toString(), Modifier.weight(1f), TealGlow)
-            }
+            HomeStatusRail(
+                bestScore = ui.bestScore,
+                workshopLevel = ui.workshopLevel,
+                gems = ui.gems,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(14.dp))
 
-            HomeEntryCard(
-                icon = "⚒",
-                title = "Мастерская",
-                subtitle = "Ядро · уровень ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}",
-                onClick = onWorkshop,
-                modifier = Modifier.fillMaxWidth(),
-                primary = true,
-            )
-            Spacer(Modifier.height(8.dp))
-            HomeEntryCard(
-                icon = "≡",
-                title = "Контракты",
-                subtitle = "3 задания на сегодня · награды за обычную игру",
-                onClick = onContracts,
-                modifier = Modifier.fillMaxWidth(),
-                accent = TealGlow,
-            )
+            Row(Modifier.fillMaxWidth()) {
+                HomeEntryCard(
+                    icon = "⚒",
+                    title = "Мастерская",
+                    subtitle = "LV ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}",
+                    onClick = onWorkshop,
+                    modifier = Modifier.weight(1f),
+                    accent = TealGlow,
+                )
+                Spacer(Modifier.width(8.dp))
+                HomeEntryCard(
+                    icon = "≡",
+                    title = "Контракты",
+                    subtitle = "3 задания сегодня",
+                    onClick = onContracts,
+                    modifier = Modifier.weight(1f),
+                    accent = TextWarm,
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth()) {
                 HomeEntryCard(
@@ -276,19 +270,48 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHomeGear(
 }
 
 @Composable
+private fun HomeStatusRail(
+    bestScore: Int,
+    workshopLevel: Int,
+    gems: Int,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = modifier
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.52f))
+            .border(1.dp, BrassDark.copy(alpha = 0.30f), shape)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HomeMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
+        HomeMetricDivider()
+        HomeMetric("МАСТЕРСКАЯ", "LV $workshopLevel", Modifier.weight(1f), TextWarm)
+        HomeMetricDivider()
+        HomeMetric("ГЕМЫ", gems.toString(), Modifier.weight(1f), TealGlow)
+    }
+}
+
+@Composable
+private fun HomeMetricDivider() {
+    Box(
+        Modifier
+            .width(1.dp)
+            .height(30.dp)
+            .background(Color.White.copy(alpha = 0.07f)),
+    )
+}
+
+@Composable
 private fun HomeMetric(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
     accent: Color = TextWarm,
 ) {
-    val shape = RoundedCornerShape(10.dp)
     Column(
-        modifier = modifier
-            .clip(shape)
-            .background(Panel.copy(alpha = 0.74f))
-            .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
@@ -303,23 +326,24 @@ private fun HomeEntryCard(
     subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    primary: Boolean = false,
     accent: Color = TealGlow,
 ) {
     val shape = RoundedCornerShape(13.dp)
-    val background = if (primary) {
-        Brush.verticalGradient(listOf(TealSurface.copy(alpha = 0.64f), PanelRaised, Panel))
-    } else {
-        Brush.verticalGradient(listOf(PanelRaised.copy(alpha = 0.76f), Panel))
-    }
     Row(
         modifier = modifier
-            .height(if (primary) 72.dp else 68.dp)
+            .height(70.dp)
             .clip(shape)
-            .background(background)
-            .border(1.dp, accent.copy(alpha = if (primary) 0.52f else 0.24f), shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        PanelRaised.copy(alpha = 0.56f),
+                        Panel.copy(alpha = 0.72f),
+                    ),
+                ),
+            )
+            .border(1.dp, accent.copy(alpha = 0.20f), shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 10.dp)
             .semantics {
                 role = Role.Button
                 contentDescription = "$title. $subtitle"
@@ -328,21 +352,18 @@ private fun HomeEntryCard(
     ) {
         Box(
             modifier = Modifier
-                .size(if (primary) 42.dp else 38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Recess.copy(alpha = 0.62f))
-                .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(10.dp)),
+                .size(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Recess.copy(alpha = 0.52f))
+                .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(9.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, style = MaterialTheme.typography.labelLarge, color = accent)
+            Text(icon, style = MaterialTheme.typography.labelLarge, color = accent, maxLines = 1)
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = TextWarm, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = TextMuted, maxLines = 1)
-        }
-        if (primary) {
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = BrassBright)
+            Text(title, style = MaterialTheme.typography.titleSmall, color = TextWarm, maxLines = 1)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
         }
     }
 }
