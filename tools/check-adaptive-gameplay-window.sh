@@ -44,48 +44,11 @@ wait_for_text() {
   return 1
 }
 
-tap_node() {
+tap_control() {
   local needle="$1"
   local label="$2"
   dump_ui "$label"
   python3 - "$needle" > /tmp/tap.txt <<'PY'
-import re
-import sys
-import xml.etree.ElementTree as ET
-
-needle = sys.argv[1].casefold()
-root = ET.parse('/tmp/window.xml').getroot()
-parents = {child: parent for parent in root.iter() for child in parent}
-
-def label(node):
-    return ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
-
-matches = [node for node in root.iter('node') if needle in label(node)]
-assert matches, f'node not found: {needle}'
-original = matches[0]
-chain = [original]
-current = original
-for _ in range(3):
-    current = parents.get(current)
-    if current is None:
-        break
-    chain.append(current)
-node = next((candidate for candidate in chain if candidate.attrib.get('clickable') == 'true'), original)
-match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
-assert match, node.attrib
-left, top, right, bottom = map(int, match.groups())
-print((left + right) // 2, (top + bottom) // 2)
-PY
-  read -r x y < /tmp/tap.txt
-  adb shell input tap "$x" "$y"
-  sleep 2
-}
-
-tap_node_if_visible() {
-  local needle="$1"
-  local label="$2"
-  dump_ui "$label"
-  if ! python3 - "$needle" > /tmp/tap.txt <<'PY'
 import re
 import subprocess
 import sys
@@ -94,40 +57,46 @@ import xml.etree.ElementTree as ET
 needle = sys.argv[1].casefold()
 root = ET.parse('/tmp/window.xml').getroot()
 parents = {child: parent for parent in root.iter() for child in parent}
+bounds_re = re.compile(r'^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$')
+size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
+sizes = re.findall(r'(\d+)x(\d+)', size_text)
+assert sizes, size_text
+width, height = map(int, sizes[-1])
 
 def label(node):
     return ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
 
-matches = [node for node in root.iter('node') if needle in label(node)]
-if not matches:
-    raise SystemExit(2)
-original = matches[0]
-chain = [original]
-current = original
-for _ in range(3):
-    current = parents.get(current)
-    if current is None:
-        break
-    chain.append(current)
-node = next((candidate for candidate in chain if candidate.attrib.get('clickable') == 'true'), original)
-match = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
-if not match:
-    raise SystemExit(3)
-left, top, right, bottom = map(int, match.groups())
-size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
-sizes = re.findall(r'(\d+)x(\d+)', size_text)
-if not sizes:
-    raise SystemExit(4)
-width, height = map(int, sizes[-1])
-x = (left + right) // 2
-y = (top + bottom) // 2
-if not (0 <= x < width and 0 <= y < height):
-    raise SystemExit(5)
-print(x, y)
+def bounds(node):
+    match = bounds_re.match(node.attrib.get('bounds') or '')
+    if not match:
+        return None
+    left, top, right, bottom = map(int, match.groups())
+    if right <= left or bottom <= top:
+        return None
+    if left < 0 or top < 0 or right > width or bottom > height:
+        return None
+    return left, top, right, bottom
+
+for original in root.iter('node'):
+    if needle not in label(original):
+        continue
+    chain = [original]
+    current = original
+    for _ in range(4):
+        current = parents.get(current)
+        if current is None:
+            break
+        chain.append(current)
+    candidate = next((node for node in chain if node.attrib.get('clickable') == 'true' and bounds(node)), None)
+    if candidate is None:
+        candidate = next((node for node in chain if bounds(node)), None)
+    if candidate is None:
+        continue
+    left, top, right, bottom = bounds(candidate)
+    print((left + right) // 2, (top + bottom) // 2)
+    raise SystemExit(0)
+raise SystemExit(2)
 PY
-  then
-    return 1
-  fi
   read -r x y < /tmp/tap.txt
   adb shell input tap "$x" "$y"
   sleep 2
@@ -174,7 +143,7 @@ enter_game_from_home() {
       entry=''
     fi
 
-    if [[ -n "$entry" ]] && tap_node_if_visible "$entry" "${label}-tap-${attempt}"; then
+    if [[ -n "$entry" ]] && tap_control "$entry" "${label}-tap-${attempt}"; then
       if wait_for_game "${label}-game"; then
         return 0
       fi
@@ -201,14 +170,12 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 root = ET.parse('/tmp/window.xml').getroot()
+parents = {child: parent for parent in root.iter() for child in parent}
 size_text = subprocess.check_output(['adb', 'shell', 'wm', 'size'], text=True)
 sizes = re.findall(r'(\d+)x(\d+)', size_text)
 assert sizes, size_text
 width, height = map(int, sizes[-1])
 bounds_re = re.compile(r'^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$')
-
-def label(node):
-    return ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
 
 def parsed_bounds(node):
     match = bounds_re.match(node.attrib.get('bounds') or '')
@@ -219,21 +186,6 @@ def parsed_bounds(node):
         return None
     return left, top, right, bottom
 
-def area(node):
-    bounds = parsed_bounds(node)
-    if bounds is None:
-        return 0
-    left, top, right, bottom = bounds
-    return (right - left) * (bottom - top)
-
-def visible_node(needle):
-    candidates = [
-        node for node in root.iter('node')
-        if needle in label(node) and area(node) > 0
-    ]
-    assert candidates, f'missing visible node: {needle}'
-    return max(candidates, key=area)
-
 def inside(node, name):
     bounds = parsed_bounds(node)
     assert bounds is not None, (name, node.attrib)
@@ -242,16 +194,48 @@ def inside(node, name):
     assert right <= width and bottom <= height, (name, width, height, node.attrib)
     print(f'{name}: [{left},{top}][{right},{bottom}] inside {width}x{height}')
 
-for needle in ('счёт', 'отмена', 'ключ'):
-    inside(visible_node(needle), needle)
+def score_node():
+    candidates = [
+        node for node in root.iter('node')
+        if (node.attrib.get('text') or '').strip().casefold() == 'счёт'
+        and parsed_bounds(node) is not None
+    ]
+    assert candidates, 'missing visible score label'
+    return candidates[0]
 
-tile_candidates = [
+def semantic_control(prefix):
+    matches = [
+        node for node in root.iter('node')
+        if (node.attrib.get('content-desc') or '').casefold().startswith(prefix + ' ')
+    ]
+    assert matches, f'missing semantic control: {prefix}'
+    for original in matches:
+        chain = [original]
+        current = original
+        for _ in range(4):
+            current = parents.get(current)
+            if current is None:
+                break
+            chain.append(current)
+        clickable = next((node for node in chain if node.attrib.get('clickable') == 'true' and parsed_bounds(node)), None)
+        if clickable is not None:
+            return clickable
+        visible = next((node for node in chain if parsed_bounds(node)), None)
+        if visible is not None:
+            return visible
+    raise AssertionError(f'missing bounded control ancestor: {prefix}')
+
+inside(score_node(), 'счёт')
+inside(semantic_control('отмена'), 'отмена')
+inside(semantic_control('ключ'), 'ключ')
+
+tiles = [
     node for node in root.iter('node')
     if re.fullmatch(r'.+,\s*[0-9]+', node.attrib.get('content-desc') or '')
-    and area(node) > 0
+    and parsed_bounds(node) is not None
 ]
-assert tile_candidates, 'missing visible semantic gameplay tile'
-inside(max(tile_candidates, key=area), 'tile')
+assert tiles, 'missing visible semantic gameplay tile'
+inside(tiles[0], 'tile')
 PY
 }
 
@@ -266,9 +250,11 @@ set_window() {
 prepare_consent() {
   set_window '1080x2400' '420'
   launch_app
-  wait_for_text 'ПРИВАТНОСТЬ' '00-privacy'
-  if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then
-    tap_node 'ОТКЛЮЧИТЬ' '00-disable-analytics'
+  dump_ui '00-entry'
+  if grep -Fqi 'ПРИВАТНОСТЬ' /tmp/window.xml; then
+    if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then
+      tap_control 'ОТКЛЮЧИТЬ' '00-disable-analytics'
+    fi
   fi
   wait_for_text 'MECHANICAL 2048' '01-home'
 }
@@ -290,16 +276,16 @@ verify_shape() {
 
 prepare_consent
 
-# 360 x 640 dp, classic 16:9 portrait. Starts a real production run.
+# 360 x 640 dp, classic 16:9 portrait. Starts a production run.
 verify_shape '720x1280' '320' '10-portrait-16x9'
 
-# 390 x 845 dp, approximately 19.5:9 portrait. Resumes the same saved run.
+# 390 x 845 dp, approximately 19.5:9 portrait. Resumes the same run.
 verify_shape '780x1690' '320' '20-portrait-19_5x9'
 
-# 640 x 360 dp, classic 16:9 landscape. Resumes the same saved run after scrolling Home if needed.
+# 640 x 360 dp, classic 16:9 landscape. Scrolls Home to the CTA when needed.
 verify_shape '1280x720' '320' '30-landscape-16x9'
 
 adb shell wm size reset || true
 adb shell wm density reset || true
 
-echo 'Adaptive gameplay window OK: production score, tile, Undo and Wrench stay inside all tested window shapes.'
+echo 'Adaptive gameplay window OK: score, tile, Undo and Wrench stay inside all tested window shapes.'
