@@ -149,6 +149,7 @@ data class PlayerProgress(
     val dailyChallengeDone: Boolean = false,
     val dailyRewardDay: Long = -1L,
     val dailyRewardStreak: Int = 0,
+    val contracts: ContractLedger = ContractLedger(),
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
