@@ -38,11 +38,11 @@ private val rawTileColors = listOf(
     RawTileColor(Color(0xFFB56431), Color(0xFFF5E8D3)), // 16 copper
     RawTileColor(Color(0xFFA95832), Color(0xFFF4E5D1)), // 32 forged copper
     RawTileColor(Color(0xFF983D2C), Color(0xFFF5E3CD)), // 64 red heat-treated copper
-    RawTileColor(Color(0xFFB4812F), Color(0xFFF5E8CF)), // 128 antique gold
+    RawTileColor(Color(0xFFAD7826), Color(0xFFF5E8CF)), // 128 antique gold
     RawTileColor(Color(0xFF9A732E), Color(0xFFF5E8CF)), // 256 dark antique gold
     RawTileColor(Color(0xFF6D7B62), Color(0xFFF3E8D2)), // 512 oxidized green metal
     RawTileColor(Color(0xFF176B73), Color(0xFFF3D99C)), // 1024 deep teal
-    RawTileColor(Color(0xFF32AEB1), Color(0xFFF8E2A8)), // 2048 energized teal core
+    RawTileColor(Color(0xFF247F85), Color(0xFFF8E2A8)), // 2048 energized teal core; glow supplies the bright edge energy
 )
 
 fun tileColors(level: Int): TileColors {
