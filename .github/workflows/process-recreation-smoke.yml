@@ -147,12 +147,14 @@ jobs:
         if: always()
         run: |
           mkdir -p ci-process-recreation
-          adb logcat -d -v threadtime > ci-process-recreation/logcat.txt || true
-          adb shell dumpsys activity activities > ci-process-recreation/activity-activities.txt || true
-          adb shell dumpsys activity processes > ci-process-recreation/activity-processes.txt || true
-          adb shell dumpsys meminfo com.steamforge.game > ci-process-recreation/app-meminfo.txt || true
-          adb shell pidof com.steamforge.game > ci-process-recreation/app-pid.txt || true
-          adb shell pidof com.steamforge.game.test > ci-process-recreation/test-pid.txt || true
+          timeout 5s adb devices -l > ci-process-recreation/adb-devices.txt 2>&1 || true
+          timeout 12s adb logcat -d -v threadtime > ci-process-recreation/logcat.txt 2>&1 || true
+          timeout 8s adb shell dumpsys activity activities > ci-process-recreation/activity-activities.txt 2>&1 || true
+          timeout 8s adb shell dumpsys activity processes > ci-process-recreation/activity-processes.txt 2>&1 || true
+          timeout 8s adb shell dumpsys meminfo com.steamforge.game > ci-process-recreation/app-meminfo.txt 2>&1 || true
+          timeout 5s adb shell pidof com.steamforge.game > ci-process-recreation/app-pid.txt 2>&1 || true
+          timeout 5s adb shell pidof com.steamforge.game.test > ci-process-recreation/test-pid.txt 2>&1 || true
+          ps -fp "$(cat emulator.pid)" > ci-process-recreation/emulator-process.txt 2>&1 || true
 
       - name: Upload active run lifecycle diagnostics
         if: always()
