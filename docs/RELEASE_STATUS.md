@@ -26,6 +26,7 @@
 - hosted API 36 frame-timing execution diagnostic; его числа являются диагностикой, а не performance SLA;
 - adaptive production `GameScreen`: portrait baseline + compact-landscape layout с board слева и HUD/Undo/Wrench справа;
 - отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape;
+- curated V1 visual clean pass: спокойные Workshop/Achievements/Settings surfaces и выборочно адаптированный gameplay chrome без отката поздних contrast/input/feedback/adaptive fixes;
 - Home как Navigation3 root с одним Play/Continue CTA и отдельными входами в Workshop, Daily, Contracts, Collection и Settings;
 - ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave и атомарные идемпотентные gem claims.
 
@@ -82,7 +83,8 @@ Baseline проверяет:
 - merge-pop hierarchy с неизменными slide/merge/spawn durations;
 - 1024 contrast fix и regression test;
 - touchSlop / one-command-per-gesture instrumentation;
-- adaptive landscape gameplay layout.
+- adaptive landscape gameplay layout;
+- compact gameplay chrome с board-first hierarchy, единым спокойным HUD, restrained board frame и premium glow только на high tiers.
 
 ## Performance status
 
@@ -111,7 +113,12 @@ Source of truth: `docs/VISUAL_BIBLE.md`.
 
 Generated screens остаются art-direction references, а не pixel-perfect production layouts.
 
-Старый PR #9 содержит полезный visual-clean-pass материал, но его нельзя raw-merge поверх текущего `master`: часть старой palette/game UI логики предшествует contrast, feedback и adaptive fixes. Он должен переноситься выборочно с сохранением текущих accessibility/reliability изменений.
+Curated visual clean pass из исторического PR #9 теперь интегрирован в V1 baseline выборочно:
+
+- Workshop, Achievements, Settings, typography и shared Steam UI уже соответствуют одобренному clean-pass направлению;
+- gameplay chrome перенесён отдельным PR #66 поверх актуального reliability/accessibility baseline;
+- palette не откатывалась к старому состоянию PR #9: более поздние high-tier contrast/accessibility fixes сохранены;
+- исторический PR #9 закрыт как superseded и не должен raw-merge'иться поверх текущего `master`.
 
 ## Android 17 / 16 KiB status
 
