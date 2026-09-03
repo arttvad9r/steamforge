@@ -24,7 +24,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +69,7 @@ fun HomeScreen(
     vm: HomeViewModel,
     onPlay: () -> Unit,
     onWorkshop: () -> Unit,
+    onContracts: () -> Unit,
     onDaily: () -> Unit,
     onAchievements: () -> Unit,
     onSettings: () -> Unit,
@@ -80,6 +83,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .widthIn(max = 560.dp)
                 .padding(horizontal = 18.dp),
@@ -162,6 +166,15 @@ fun HomeScreen(
                 onClick = onWorkshop,
                 modifier = Modifier.fillMaxWidth(),
                 primary = true,
+            )
+            Spacer(Modifier.height(8.dp))
+            HomeEntryCard(
+                icon = "≡",
+                title = "Контракты",
+                subtitle = "3 задания на сегодня · награды за обычную игру",
+                onClick = onContracts,
+                modifier = Modifier.fillMaxWidth(),
+                accent = TealGlow,
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth()) {
