@@ -1,0 +1,183 @@
+name: Game Over Visual Diagnostic
+
+on:
+  push:
+    branches:
+      - diag/game-over-result-v1
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install emulator packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platform-tools' \
+            'emulator' \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            'system-images;android-36;google_apis;x86_64'
+
+      - name: Prepare diagnostic test source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          game = Path('app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt')
+          text = game.read_text()
+          needle = '@Composable\nprivate fun GameOverOverlay('
+          assert needle in text, 'GameOverOverlay visibility marker not found'
+          game.write_text(text.replace(needle, '@Composable\nfun GameOverOverlay(', 1))
+          test = base64.b64decode('cGFja2FnZSBjb20uc3RlYW1mb3JnZS5nYW1lLnVpLmdhbWUKCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkJpdG1hcAppbXBvcnQgYW5kcm9pZHguY29tcG9zZS5mb3VuZGF0aW9uLmJhY2tncm91bmQKaW1wb3J0IGFuZHJvaWR4LmNvbXBvc2UuZm91bmRhdGlvbi5sYXlvdXQuQm94CmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLmZvdW5kYXRpb24ubGF5b3V0LmZpbGxNYXhTaXplCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLk1vZGlmaWVyCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLmdyYXBoaWNzLmFzQW5kcm9pZEJpdG1hcAppbXBvcnQgYW5kcm9pZHguY29tcG9zZS51aS50ZXN0LmFzc2VydERvZXNOb3RFeGlzdAppbXBvcnQgYW5kcm9pZHguY29tcG9zZS51aS50ZXN0LmFzc2VydEV4aXN0cwppbXBvcnQgYW5kcm9pZHguY29tcG9zZS51aS50ZXN0LmNhcHR1cmVUb0ltYWdlCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLnRlc3QuanVuaXQ0LmNyZWF0ZUNvbXBvc2VSdWxlCmltcG9ydCBhbmRyb2lkeC5jb21wb3NlLnVpLnRlc3Qub25Ob2RlV2l0aFRleHQKaW1wb3J0IGFuZHJvaWR4LmNvbXBvc2UudWkudGVzdC5vblJvb3QKaW1wb3J0IGFuZHJvaWR4LnRlc3QuZXh0Lmp1bml0LnJ1bm5lcnMuQW5kcm9pZEpVbml0NAppbXBvcnQgYW5kcm9pZHgudGVzdC5wbGF0Zm9ybS5hcHAuSW5zdHJ1bWVudGF0aW9uUmVnaXN0cnkKaW1wb3J0IGNvbS5zdGVhbWZvcmdlLmdhbWUuY29yZS5HYW1lU3RhdGUKaW1wb3J0IGNvbS5zdGVhbWZvcmdlLmdhbWUuY29yZS5HYW1lU3RhdHVzCmltcG9ydCBjb20uc3RlYW1mb3JnZS5nYW1lLmNvcmUuVGlsZQppbXBvcnQgY29tLnN0ZWFtZm9yZ2UuZ2FtZS5wcm9ncmVzc2lvbi5BY2hpZXZlbWVudHMKaW1wb3J0IGNvbS5zdGVhbWZvcmdlLmdhbWUucHJvZ3Jlc3Npb24uRmluaXNoRWZmZWN0cwppbXBvcnQgY29tLnN0ZWFtZm9yZ2UuZ2FtZS50aGVtZS5CYWNrZ3JvdW5kCmltcG9ydCBjb20uc3RlYW1mb3JnZS5nYW1lLnRoZW1lLlN0ZWFtZm9yZ2VUaGVtZQppbXBvcnQgamF2YS5pby5GaWxlCmltcG9ydCBqYXZhLmlvLkZpbGVPdXRwdXRTdHJlYW0KaW1wb3J0IG9yZy5qdW5pdC5Bc3NlcnQuYXNzZXJ0VHJ1ZQppbXBvcnQgb3JnLmp1bml0LlJ1bGUKaW1wb3J0IG9yZy5qdW5pdC5UZXN0CmltcG9ydCBvcmcuanVuaXQucnVubmVyLlJ1bldpdGgKCiNydW5XaXRoKEFuZHJvaWRKdW5pdDQ6OmNsYXNzKQpjbGFzcyBHYW1lT3ZlclJlc3VsdE92ZXJsYXlEaWFnbm9zdGljVGVzdCB7CgogICAgQGdldDpSdWxlCiAgICB2YWwgY29tcG9zZVJ1bGUgPSBjcmVhdGVDb21wb3NlUnVsZSgpCgogICAgQFRlc3QKICAgIGZ1biBkZW5zZVJlc3VsdFJlbmRlcnNHYW1lcGxheUZpcnN0SGllcmFyY2h5KCkgewogICAgICAgIHZhbCBhY2hpZXZlbWVudCA9IHJlcXVpcmVOb3ROdWxsKEFjaGlldmVtZW50cy5ieUlkKCJ0aWxlXzIwNDgiKSkKICAgICAgICB2YWwgdWkgPSBHYW1lVWlTdGF0ZSgKICAgICAgICAgICAgc3RhdGUgPSBHYW1lU3RhdGUoCiAgICAgICAgICAgICAgICB0aWxlcyA9IGxpc3RPZihUaWxlKGlkID0gMUwsIGxldmVsID0gMTEsIHJvdyA9IDAsIGNvbCA9IDApKSwKICAgICAgICAgICAgICAgIHNjb3JlID0gMjg3NDAsCiAgICAgICAgICAgICAgICBzdGF0dXMgPSBHYW1lU3RhdHVzLkdBTUVfT1ZFUiwKICAgICAgICAgICAgICAgIHdvbiA9IHRydWUsCiAgICAgICAgICAgICAgICBtb3ZlcyA9IDE3MywKICAgICAgICAgICAgKSwKICAgICAgICAgICAgYmVzdCA9IDI4NzQwLAogICAgICAgICAgICBmaW5pc2hlZCA9IHRydWUsCiAgICAgICAgICAgIGVmZmVjdHMgPSBGaW5pc2hFZmZlY3RzKAogICAgICAgICAgICAgICAgeHBHYWluZWQgPSAyMzAsCiAgICAgICAgICAgICAgICBnZW1zR2FpbmVkID0gMjUsCiAgICAgICAgICAgICAgICBsZXZlbFVwcyA9IGxpc3RPZig3KSwKICAgICAgICAgICAgICAgIG5ld0FjaGlldmVtZW50cyA9IGxpc3RPZihhY2hpZXZlbWVudCksCiAgICAgICAgICAgICAgICBuZXdCZXN0ID0gdHJ1ZSwKICAgICAgICAgICAgKSwKICAgICAgICApCgogICAgICAgIGNvbXBvc2VSdWxlLnNldENvbnRlbnQgewogICAgICAgICAgICBTdGVhbWZvcmdlVGhlbWUgewogICAgICAgICAgICAgICAgQm94KE1vZGlmaWVyLmZpbGxNYXhTaXplKCkuYmFja2dyb3VuZChCYWNrZ3JvdW5kKSkgewogICAgICAgICAgICAgICAgICAgIEdhbWVPdmVyT3ZlcmxheSgKICAgICAgICAgICAgICAgICAgICAgICAgdWkgPSB1aSwKICAgICAgICAgICAgICAgICAgICAgICAgcmV3YXJkZWRBdmFpbGFibGUgPSB0cnVlLAogICAgICAgICAgICAgICAgICAgICAgICBvblJld2FyZGVkID0ge30sCiAgICAgICAgICAgICAgICAgICAgICAgIG9uUmVzdGFydCA9IHt9LAogICAgICAgICAgICAgICAgICAgICAgICBvbkV4aXQgPSB7fSwKICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIGNvbXBvc2VSdWxlLm9uTm9kZVdpdGhUZXh0KCIyODc0MCIpLmFzc2VydEV4aXN0cygpCiAgICAgICAgY29tcG9zZVJ1bGUub25Ob2RlV2l0aFRleHQoItCh0KvQk9Cg0JDQotGMINGB0J3QntCS0JAiKS5hc3NlcnRFeGlzdHMoKQogICAgICAgIGNvbXBvc2VSdWxlLm9uTm9kZVdpdGhUZXh0KCLQo9CU0JLQntCY0KLQqiDQk9CV0JzQqyIpLmFzc2VydEV4aXN0cygpCiAgICAgICAgY29tcG9zZVJ1bGUub25Ob2RlV2l0aFRleHQoItCd0J7QktCr0Jkg0KDQlNCa0J7QoNCUIikuYXNzZXJ0RXhpc3RzKCkKICAgICAgICBjb21wb3NlUnVsZS53YWl0Rm9ySWRsZSgpCiAgICAgICAgd3JpdGVTY3JlZW5zaG90KCJnYW1lLW92ZXItZGVuc2UucG5nIikKICAgIH0KCiAgICBAVGVzdAogICAgZnVuIGJhc2ljUmVzdWx0S2VlcHNSZXdhcmRTdXJmYWNlQWJzZW50KCkgewogICAgICAgIHZhbCB1aSA9IEdhbWVV aVN0YXRlKAogICAgICAgICAgICBzdGF0ZSA9IEdhbWVTdGF0ZSgKICAgICAgICAgICAgICAgIHRpbGVzID0gbGlzdE9mKFRpbGUoaWQgPSAxTCwgbGV2ZWwgPSA5LCByb3cgPSAwLCBjb2wgPSAwKSksCiAgICAgICAgICAgICAgICBzY29yZSA9IDY0MjAsCiAgICAgICAgICAgICAgICBzdGF0dXMgPSBHYW1lU3RhdHVzLkdBTUVfT1ZFUiwKICAgICAgICAgICAgICAgIG1vdmVzID0gOTEsCiAgICAgICAgICAgICksCiAgICAgICAgICAgIGJlc3QgPSAxMTIwMCwKICAgICAgICAgICAgZmluaXNoZWQgPSB0cnVlLAogICAgICAgICAgICBlZmZlY3RzID0gRmluaXNoRWZmZWN0cygKICAgICAgICAgICAgICAgIHhwR2FpbmVkID0gODAsCiAgICAgICAgICAgICAgICBnZW1zR2FpbmVkID0gMCwKICAgICAgICAgICAgICAgIG5ld0Jlc3QgPSBmYWxzZSwKICAgICAgICAgICAgKSwKICAgICAgICApCgogICAgICAgIGNvbXBvc2VSdWxlLnNldENvbnRlbnQgewogICAgICAgICAgICBTdGVhbWZvcmdlVGhlbWUgewogICAgICAgICAgICAgICAgQm94KE1vZGlmaWVyLmZpbGxNYXhTaXplKCkuYmFja2dyb3VuZChCYWNrZ3JvdW5kKSkgewogICAgICAgICAgICAgICAgICAgIEdhbWVPdmVyT3ZlcmxheSgKICAgICAgICAgICAgICAgICAgICAgICAgdWkgPSB1aSwKICAgICAgICAgICAgICAgICAgICAgICAgcmV3YXJkZWRBdmFpbGFibGUgPSBmYWxzZSwKICAgICAgICAgICAgICAgICAgICAgICAgb25SZXdhcmRlZCA9IHt9LAogICAgICAgICAgICAgICAgICAgICAgICBvblJlc3RhcnQgPSB7fSwKICAgICAgICAgICAgICAgICAgICAgICAgb25FeGl0ID0ge30sCiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICBjb21wb3NlUnVsZS5vbk5vZGVXaXRoVGV4dCgiNjQyMCIpLmFzc2VydEV4aXN0cygpCiAgICAgICAgY29tcG9zZVJ1bGUub25Ob2RlV2l0aFRleHQoItCh0KvQk9Cg0JDQotGMINGB0J3QntCS0JAiKS5hc3NlcnRFeGlzdHMoKQogICAgICAgIGNvbXBvc2VSdWxlLm9uTm9kZVdpdGhUZXh0KCLQo9CU0JLQntCY0KLQqiDQk9CV0JzQqyIpLmFzc2VydERvZXNOb3RFeGlzdCgpCiAgICAgICAgY29tcG9zZVJ1bGUud2FpdEZvcklkbGUoKQogICAgICAgIHdyaXRlU2NyZWVuc2hvdCgiZ2FtZS1vdmVyLWJhc2ljLnBuZyIpCiAgICB9CgogICAgcHJpdmF0ZSBmdW4gd3JpdGVTY3JlZW5zaG90KG5hbWU6IFN0cmluZykgewogICAgICAgIHZhbCBvdXRwdXQgPSBGaWxlKAogICAgICAgICAgICBJbnN0cnVtZW50YXRpb25SZWdpc3RyeS5nZXRJbnN0cnVtZW50YXRpb24oKS50YXJnZXRDb250ZXh0LmNhY2hlRGlyLAogICAgICAgICAgICBuYW1lLAogICAgICAgICkKICAgICAgICBGaWxlT3V0cHV0U3RyZWFtKG91dHB1dCkudXNlIHsgc3RyZWFtIC0+CiAgICAgICAgICAgIHZhbCB3cml0dGVuID0gY29tcG9zZVJ1bGUub25Sb290KCkuY2FwdHVyZVRvSW1hZ2UoKS5hc0FuZHJvaWRCaXRtYXAoKQogICAgICAgICAgICAgICAgLmNvbXByZXNzKEJpdG1hcC5Db21wcmVzc0Zvcm1hdC5QTkcsIDEwMCwgc3RyZWFtKQogICAgICAgICAgICBhc3NlcnRUcnVlKCJHYW1lIE92ZXIgc2NyZWVuc2hvdCBjb21wcmVzc2lvbiBmYWlsZWQiLCB3cml0dGVuKQogICAgICAgIH0KICAgICAgICBhc3NlcnRUcnVlKCJHYW1lIE92ZXIgc2NyZWVuc2hvdCB3YXMgbm90IHdyaXR0ZW4iLCBvdXRwdXQubGVuZ3RoKCkgPiAwTCkKICAgIH0KfQo=').decode()
+          path = Path('app/src/androidTest/java/com/steamforge/game/ui/game/GameOverResultOverlayDiagnosticTest.kt')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(test)
+          PY
+
+      - name: Build debug and diagnostic APKs
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleDebugAndroidTest
+
+      - name: Create and boot emulator
+        run: |
+          set -euxo pipefail
+          ls -l /dev/kvm
+          sudo chmod 666 /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          AVDMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/avdmanager"
+          test -x "$AVDMANAGER"
+          echo no | "$AVDMANAGER" create avd \
+            -n steamforge_game_over_ci \
+            -k 'system-images;android-36;google_apis;x86_64' \
+            -d pixel_6 \
+            --force
+          ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd steamforge_game_over_ci \
+            -no-window \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -accel on \
+            -camera-back none \
+            -camera-front none \
+            > emulator.log 2>&1 &
+          echo $! > emulator.pid
+          adb start-server
+          for i in $(seq 1 120); do
+            if adb devices | grep -q '^emulator-'; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          adb devices | grep '^emulator-'
+          for i in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
+            if ! kill -0 "$(cat emulator.pid)" 2>/dev/null; then cat emulator.log; exit 1; fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+      - name: Install debug and instrumentation APKs
+        run: |
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+      - name: Capture standard Game Over variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+          adb shell settings put system font_scale 1.0
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.ui.game.GameOverResultOverlayDiagnosticTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee game-over-standard-instrumentation.txt
+          grep -F 'OK (2 tests)' game-over-standard-instrumentation.txt
+          adb exec-out run-as com.steamforge.game cat cache/game-over-dense.png > game-over-standard.png
+          adb exec-out run-as com.steamforge.game cat cache/game-over-basic.png > game-over-basic.png
+          test -s game-over-standard.png
+          test -s game-over-basic.png
+
+      - name: Capture compact dense result
+        shell: bash
+        run: |
+          set -euo pipefail
+          adb shell wm size 720x1600
+          adb shell wm density 320
+          adb shell settings put system font_scale 1.0
+          adb shell am instrument -w -r \
+            -e class 'com.steamforge.game.ui.game.GameOverResultOverlayDiagnosticTest#denseResultRendersGameplayFirstHierarchy' \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee game-over-compact-instrumentation.txt
+          grep -F 'OK (1 test)' game-over-compact-instrumentation.txt
+          adb exec-out run-as com.steamforge.game cat cache/game-over-dense.png > game-over-compact.png
+          test -s game-over-compact.png
+
+      - name: Capture large-text dense result
+        shell: bash
+        run: |
+          set -euo pipefail
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+          adb shell settings put system font_scale 1.3
+          adb shell am instrument -w -r \
+            -e class 'com.steamforge.game.ui.game.GameOverResultOverlayDiagnosticTest#denseResultRendersGameplayFirstHierarchy' \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee game-over-large-text-instrumentation.txt
+          grep -F 'OK (1 test)' game-over-large-text-instrumentation.txt
+          adb exec-out run-as com.steamforge.game cat cache/game-over-dense.png > game-over-large-text.png
+          test -s game-over-large-text.png
+
+      - name: Verify PNG outputs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in [
+              'game-over-standard.png',
+              'game-over-basic.png',
+              'game-over-compact.png',
+              'game-over-large-text.png',
+          ]:
+              data = Path(name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+              print(name, len(data))
+          PY
+
+      - name: Upload Game Over screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-game-over-visual-diagnostic
+          path: |
+            game-over-standard.png
+            game-over-basic.png
+            game-over-compact.png
+            game-over-large-text.png
+            game-over-*-instrumentation.txt
+            emulator.log
+          if-no-files-found: warn
+          retention-days: 3
