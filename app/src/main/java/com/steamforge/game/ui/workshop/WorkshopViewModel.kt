@@ -51,8 +51,8 @@ class WorkshopViewModel(
         val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
         val nextDay = (continuingStreak % cfg.dailyRewardCycle) + 1
         val li = p.levelInfo(cfg)
-        val coreStage = WorkshopProgression.normalizedCoreStage(p.workshopCoreStage, cfg)
-        val nextCoreCost = WorkshopProgression.coreUpgradeCost(coreStage, cfg)
+        // Validation-only branch: force the terminal Workshop state for screenshot review.
+        val coreStage = WorkshopProgression.maxCoreStage(cfg)
         WorkshopUiState(
             loaded = true,
             level = li.level,
@@ -61,8 +61,8 @@ class WorkshopViewModel(
             workshopParts = p.workshopParts,
             coreStage = coreStage,
             coreStageLabel = WorkshopProgression.coreStageLabel(coreStage, cfg),
-            nextCoreCost = nextCoreCost,
-            canUpgradeCore = nextCoreCost != null && p.workshopParts >= nextCoreCost,
+            nextCoreCost = null,
+            canUpgradeCore = false,
             bestScore = p.bestScore,
             gamesPlayed = p.stats.gamesPlayed,
             achievementsUnlocked = p.unlockedAchievements.size,
