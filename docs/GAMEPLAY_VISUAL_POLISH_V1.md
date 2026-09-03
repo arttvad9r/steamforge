@@ -8,15 +8,15 @@ This pass moves Steamforge closer to the approved premium industrial-steampunk d
 - large tile values stay dominant and immediately readable;
 - premium feel comes from material, bevel, lighting and restrained motion rather than decorative clutter;
 - low tiers read as quiet machined metal;
-- copper, brass and patina appear gradually as progression rewards;
-- 2048 remains the only deliberately luminous core tier;
+- copper and antique gold build through the mid tiers;
+- 512 shifts into oxidized green metal, 1024 into deep teal, and 2048 becomes the energized teal core from the approved gameplay concept;
 - merge feedback should feel mechanical and weighted, not bouncy or arcade-like.
 
 ## Implemented in this pass
 
 - deeper charcoal workshop base palette;
-- less saturated brass/copper/patina accents;
-- revised tile material progression from aged nickel through copper/patina to polished brass;
+- less saturated global brass/copper/patina accents;
+- tile progression aligned to the approved gameplay concept: pale metal → copper → antique gold → oxidized green → deep teal → energized teal;
 - denser multi-step tile bevel for a machined plate appearance;
 - reduced merge scale amplitude;
 - reduced combo pitch escalation while preserving tier hierarchy.
