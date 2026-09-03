@@ -61,7 +61,8 @@ Production ad IDs никогда не используются debug-сборк�
 
 - При первом запуске пользователь принимает решение до активации analytics/ads flow.
 - До решения AppMetrica не активируется и рекламный SDK не инициализируется приложением.
-- Отказ отключает AppMetrica; реклама запрашивается как non-personalized, геолокация отключена.
+- При разрешении AppMetrica включает аналитику, стандартный crash reporting и явно включённый ANR monitoring; location tracking и advertising identifiers для AppMetrica отключены.
+- При отказе AppMetrica остаётся выключенной; Yandex Mobile Ads получает `userConsent=false`, а геолокационный tracking рекламного SDK остаётся отключённым. Приложение не трактует `userConsent=false` как универсальную гарантию неперсонализированной рекламы для всех регионов.
 - Выбор хранится локально и меняется в Settings.
 - Reset progress удаляет игровые данные, но сохраняет privacy choice и пользовательские настройки.
 - Черновик политики: `docs/PRIVACY_POLICY_DRAFT.md`.
