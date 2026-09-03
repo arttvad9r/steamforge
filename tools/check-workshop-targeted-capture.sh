@@ -122,7 +122,7 @@ def bounds(n):
     if not m: return None
     a=tuple(map(int,m.groups()))
     return a if a[2]>a[0] and a[3]>a[1] else None
-for needle in ['уровень мастерской','механическое ядро','партии','рекорд','xp']:
+for needle in ['уровень мастерской','механическое ядро','партий','рекорд','xp']:
     matches=[n for n in root.iter('node') if needle in text(n) and bounds(n)]
     assert matches, f'{label}: missing visible {needle}'
     l,t,r,b=bounds(matches[0]); assert l>=0 and t>=0 and r<=width and b<=height, (label,needle,matches[0].attrib)
@@ -156,9 +156,9 @@ capture_shape() {
     tap_node 'ОТКЛЮЧИТЬ' "${label}-privacy"
   fi
   open_workshop "$label"
-  assert_workshop "${label}-assert" | tee "$ARTIFACT_DIR/${label}-bounds.txt"
   adb exec-out screencap -p > "$ARTIFACT_DIR/${label}.png"
   test -s "$ARTIFACT_DIR/${label}.png"
+  assert_workshop "${label}-assert" | tee "$ARTIFACT_DIR/${label}-bounds.txt"
 }
 
 capture_shape '1080x2400' '420' '1.0' '10-standard'
