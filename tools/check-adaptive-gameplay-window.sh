@@ -210,29 +210,48 @@ bounds_re = re.compile(r'^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$')
 def label(node):
     return ((node.attrib.get('text') or '') + ' ' + (node.attrib.get('content-desc') or '')).casefold()
 
-def inside(node, name):
+def parsed_bounds(node):
     match = bounds_re.match(node.attrib.get('bounds') or '')
-    assert match, (name, node.attrib)
+    if not match:
+        return None
     left, top, right, bottom = map(int, match.groups())
-    assert right > left and bottom > top, (name, node.attrib)
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+def area(node):
+    bounds = parsed_bounds(node)
+    if bounds is None:
+        return 0
+    left, top, right, bottom = bounds
+    return (right - left) * (bottom - top)
+
+def visible_node(needle):
+    candidates = [
+        node for node in root.iter('node')
+        if needle in label(node) and area(node) > 0
+    ]
+    assert candidates, f'missing visible node: {needle}'
+    return max(candidates, key=area)
+
+def inside(node, name):
+    bounds = parsed_bounds(node)
+    assert bounds is not None, (name, node.attrib)
+    left, top, right, bottom = bounds
     assert left >= 0 and top >= 0, (name, width, height, node.attrib)
     assert right <= width and bottom <= height, (name, width, height, node.attrib)
     print(f'{name}: [{left},{top}][{right},{bottom}] inside {width}x{height}')
 
 for needle in ('счёт', 'отмена', 'ключ'):
-    node = next((node for node in root.iter('node') if needle in label(node)), None)
-    assert node is not None, f'missing node: {needle}'
-    inside(node, needle)
+    inside(visible_node(needle), needle)
 
-tile = next(
-    (
-        node for node in root.iter('node')
-        if re.fullmatch(r'.+,\s*[0-9]+', node.attrib.get('content-desc') or '')
-    ),
-    None,
-)
-assert tile is not None, 'missing semantic gameplay tile'
-inside(tile, 'tile')
+tile_candidates = [
+    node for node in root.iter('node')
+    if re.fullmatch(r'.+,\s*[0-9]+', node.attrib.get('content-desc') or '')
+    and area(node) > 0
+]
+assert tile_candidates, 'missing visible semantic gameplay tile'
+inside(max(tile_candidates, key=area), 'tile')
 PY
 }
 
