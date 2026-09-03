@@ -38,7 +38,7 @@ object RewardSystem {
                     val amount = reward.amount.coerceAtLeast(0)
                     if (amount == 0) return@forEach
                     val updated = saturatingAdd(current.workshopParts, amount)
-                    val applied = updated - current.workshopParts
+                    val applied = (updated - current.workshopParts).coerceAtLeast(0)
                     current = current.copy(workshopParts = updated)
                     receipt = receipt.copy(workshopParts = saturatingAdd(receipt.workshopParts, applied))
                 }
@@ -47,7 +47,7 @@ object RewardSystem {
                     val amount = reward.amount.coerceAtLeast(0)
                     if (amount == 0) return@forEach
                     val updated = saturatingAdd(current.gems, amount)
-                    val applied = updated - current.gems
+                    val applied = (updated - current.gems).coerceAtLeast(0)
                     current = current.copy(
                         gems = updated,
                         stats = current.stats.copy(
@@ -80,8 +80,13 @@ object RewardSystem {
         apply(progress, rewards.asIterable())
 
     private fun saturatingAdd(value: Int, amount: Int): Int =
-        (value.toLong() + amount.toLong()).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        (value.toLong().coerceAtLeast(0L) + amount.toLong().coerceAtLeast(0L))
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
 
-    private fun saturatingAddLong(value: Long, amount: Long): Long =
-        if (amount <= 0L || value >= Long.MAX_VALUE - amount) Long.MAX_VALUE else value + amount
+    private fun saturatingAddLong(value: Long, amount: Long): Long {
+        val safeValue = value.coerceAtLeast(0L)
+        if (amount <= 0L) return safeValue
+        return if (safeValue >= Long.MAX_VALUE - amount) Long.MAX_VALUE else safeValue + amount
+    }
 }
