@@ -903,6 +903,7 @@ private fun GameOverOverlay(
     onExit: () -> Unit,
 ) {
     val bestTile = if (ui.state.maxLevel > 0) (1 shl ui.state.maxLevel).toString() else "—"
+    val workshopPartsGained = ui.effects?.workshopPartsGained ?: 0
     val gemsGained = ui.effects?.gemsGained ?: 0
     val xpGained = ui.effects?.xpGained ?: 0
     val newBest = ui.effects?.newBest == true
@@ -935,6 +936,7 @@ private fun GameOverOverlay(
                     GameOverSummary(
                         ui = ui,
                         bestTile = bestTile,
+                        workshopPartsGained = workshopPartsGained,
                         gemsGained = gemsGained,
                         xpGained = xpGained,
                         newBest = newBest,
@@ -957,6 +959,7 @@ private fun GameOverOverlay(
                     GameOverSummary(
                         ui = ui,
                         bestTile = bestTile,
+                        workshopPartsGained = workshopPartsGained,
                         gemsGained = gemsGained,
                         xpGained = xpGained,
                         newBest = newBest,
@@ -981,6 +984,7 @@ private fun GameOverOverlay(
 private fun GameOverSummary(
     ui: GameUiState,
     bestTile: String,
+    workshopPartsGained: Int,
     gemsGained: Int,
     xpGained: Int,
     newBest: Boolean,
@@ -1046,6 +1050,13 @@ private fun GameOverSummary(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(if (compactLandscape) 6.dp else 8.dp),
         ) {
+            ResultMetric(
+                "ДЕТАЛИ",
+                "+$workshopPartsGained",
+                BrassBright,
+                Modifier.weight(1f),
+                compact = compactLandscape,
+            )
             ResultMetric(
                 "ГЕМЫ",
                 "+$gemsGained",
