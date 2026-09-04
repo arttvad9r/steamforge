@@ -200,8 +200,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
             if (record != null && record.id == gameResultId && !record.rewardedClaimed) {
                 val progress = mapProgress(prefs)
-                val (updated, receipt) = RewardSystem.apply(progress, Reward.Gems(gems))
-                if (receipt.gems <= 0) return@edit
+                val (updated, _) = RewardSystem.apply(progress, Reward.Gems(gems))
                 prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
                 writeProgress(prefs, updated)
                 granted = true
@@ -248,8 +247,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return@edit
             if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) return@edit
 
-            val (rewarded, receipt) = RewardSystem.apply(progress, Reward.Gems(contract.rewardGems))
-            if (contract.rewardGems > 0 && receipt.gems <= 0) return@edit
+            val (rewarded, _) = RewardSystem.apply(progress, Reward.Gems(contract.rewardGems))
             val updated = rewarded.copy(
                 contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
             )
