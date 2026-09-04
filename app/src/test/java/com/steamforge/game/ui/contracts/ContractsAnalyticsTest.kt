@@ -66,6 +66,35 @@ class ContractsAnalyticsTest {
     }
 
     @Test
+    fun `workshop parts contract emits actual earned amount and balance once`() = runTest(dispatcher) {
+        val (day, contract) = findWorkshopPartsContract()
+        val reward = contract.reward as ContractReward.WorkshopParts
+        val initialBalance = 17
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(
+                workshopParts = initialBalance,
+                contracts = ContractLedger(day = day, totals = completedCounters(contract)),
+            ),
+        )
+        val analytics = RecordingAnalytics()
+        val vm = ContractsViewModel(repo = repo, today = { day }, analytics = analytics)
+
+        vm.claim(contract.id)
+        advanceUntilIdle()
+        vm.claim(contract.id)
+        advanceUntilIdle()
+
+        val events = analytics.events.filter { it.first == AnalyticsEvents.RESOURCE_EARNED }
+        assertEquals(1, events.size)
+        val params = events.single().second
+        assertEquals("workshop_parts", params["resource_type"])
+        assertEquals("daily_contract", params["source"])
+        assertEquals(reward.amount, params["amount"])
+        assertEquals(initialBalance + reward.amount, params["balance_after"])
+        assertEquals(initialBalance + reward.amount, repo.currentProgress.workshopParts)
+    }
+
+    @Test
     fun `last blueprint piece emits received and collection completed once`() = runTest(dispatcher) {
         val (day, contract) = findBlueprintContract()
         val collection = BlueprintCollections.steamEngine
@@ -94,6 +123,15 @@ class ContractsAnalyticsTest {
         assertEquals(collection.id, received.single().second["collection_id"])
         assertEquals(collection.pieces.size, received.single().second["owned"])
         assertEquals(collection.id, completed.single().second["collection_id"])
+    }
+
+    private fun findWorkshopPartsContract(): Pair<Long, ContractDef> {
+        for (day in 0L..500L) {
+            val contract = DailyContracts.forEpochDay(day, blueprintAvailable = true)
+                .firstOrNull { it.reward is ContractReward.WorkshopParts }
+            if (contract != null) return day to contract
+        }
+        error("No deterministic WorkshopParts contract found in search window")
     }
 
     private fun findBlueprintContract(): Pair<Long, ContractDef> {

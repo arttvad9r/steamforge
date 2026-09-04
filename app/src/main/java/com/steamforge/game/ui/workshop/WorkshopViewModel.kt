@@ -119,23 +119,36 @@ class WorkshopViewModel(
 
     fun upgradeMechanism(mechanism: WorkshopMechanism) {
         viewModelScope.launch {
-            var event: AnalyticsEvent? = null
+            var upgradeEvent: AnalyticsEvent? = null
+            var economyEvent: AnalyticsEvent? = null
             repo.updateProgress { p ->
                 val fromStage = WorkshopProgression.mechanismStage(p, mechanism, cfg)
                 val cost = WorkshopProgression.mechanismUpgradeCost(fromStage, cfg)
                 val updated = WorkshopProgression.upgradeMechanism(p, mechanism, cfg)
                 val toStage = WorkshopProgression.mechanismStage(updated, mechanism, cfg)
                 if (toStage > fromStage && cost != null) {
-                    event = AnalyticsEvents.workshopUpgrade(
+                    upgradeEvent = AnalyticsEvents.workshopUpgrade(
                         mechanism = mechanism.name,
                         fromStage = fromStage,
                         toStage = toStage,
                         partsSpent = cost,
                     )
+                    val spentParts = (
+                        p.workshopParts.coerceAtLeast(0) - updated.workshopParts.coerceAtLeast(0)
+                    ).coerceAtLeast(0)
+                    if (spentParts > 0) {
+                        economyEvent = AnalyticsEvents.resourceSpent(
+                            resourceType = "workshop_parts",
+                            source = "workshop_upgrade",
+                            amount = spentParts,
+                            balanceAfter = updated.workshopParts,
+                        )
+                    }
                 }
                 updated
             }
-            event?.let { analytics.log(it) }
+            upgradeEvent?.let { analytics.log(it) }
+            economyEvent?.let { analytics.log(it) }
         }
     }
 

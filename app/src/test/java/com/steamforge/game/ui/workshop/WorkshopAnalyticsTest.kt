@@ -38,10 +38,11 @@ class WorkshopAnalyticsTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `successful persisted upgrade emits exactly one workshop event`() = runTest(dispatcher) {
+    fun `successful persisted upgrade emits workshop and economy events`() = runTest(dispatcher) {
         val cfg = ProgressionConfig()
         val cost = WorkshopProgression.mechanismUpgradeCost(0, cfg)!!
-        val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = cost + 100))
+        val remaining = 100
+        val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = cost + remaining))
         val analytics = RecordingAnalytics()
         val vm = WorkshopViewModel(repo = repo, cfg = cfg, analytics = analytics)
 
@@ -49,17 +50,25 @@ class WorkshopAnalyticsTest {
         advanceUntilIdle()
 
         assertEquals(1, repo.currentProgress.workshopCoreStage)
-        val events = analytics.events.filter { it.first == AnalyticsEvents.WORKSHOP_UPGRADE }
-        assertEquals(1, events.size)
-        val params = events.single().second
-        assertEquals("CORE", params["mechanism"])
-        assertEquals(0, params["from_stage"])
-        assertEquals(1, params["to_stage"])
-        assertEquals(cost, params["parts_spent"])
+        val upgradeEvents = analytics.events.filter { it.first == AnalyticsEvents.WORKSHOP_UPGRADE }
+        assertEquals(1, upgradeEvents.size)
+        val upgradeParams = upgradeEvents.single().second
+        assertEquals("CORE", upgradeParams["mechanism"])
+        assertEquals(0, upgradeParams["from_stage"])
+        assertEquals(1, upgradeParams["to_stage"])
+        assertEquals(cost, upgradeParams["parts_spent"])
+
+        val economyEvents = analytics.events.filter { it.first == AnalyticsEvents.RESOURCE_SPENT }
+        assertEquals(1, economyEvents.size)
+        val economyParams = economyEvents.single().second
+        assertEquals("workshop_parts", economyParams["resource_type"])
+        assertEquals("workshop_upgrade", economyParams["source"])
+        assertEquals(cost, economyParams["amount"])
+        assertEquals(remaining, economyParams["balance_after"])
     }
 
     @Test
-    fun `rejected upgrade does not emit workshop event`() = runTest(dispatcher) {
+    fun `rejected upgrade does not emit workshop or economy event`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = 0))
         val analytics = RecordingAnalytics()
         val vm = WorkshopViewModel(repo = repo, analytics = analytics)
@@ -69,5 +78,6 @@ class WorkshopAnalyticsTest {
 
         assertEquals(0, repo.currentProgress.workshopCoreStage)
         assertTrue(analytics.events.none { it.first == AnalyticsEvents.WORKSHOP_UPGRADE })
+        assertTrue(analytics.events.none { it.first == AnalyticsEvents.RESOURCE_SPENT })
     }
 }

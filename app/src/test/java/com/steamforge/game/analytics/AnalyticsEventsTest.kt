@@ -37,6 +37,34 @@ class AnalyticsEventsTest {
     }
 
     @Test
+    fun `economy events share stable normalized schema`() {
+        val earned = AnalyticsEvents.resourceEarned(
+            resourceType = "workshop_parts",
+            source = "daily_contract",
+            amount = -5,
+            balanceAfter = -1,
+        )
+        val spent = AnalyticsEvents.resourceSpent(
+            resourceType = "workshop_parts",
+            source = "workshop_upgrade",
+            amount = 20,
+            balanceAfter = 4,
+        )
+
+        assertEquals("resource_earned", earned.name)
+        assertEquals("workshop_parts", earned.params["resource_type"])
+        assertEquals("daily_contract", earned.params["source"])
+        assertEquals(0, earned.params["amount"])
+        assertEquals(0, earned.params["balance_after"])
+
+        assertEquals("resource_spent", spent.name)
+        assertEquals("workshop_parts", spent.params["resource_type"])
+        assertEquals("workshop_upgrade", spent.params["source"])
+        assertEquals(20, spent.params["amount"])
+        assertEquals(4, spent.params["balance_after"])
+    }
+
+    @Test
     fun `rewarded funnel events share a stable product schema`() {
         val offered = AnalyticsEvents.rewardedOfferShown(
             placement = "post_run_result",

@@ -20,6 +20,8 @@ object AnalyticsEvents {
     const val WORKSHOP_UPGRADE = "workshop_upgrade"
     const val BLUEPRINT_RECEIVED = "blueprint_received"
     const val COLLECTION_COMPLETED = "collection_completed"
+    const val RESOURCE_EARNED = "resource_earned"
+    const val RESOURCE_SPENT = "resource_spent"
     const val REWARDED_OFFER_SHOWN = "rewarded_offer_shown"
     const val REWARDED_COMPLETED = "rewarded_completed"
 
@@ -112,6 +114,32 @@ object AnalyticsEvents {
         ),
     )
 
+    fun resourceEarned(
+        resourceType: String,
+        source: String,
+        amount: Int,
+        balanceAfter: Int,
+    ) = economyEvent(
+        name = RESOURCE_EARNED,
+        resourceType = resourceType,
+        source = source,
+        amount = amount,
+        balanceAfter = balanceAfter,
+    )
+
+    fun resourceSpent(
+        resourceType: String,
+        source: String,
+        amount: Int,
+        balanceAfter: Int,
+    ) = economyEvent(
+        name = RESOURCE_SPENT,
+        resourceType = resourceType,
+        source = source,
+        amount = amount,
+        balanceAfter = balanceAfter,
+    )
+
     fun rewardedOfferShown(
         placement: String,
         rewardType: String,
@@ -139,6 +167,22 @@ object AnalyticsEvents {
             "reward_type" to rewardType,
             "reward_amount" to rewardAmount.coerceAtLeast(0),
             "daily" to daily,
+        ),
+    )
+
+    private fun economyEvent(
+        name: String,
+        resourceType: String,
+        source: String,
+        amount: Int,
+        balanceAfter: Int,
+    ) = AnalyticsEvent(
+        name,
+        mapOf(
+            "resource_type" to resourceType,
+            "source" to source,
+            "amount" to amount.coerceAtLeast(0),
+            "balance_after" to balanceAfter.coerceAtLeast(0),
         ),
     )
 }
