@@ -37,8 +37,9 @@ object RewardSystem {
                 is Reward.WorkshopParts -> {
                     val amount = reward.amount.coerceAtLeast(0)
                     if (amount == 0) return@forEach
-                    val updated = saturatingAdd(current.workshopParts, amount)
-                    val applied = (updated - current.workshopParts).coerceAtLeast(0)
+                    val before = current.workshopParts.coerceAtLeast(0)
+                    val updated = saturatingAdd(before, amount)
+                    val applied = updated - before
                     current = current.copy(workshopParts = updated)
                     receipt = receipt.copy(workshopParts = saturatingAdd(receipt.workshopParts, applied))
                 }
@@ -46,8 +47,9 @@ object RewardSystem {
                 is Reward.Gems -> {
                     val amount = reward.amount.coerceAtLeast(0)
                     if (amount == 0) return@forEach
-                    val updated = saturatingAdd(current.gems, amount)
-                    val applied = (updated - current.gems).coerceAtLeast(0)
+                    val before = current.gems.coerceAtLeast(0)
+                    val updated = saturatingAdd(before, amount)
+                    val applied = updated - before
                     current = current.copy(
                         gems = updated,
                         stats = current.stats.copy(
