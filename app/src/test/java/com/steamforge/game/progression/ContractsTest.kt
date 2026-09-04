@@ -15,7 +15,11 @@ class ContractsTest {
         assertEquals(3, first.size)
         assertEquals(first, second)
         assertEquals(3, first.map { it.type }.toSet().size)
-        assertTrue(first.all { it.target > 0 && it.rewardGems > 0 })
+        assertTrue(
+            first.all {
+                it.target > 0 && (it.reward as? ContractReward.WorkshopParts)?.amount?.let { amount -> amount > 0 } == true
+            },
+        )
     }
 
     @Test
@@ -23,6 +27,39 @@ class ContractsTest {
         val first = DailyContracts.forEpochDay(20_000L).map { it.id }
         val second = DailyContracts.forEpochDay(20_001L).map { it.id }
         assertNotEquals(first, second)
+    }
+
+    @Test
+    fun `claim grants workshop parts once and marks contract claimed`() {
+        val day = 20_000L
+        val contract = DailyContracts.forEpochDay(day).first()
+        val reward = contract.reward as ContractReward.WorkshopParts
+        val ledger = completedLedgerFor(contract, day)
+        val initial = PlayerProgress(
+            gems = 17,
+            workshopParts = 5,
+            contracts = ledger,
+        )
+
+        val claimed = DailyContracts.claim(initial, day, contract.id)
+        val replay = DailyContracts.claim(claimed, day, contract.id)
+
+        assertEquals(17, claimed.gems)
+        assertEquals(5 + reward.amount, claimed.workshopParts)
+        assertTrue(contract.id in claimed.contracts.claimedIds)
+        assertEquals(claimed, replay)
+    }
+
+    @Test
+    fun `incomplete contract cannot be claimed`() {
+        val day = 20_001L
+        val contract = DailyContracts.forEpochDay(day).first()
+        val initial = PlayerProgress(
+            workshopParts = 9,
+            contracts = ContractLedger(day = day),
+        )
+
+        assertEquals(initial, DailyContracts.claim(initial, day, contract.id))
     }
 
     @Test
@@ -131,5 +168,27 @@ class ContractsTest {
             snapshot = ContractCounters(score = 650, merges = 11, moves = 21, maxTileLevel = 6),
         )
         assertEquals(950, resumedNormal.contracts.totals.score)
+    }
+
+    private fun completedLedgerFor(def: ContractDef, day: Long): ContractLedger {
+        val totals = when (def.type) {
+            ContractType.MAKE_TILE -> ContractCounters(maxTileLevel = tileLevelForValue(def.target))
+            ContractType.MERGE_COUNT -> ContractCounters(merges = def.target)
+            ContractType.SCORE -> ContractCounters(score = def.target)
+            ContractType.PLAY_RUNS -> ContractCounters(runs = def.target)
+            ContractType.SURVIVE_MOVES -> ContractCounters(moves = def.target)
+            ContractType.OVERDRIVE -> ContractCounters(overdrives = def.target)
+        }
+        return ContractLedger(day = day, totals = totals)
+    }
+
+    private fun tileLevelForValue(value: Int): Int {
+        var level = 0
+        var current = 1
+        while (current < value) {
+            current = current shl 1
+            level++
+        }
+        return level
     }
 }
