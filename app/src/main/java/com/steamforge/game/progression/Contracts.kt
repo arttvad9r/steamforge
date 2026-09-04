@@ -12,14 +12,35 @@ enum class ContractType {
     OVERDRIVE,
 }
 
+sealed interface ContractReward {
+    data class WorkshopParts(val amount: Int) : ContractReward
+    data class BlueprintPiece(val id: String) : ContractReward
+
+    fun toReward(): Reward = when (this) {
+        is WorkshopParts -> Reward.WorkshopParts(amount)
+        is BlueprintPiece -> Reward.BlueprintPiece(id)
+    }
+}
+
 data class ContractDef(
     val id: String,
     val type: ContractType,
     val target: Int,
-    val rewardGems: Int,
+    val reward: ContractReward,
     val title: String,
     val description: String,
-)
+) {
+    /**
+     * Совместимость со старым repository claim-path. Новый UI этот путь не использует:
+     * DailyContracts.claim применяет типизированную reward через RewardSystem.
+     */
+    @Deprecated("Use reward")
+    val rewardGems: Int
+        get() = when (val value = reward) {
+            is ContractReward.WorkshopParts -> value.amount
+            is ContractReward.BlueprintPiece -> 0
+        }
+}
 
 data class ContractCounters(
     val score: Int = 0,
@@ -102,6 +123,21 @@ object DailyContracts {
 
     fun isComplete(def: ContractDef, ledger: ContractLedger): Boolean = progress(def, ledger) >= def.target
 
+    /**
+     * Атомарно вызывается внутри DataRepo.updateProgress. Награда всегда проходит через RewardSystem,
+     * а claimedIds делает повторный tap безопасным и идемпотентным.
+     */
+    fun claim(progress: PlayerProgress, day: Long, contractId: String): PlayerProgress {
+        val ledger = normalized(progress.contracts, day)
+        val contract = forEpochDay(day).firstOrNull { it.id == contractId } ?: return progress
+        if (contract.id in ledger.claimedIds || !isComplete(contract, ledger)) return progress
+
+        val (rewarded, _) = RewardSystem.apply(progress, contract.reward.toReward())
+        return rewarded.copy(
+            contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
+        )
+    }
+
     fun recordLiveSnapshot(
         progress: PlayerProgress,
         day: Long,
@@ -162,7 +198,7 @@ object DailyContracts {
             ContractType.SURVIVE_MOVES -> 60 + rng.nextInt(5) * 20
             ContractType.OVERDRIVE -> 1 + rng.nextInt(3)
         }
-        val reward = when (type) {
+        val rewardParts = when (type) {
             ContractType.MAKE_TILE -> if (target >= 512) 18 else 14
             ContractType.MERGE_COUNT -> 10 + target / 10
             ContractType.SCORE -> 10 + target / 500
@@ -190,7 +226,7 @@ object DailyContracts {
             id = "$epochDay-$slot-${type.name}",
             type = type,
             target = target,
-            rewardGems = reward,
+            reward = ContractReward.WorkshopParts(rewardParts),
             title = title,
             description = description,
         )

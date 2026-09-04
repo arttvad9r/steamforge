@@ -23,7 +23,7 @@ data class ContractItemUi(
 
 data class ContractsUiState(
     val day: Long = -1L,
-    val gems: Int = 0,
+    val workshopParts: Int = 0,
     val items: List<ContractItemUi> = emptyList(),
 ) {
     val completed: Int get() = items.count { it.complete }
@@ -47,14 +47,15 @@ class ContractsViewModel(
         }
         ContractsUiState(
             day = day,
-            gems = progress.gems,
+            workshopParts = progress.workshopParts,
             items = items,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ContractsUiState())
 
     fun claim(contractId: String) {
         viewModelScope.launch {
-            repo.claimContract(today(), contractId)
+            val day = today()
+            repo.updateProgress { progress -> DailyContracts.claim(progress, day, contractId) }
         }
     }
 }

@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.steamforge.game.progression.ContractReward
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.BrassDark
 import com.steamforge.game.theme.Panel
@@ -65,7 +66,7 @@ fun ContractsScreen(
                 .padding(horizontal = 16.dp),
         ) {
             Spacer(Modifier.height(12.dp))
-            ContractsHeader(gems = ui.gems, onBack = onBack)
+            ContractsHeader(workshopParts = ui.workshopParts, onBack = onBack)
             Spacer(Modifier.height(14.dp))
 
             TodaySummary(completed = ui.completed, total = ui.items.size.coerceAtLeast(1))
@@ -91,7 +92,7 @@ fun ContractsScreen(
 }
 
 @Composable
-private fun ContractsHeader(gems: Int, onBack: () -> Unit) {
+private fun ContractsHeader(workshopParts: Int, onBack: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -106,7 +107,7 @@ private fun ContractsHeader(gems: Int, onBack: () -> Unit) {
                 color = TextMuted,
             )
         }
-        CompactGems(gems)
+        CompactWorkshopParts(workshopParts)
     }
 }
 
@@ -167,7 +168,7 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
             )
             .padding(horizontal = 11.dp, vertical = 10.dp)
             .semantics {
-                contentDescription = "${item.def.title}: ${item.progress} из ${item.def.target}. Награда ${item.def.rewardGems} гемов"
+                contentDescription = "${item.def.title}: ${item.progress} из ${item.def.target}. ${rewardDescription(item.def.reward)}"
             },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -192,7 +193,12 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text("◆ ${item.def.rewardGems}", style = MaterialTheme.typography.labelLarge, color = TealGlow)
+                Text(
+                    rewardLabel(item.def.reward),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = rewardAccent(item.def.reward),
+                    maxLines = 1,
+                )
                 Text(
                     when {
                         item.claimed -> "ПОЛУЧЕНО"
@@ -220,7 +226,7 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
 
         if (item.complete && !item.claimed) {
             Spacer(Modifier.height(9.dp))
-            ContractClaimAction(reward = item.def.rewardGems, onClaim = onClaim)
+            ContractClaimAction(reward = item.def.reward, onClaim = onClaim)
         }
     }
 }
@@ -248,7 +254,7 @@ private fun ContractBadge(icon: String, accent: Color) {
 }
 
 @Composable
-private fun ContractClaimAction(reward: Int, onClaim: () -> Unit) {
+private fun ContractClaimAction(reward: ContractReward, onClaim: () -> Unit) {
     val shape = RoundedCornerShape(11.dp)
     Row(
         modifier = Modifier
@@ -260,14 +266,14 @@ private fun ContractClaimAction(reward: Int, onClaim: () -> Unit) {
             .clickable(onClick = onClaim)
             .semantics {
                 role = Role.Button
-                contentDescription = "Получить награду: $reward гемов"
+                contentDescription = "Получить. ${rewardDescription(reward)}"
             }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("ПОЛУЧИТЬ", style = MaterialTheme.typography.labelLarge, color = TealGlow)
         Spacer(Modifier.weight(1f))
-        Text("◆ $reward", style = MaterialTheme.typography.labelLarge, color = TextWarm)
+        Text(rewardLabel(reward), style = MaterialTheme.typography.labelLarge, color = TextWarm, maxLines = 1)
     }
 }
 
@@ -296,19 +302,35 @@ private fun ContractProgress(
 }
 
 @Composable
-private fun CompactGems(gems: Int) {
+private fun CompactWorkshopParts(parts: Int) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(Panel.copy(alpha = 0.66f))
             .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 9.dp, vertical = 6.dp),
+            .padding(horizontal = 9.dp, vertical = 6.dp)
+            .semantics { contentDescription = "Детали мастерской: $parts" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("◆", color = TealGlow, style = MaterialTheme.typography.labelLarge)
+        Text("⚙", color = BrassBright, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.width(5.dp))
-        Text(gems.toString(), color = TextWarm, style = MaterialTheme.typography.labelLarge)
+        Text(parts.toString(), color = TextWarm, style = MaterialTheme.typography.labelLarge)
     }
+}
+
+private fun rewardLabel(reward: ContractReward): String = when (reward) {
+    is ContractReward.WorkshopParts -> "⚙ ${reward.amount}"
+    is ContractReward.BlueprintPiece -> "▧ ЧЕРТЁЖ"
+}
+
+private fun rewardDescription(reward: ContractReward): String = when (reward) {
+    is ContractReward.WorkshopParts -> "Награда ${reward.amount} деталей мастерской"
+    is ContractReward.BlueprintPiece -> "Награда: фрагмент чертежа"
+}
+
+private fun rewardAccent(reward: ContractReward): Color = when (reward) {
+    is ContractReward.WorkshopParts -> BrassBright
+    is ContractReward.BlueprintPiece -> TealGlow
 }
 
 private fun contractIcon(item: ContractItemUi): String = when (item.def.type) {
