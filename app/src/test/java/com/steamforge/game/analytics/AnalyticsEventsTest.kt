@@ -35,4 +35,32 @@ class AnalyticsEventsTest {
         assertEquals(2, event.params["to_stage"])
         assertEquals(0, event.params["parts_spent"])
     }
+
+    @Test
+    fun `rewarded funnel events share a stable product schema`() {
+        val offered = AnalyticsEvents.rewardedOfferShown(
+            placement = "post_run_result",
+            rewardType = "gems",
+            rewardAmount = -12,
+            daily = false,
+        )
+        val completed = AnalyticsEvents.rewardedCompleted(
+            placement = "post_run_result",
+            rewardType = "gems",
+            rewardAmount = 12,
+            daily = true,
+        )
+
+        assertEquals("rewarded_offer_shown", offered.name)
+        assertEquals("post_run_result", offered.params["placement"])
+        assertEquals("gems", offered.params["reward_type"])
+        assertEquals(0, offered.params["reward_amount"])
+        assertEquals(false, offered.params["daily"])
+
+        assertEquals("rewarded_completed", completed.name)
+        assertEquals("post_run_result", completed.params["placement"])
+        assertEquals("gems", completed.params["reward_type"])
+        assertEquals(12, completed.params["reward_amount"])
+        assertEquals(true, completed.params["daily"])
+    }
 }

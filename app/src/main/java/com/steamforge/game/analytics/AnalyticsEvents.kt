@@ -111,4 +111,34 @@ object AnalyticsEvents {
             "total_pieces" to totalPieces.coerceAtLeast(0),
         ),
     )
+
+    fun rewardedOfferShown(
+        placement: String,
+        rewardType: String,
+        rewardAmount: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        REWARDED_OFFER_SHOWN,
+        mapOf(
+            "placement" to placement,
+            "reward_type" to rewardType,
+            "reward_amount" to rewardAmount.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
+
+    fun rewardedCompleted(
+        placement: String,
+        rewardType: String,
+        rewardAmount: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        REWARDED_COMPLETED,
+        mapOf(
+            "placement" to placement,
+            "reward_type" to rewardType,
+            "reward_amount" to rewardAmount.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
 }

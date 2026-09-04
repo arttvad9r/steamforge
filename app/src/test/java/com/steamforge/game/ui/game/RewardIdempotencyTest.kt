@@ -1,6 +1,7 @@
 package com.steamforge.game.ui.game
 
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvents
 import com.steamforge.game.core.GameState
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.data.FinishedGameRecord
@@ -37,8 +38,11 @@ class RewardIdempotencyTest {
         Dispatchers.resetMain()
     }
 
-    private class NoAnalytics : Analytics {
-        override fun logEvent(name: String, params: Map<String, Any?>) = Unit
+    private class RecordingAnalytics : Analytics {
+        val events = mutableListOf<Pair<String, Map<String, Any?>>>()
+        override fun logEvent(name: String, params: Map<String, Any?>) {
+            events += name to params
+        }
     }
 
     private fun record(
@@ -60,9 +64,9 @@ class RewardIdempotencyTest {
         rewardedClaimed = claimed,
     )
 
-    private fun vm(repo: FakeDataRepo): GameViewModel = GameViewModel(
+    private fun vm(repo: FakeDataRepo, analytics: Analytics = RecordingAnalytics()): GameViewModel = GameViewModel(
         repo = repo,
-        analytics = NoAnalytics(),
+        analytics = analytics,
         cfg = ProgressionConfig(),
         seedProvider = { 42L },
         savedGameProvider = { repo.currentGame },
@@ -72,8 +76,9 @@ class RewardIdempotencyTest {
 
     @Test
     fun `repeated rewarded callback grants doubled gems only once`() = runTest(dispatcher) {
+        val analytics = RecordingAnalytics()
         val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
-        val model = vm(repo)
+        val model = vm(repo, analytics)
         advanceUntilIdle()
         assertTrue(model.ui.value.finished)
         assertEquals("fg-1", model.ui.value.gameResultId)
@@ -86,6 +91,23 @@ class RewardIdempotencyTest {
         model.grantDoubleReward()
         advanceUntilIdle()
         assertEquals(12, gems(repo))
+        assertEquals(1, analytics.events.count { it.first == AnalyticsEvents.REWARDED_COMPLETED })
+        val completed = analytics.events.first { it.first == AnalyticsEvents.REWARDED_COMPLETED }.second
+        assertEquals("post_run_result", completed["placement"])
+        assertEquals("gems", completed["reward_type"])
+        assertEquals(12, completed["reward_amount"])
+        assertEquals(false, completed["daily"])
+    }
+
+    @Test
+    fun `restored result without a visible rewarded ad does not log offer shown`() = runTest(dispatcher) {
+        val analytics = RecordingAnalytics()
+        val repo = FakeDataRepo(initialFinished = record("fg-1", gems = 12))
+        vm(repo, analytics)
+        advanceUntilIdle()
+
+        assertFalse(analytics.events.any { it.first == AnalyticsEvents.REWARDED_OFFER_SHOWN })
+        assertFalse(analytics.events.any { it.first == "rewarded_offered" })
     }
 
     @Test

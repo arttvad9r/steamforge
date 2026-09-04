@@ -3,6 +3,7 @@ package com.steamforge.game.ui.game
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvents
 import com.steamforge.game.analytics.GameMoveAnalytics
 import com.steamforge.game.analytics.log
 import com.steamforge.game.core.GameEngine
@@ -33,6 +34,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -93,6 +95,7 @@ class GameViewModel(
     private var pendingFinish: PendingFinish? = null
     private var finishWriteInFlight = false
     private var finishPersistenceHadIoFailure = false
+    private var rewardedOfferLoggedResultId: String? = null
 
     private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -163,6 +166,13 @@ class GameViewModel(
                 }
             }
         }
+        ads?.let { manager ->
+            viewModelScope.launch {
+                manager.rewardedReady.collect { ready ->
+                    if (ready) logRewardedOfferIfVisible()
+                }
+            }
+        }
     }
 
     private fun restoreFinished(record: FinishedGameRecord) {
@@ -181,9 +191,7 @@ class GameViewModel(
                 finishPersistenceFailed = false,
             )
         }
-        if (!record.rewardedClaimed && record.gemsGained > 0) {
-            analytics.logEvent("rewarded_offered")
-        }
+        logRewardedOfferIfVisible()
     }
 
     private fun FinishedGameRecord.toEffects() = FinishEffects(
@@ -367,6 +375,7 @@ class GameViewModel(
         pendingFinish = null
         finishWriteInFlight = false
         finishPersistenceHadIoFailure = false
+        rewardedOfferLoggedResultId = null
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
@@ -524,9 +533,7 @@ class GameViewModel(
                 }
                 if (recovered) analytics.logEvent("game_finish_save_recovered")
                 ads?.onGameFinished()
-                if (ads?.rewardedReady?.value == true && (eff?.gemsGained ?: 0) > 0) {
-                    analytics.logEvent("rewarded_offered")
-                }
+                logRewardedOfferIfVisible()
                 analytics.logEvent(
                     "game_finished",
                     mapOf(
@@ -555,6 +562,24 @@ class GameViewModel(
         }
     }
 
+    private fun logRewardedOfferIfVisible() {
+        val s = _ui.value
+        val resultId = s.gameResultId ?: return
+        val rewardAmount = s.effects?.gemsGained ?: return
+        if (!s.finished || s.rewardDoubled || rewardAmount <= 0) return
+        if (ads?.rewardedReady?.value != true) return
+        if (rewardedOfferLoggedResultId == resultId) return
+        rewardedOfferLoggedResultId = resultId
+        analytics.log(
+            AnalyticsEvents.rewardedOfferShown(
+                placement = "post_run_result",
+                rewardType = "gems",
+                rewardAmount = rewardAmount,
+                daily = dailyMode,
+            ),
+        )
+    }
+
     fun grantDoubleReward() {
         val s = _ui.value
         val eff = s.effects ?: return
@@ -562,7 +587,17 @@ class GameViewModel(
         if (s.rewardDoubled || eff.gemsGained <= 0) return
         writesScope.launch {
             val granted = repo.claimDoubleReward(id, eff.gemsGained)
-            if (granted) _ui.update { it.copy(rewardDoubled = true) }
+            if (granted) {
+                _ui.update { it.copy(rewardDoubled = true) }
+                analytics.log(
+                    AnalyticsEvents.rewardedCompleted(
+                        placement = "post_run_result",
+                        rewardType = "gems",
+                        rewardAmount = eff.gemsGained,
+                        daily = dailyMode,
+                    ),
+                )
+            }
         }
     }
 
