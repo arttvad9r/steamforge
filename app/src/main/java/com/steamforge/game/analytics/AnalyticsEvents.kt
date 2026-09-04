@@ -25,6 +25,32 @@ object AnalyticsEvents {
     const val REWARDED_OFFER_SHOWN = "rewarded_offer_shown"
     const val REWARDED_COMPLETED = "rewarded_completed"
 
+    fun gameStarted(
+        daily: Boolean,
+        dailyType: String? = null,
+    ) = AnalyticsEvent(
+        GAME_STARTED,
+        buildMap {
+            put("daily", daily)
+            dailyType?.trim()?.takeIf { it.isNotEmpty() }?.let { put("daily_type", it) }
+        },
+    )
+
+    fun gameFinished(
+        score: Int,
+        maxTile: Int,
+        moves: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        GAME_FINISHED,
+        mapOf(
+            "score" to score.coerceAtLeast(0),
+            "max_tile" to maxTile.coerceAtLeast(0),
+            "moves" to moves.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
+
     fun merge(
         tileLevel: Int,
         tileValue: Int,
