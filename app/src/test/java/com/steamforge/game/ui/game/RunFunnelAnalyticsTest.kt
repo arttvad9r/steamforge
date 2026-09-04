@@ -66,7 +66,7 @@ class RunFunnelAnalyticsTest {
 
     @Test
     fun `same replay seed still produces distinct normal run ids`() = runTest(dispatcher) {
-        fun startId(): String {
+        suspend fun startId(): String {
             val analytics = RecordingAnalytics()
             GameViewModel(
                 repo = FakeDataRepo(initialGame = null),
@@ -74,17 +74,13 @@ class RunFunnelAnalyticsTest {
                 seedProvider = { 41L },
                 savedGameProvider = { null },
             )
+            advanceUntilIdle()
             return analytics.events
                 .single { it.first == AnalyticsEvents.GAME_STARTED }
                 .second["run_id"] as String
         }
 
-        val first = startId()
-        advanceUntilIdle()
-        val second = startId()
-        advanceUntilIdle()
-
-        assertNotEquals(first, second)
+        assertNotEquals(startId(), startId())
     }
 
     @Test
