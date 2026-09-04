@@ -147,6 +147,7 @@ object WorkshopProgression {
 data class FinishEffects(
     val xpGained: Int = 0,
     val gemsGained: Int = 0,
+    val workshopPartsGained: Int = 0,
     val levelUps: List<Int> = emptyList(),
     val newAchievements: List<AchievementDef> = emptyList(),
     val newBest: Boolean = false,
@@ -158,11 +159,8 @@ fun applyGameFinished(
     cfg: ProgressionConfig,
 ): Pair<PlayerProgress, FinishEffects> {
     val xpGained = WorkshopProgression.xpForGame(summary, cfg)
-    val partsGained = WorkshopProgression.partsForGame(summary, cfg)
+    val partsReward = WorkshopProgression.partsForGame(summary, cfg)
     val newXp = progress.totalXp + xpGained
-    val newWorkshopParts = (progress.workshopParts.toLong() + partsGained.toLong())
-        .coerceAtMost(Int.MAX_VALUE.toLong())
-        .toInt()
 
     val before = WorkshopProgression.levelInfo(progress.totalXp, cfg).level
     val after = WorkshopProgression.levelInfo(newXp, cfg).level
@@ -172,19 +170,22 @@ fun applyGameFinished(
     val newStats = progress.stats.mergedWith(summary)
     val candidates = Achievements.newlyUnlocked(newStats, progress.unlockedAchievements)
     val achievementGems = candidates.sumOf { it.gemReward }
-    val finalStats = newStats.copy(gemsEarned = newStats.gemsEarned + levelGems + achievementGems)
 
-    val newProgress = progress.copy(
-        gems = progress.gems + levelGems + achievementGems,
+    val baseProgress = progress.copy(
         totalXp = newXp,
         bestScore = maxOf(progress.bestScore, summary.score),
-        workshopParts = newWorkshopParts,
-        stats = finalStats,
+        stats = newStats,
         unlockedAchievements = progress.unlockedAchievements + candidates.map { it.id }.toSet(),
+    )
+    val (newProgress, receipt) = RewardSystem.apply(
+        baseProgress,
+        Reward.WorkshopParts(partsReward),
+        Reward.Gems(levelGems + achievementGems),
     )
     val effects = FinishEffects(
         xpGained = xpGained,
-        gemsGained = levelGems + achievementGems,
+        gemsGained = receipt.gems,
+        workshopPartsGained = receipt.workshopParts,
         levelUps = levelUps,
         newAchievements = candidates,
         newBest = summary.score > progress.bestScore,
@@ -211,6 +212,7 @@ data class PlayerProgress(
     val analyticsConsent: Boolean? = null,
     val workshopParts: Int = 0,
     val workshopCoreStage: Int = 0,
+    val blueprintPieces: Set<String> = emptySet(),
 ) {
     fun levelInfo(cfg: ProgressionConfig): LevelInfo = WorkshopProgression.levelInfo(totalXp, cfg)
 }
