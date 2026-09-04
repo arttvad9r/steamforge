@@ -63,7 +63,8 @@ class WorkshopViewModel(
         val todayDay = today()
         val canClaim = p.dailyRewardDay != todayDay
         val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
-        val nextDay = (continuingStreak % cfg.dailyRewardCycle) + 1
+        val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
+        val nextDay = (continuingStreak % cycle) + 1
         val li = p.levelInfo(cfg)
         val mechanisms = WorkshopMechanism.entries.map { mechanism ->
             val stage = WorkshopProgression.mechanismStage(p, mechanism, cfg)
@@ -124,15 +125,24 @@ class WorkshopViewModel(
                 val todayDay = today()
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
                 val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
-                val day = (continuingStreak % cfg.dailyRewardCycle) + 1
+                val nextStreak = continuingStreak + 1
+                val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
+                val rewardDay = ((nextStreak - 1) % cycle) + 1
                 val rewards = buildList<Reward> {
-                    add(Reward.Gems(cfg.dailyRewardGems(day)))
-                    if (day == cfg.dailyRewardCycle) add(Reward.CosmeticUnlock("gold_gauge"))
+                    add(Reward.Gems(cfg.dailyRewardGems(rewardDay)))
+                    if (rewardDay == cycle) add(Reward.CosmeticUnlock("gold_gauge"))
                 }
                 val (rewarded, _) = RewardSystem.apply(p, rewards)
                 rewarded.copy(
                     dailyRewardDay = todayDay,
-                    dailyRewardStreak = day,
+                    dailyRewardStreak = nextStreak,
+                    stats = rewarded.stats.copy(
+                        highestDailyStreak = maxOf(
+                            rewarded.stats.highestDailyStreak,
+                            p.dailyRewardStreak,
+                            nextStreak,
+                        ),
+                    ),
                 )
             }
         }

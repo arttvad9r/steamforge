@@ -39,6 +39,8 @@ import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.game.PersistenceGuardedGameScreen
 import com.steamforge.game.ui.home.HomeScreen
 import com.steamforge.game.ui.home.HomeViewModel
+import com.steamforge.game.ui.profile.ProfileScreen
+import com.steamforge.game.ui.profile.ProfileViewModel
 import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
 import com.steamforge.game.ui.workshop.WorkshopScreen
@@ -51,6 +53,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object Workshop : NavKey
 @Serializable data object Contracts : NavKey
 @Serializable data class Game(val daily: Boolean = false) : NavKey
+@Serializable data object Profile : NavKey
 @Serializable data object Achievements : NavKey
 @Serializable data object Settings : NavKey
 
@@ -98,7 +101,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onWorkshop = { backStack.add(Workshop) },
                     onContracts = { backStack.add(Contracts) },
                     onDaily = { backStack.add(Game(daily = true)) },
-                    onAchievements = { backStack.add(Achievements) },
+                    onAchievements = { backStack.add(Profile) },
                     onSettings = { backStack.add(Settings) },
                 )
             }
@@ -134,6 +137,14 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     ads = container.ads,
                     onExit = { back() },
                     modifier = Modifier.navigationBarsPadding(),
+                )
+            }
+            entry<Profile> {
+                val vm: ProfileViewModel = viewModel { ProfileViewModel(container.repo) }
+                ProfileScreen(
+                    vm = vm,
+                    onBack = { back() },
+                    onAchievements = { backStack.add(Achievements) },
                 )
             }
             entry<Achievements> {

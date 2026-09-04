@@ -11,6 +11,7 @@ data class PlayerStats(
     val overdrives: Int = 0,
     val undos: Int = 0,
     val dailyCompleted: Int = 0,
+    val highestDailyStreak: Int = 0,
     val gemsEarned: Long = 0L,
 ) {
     fun mergedWith(summary: GameSummary): PlayerStats = PlayerStats(
@@ -23,6 +24,7 @@ data class PlayerStats(
         overdrives = overdrives + summary.overdrives,
         undos = undos + summary.undos,
         dailyCompleted = dailyCompleted,
+        highestDailyStreak = highestDailyStreak,
         gemsEarned = gemsEarned,
     )
 }
