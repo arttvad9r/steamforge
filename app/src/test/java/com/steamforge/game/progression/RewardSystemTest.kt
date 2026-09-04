@@ -90,4 +90,43 @@ class RewardSystemTest {
         assertEquals(2, receipt.workshopParts)
         assertEquals(1, receipt.gems)
     }
+
+    @Test
+    fun `receipt only reports requested reward when recovering negative persisted counters`() {
+        val start = PlayerProgress(
+            workshopParts = -7,
+            gems = -9,
+            stats = PlayerStats(gemsEarned = -11),
+        )
+
+        val (updated, receipt) = RewardSystem.apply(
+            start,
+            Reward.WorkshopParts(3),
+            Reward.Gems(4),
+        )
+
+        assertEquals(3, updated.workshopParts)
+        assertEquals(4, updated.gems)
+        assertEquals(4L, updated.stats.gemsEarned)
+        assertEquals(3, receipt.workshopParts)
+        assertEquals(4, receipt.gems)
+    }
+
+    @Test
+    fun `fully saturated numeric rewards produce an empty receipt without overflow`() {
+        val start = PlayerProgress(
+            workshopParts = Int.MAX_VALUE,
+            gems = Int.MAX_VALUE,
+            stats = PlayerStats(gemsEarned = Long.MAX_VALUE),
+        )
+
+        val (updated, receipt) = RewardSystem.apply(
+            start,
+            Reward.WorkshopParts(1),
+            Reward.Gems(1),
+        )
+
+        assertEquals(start, updated)
+        assertTrue(receipt.isEmpty)
+    }
 }
