@@ -3,6 +3,7 @@ package com.steamforge.game.ui.workshop
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
+import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
@@ -35,6 +36,9 @@ data class WorkshopUiState(
     val coreStageLabel: String = "СЛОМАНО",
     val pressureStage: Int = 0,
     val gearPressStage: Int = 0,
+    val steamEnginePieces: Int = 0,
+    val steamEnginePiecesTotal: Int = BlueprintCollections.steamEngine.pieces.size,
+    val steamEngineUnlocked: Boolean = false,
     val bestScore: Int = 0,
     val gamesPlayed: Int = 0,
     val achievementsUnlocked: Int = 0,
@@ -75,6 +79,8 @@ class WorkshopViewModel(
         val core = mechanisms.first { it.mechanism == WorkshopMechanism.CORE }
         val pressure = mechanisms.first { it.mechanism == WorkshopMechanism.PRESSURE_GENERATOR }
         val press = mechanisms.first { it.mechanism == WorkshopMechanism.GEAR_PRESS }
+        val steamEnginePieces = BlueprintCollections.ownedCount(BlueprintCollections.steamEngine, p.blueprintPieces)
+        val steamEngineUnlocked = BlueprintCollections.isSteamEngineComplete(p.blueprintPieces)
         WorkshopUiState(
             loaded = true,
             level = li.level,
@@ -86,6 +92,9 @@ class WorkshopViewModel(
             coreStageLabel = core.stageLabel,
             pressureStage = pressure.stage,
             gearPressStage = press.stage,
+            steamEnginePieces = steamEnginePieces,
+            steamEnginePiecesTotal = BlueprintCollections.steamEngine.pieces.size,
+            steamEngineUnlocked = steamEngineUnlocked,
             bestScore = p.bestScore,
             gamesPlayed = p.stats.gamesPlayed,
             achievementsUnlocked = p.unlockedAchievements.size,

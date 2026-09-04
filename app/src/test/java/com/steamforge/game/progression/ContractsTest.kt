@@ -55,6 +55,56 @@ class ContractsTest {
     }
 
     @Test
+    fun `every third day exposes one blueprint contract while collection is incomplete`() {
+        val day = 20_001L
+        val withBlueprint = DailyContracts.forEpochDay(day, blueprintAvailable = true)
+        val afterCollection = DailyContracts.forEpochDay(day, blueprintAvailable = false)
+
+        assertTrue(withBlueprint.first().reward is ContractReward.BlueprintPiece)
+        assertTrue(withBlueprint.drop(1).all { it.reward is ContractReward.WorkshopParts })
+        assertTrue(afterCollection.all { it.reward is ContractReward.WorkshopParts })
+        assertEquals(withBlueprint.map { it.id }, afterCollection.map { it.id })
+    }
+
+    @Test
+    fun `blueprint contract claim grants next missing finite piece once`() {
+        val day = 20_001L
+        val contract = DailyContracts.forEpochDay(day, blueprintAvailable = true).first()
+        val firstPiece = BlueprintCollections.steamEngine.pieces.first()
+        val secondPiece = BlueprintCollections.steamEngine.pieces[1]
+        val initial = PlayerProgress(
+            blueprintPieces = setOf(firstPiece.id),
+            contracts = completedLedgerFor(contract, day),
+        )
+
+        val claimed = DailyContracts.claim(initial, day, contract.id)
+        val replay = DailyContracts.claim(claimed, day, contract.id)
+
+        assertEquals(setOf(firstPiece.id, secondPiece.id), claimed.blueprintPieces)
+        assertTrue(contract.id in claimed.contracts.claimedIds)
+        assertEquals(claimed, replay)
+    }
+
+    @Test
+    fun `completed blueprint collection converts scheduled reward back to workshop parts`() {
+        val day = 20_001L
+        val owned = BlueprintCollections.steamEngine.pieces.map { it.id }.toSet()
+        val contract = DailyContracts.forEpochDay(day, blueprintAvailable = false).first()
+        val reward = contract.reward as ContractReward.WorkshopParts
+        val initial = PlayerProgress(
+            workshopParts = 7,
+            blueprintPieces = owned,
+            contracts = completedLedgerFor(contract, day),
+        )
+
+        val claimed = DailyContracts.claim(initial, day, contract.id)
+
+        assertEquals(7 + reward.amount, claimed.workshopParts)
+        assertEquals(owned, claimed.blueprintPieces)
+        assertTrue(contract.id in claimed.contracts.claimedIds)
+    }
+
+    @Test
     fun `full contract types read the intended counters`() {
         val ledger = ContractLedger(
             day = 1L,
