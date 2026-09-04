@@ -23,6 +23,40 @@ object AnalyticsEvents {
     const val REWARDED_OFFER_SHOWN = "rewarded_offer_shown"
     const val REWARDED_COMPLETED = "rewarded_completed"
 
+    fun merge(
+        tileLevel: Int,
+        tileValue: Int,
+        moveNumber: Int,
+        mergesInMove: Int,
+        scoreGained: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        MERGE,
+        mapOf(
+            "tile_level" to tileLevel.coerceAtLeast(0),
+            "tile_value" to tileValue.coerceAtLeast(0),
+            "move" to moveNumber.coerceAtLeast(0),
+            "merges_in_move" to mergesInMove.coerceAtLeast(0),
+            "score_gained" to scoreGained.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
+
+    fun highestTileUnlocked(
+        tileLevel: Int,
+        tileValue: Int,
+        moveNumber: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        HIGHEST_TILE_UNLOCKED,
+        mapOf(
+            "tile_level" to tileLevel.coerceAtLeast(0),
+            "tile_value" to tileValue.coerceAtLeast(0),
+            "move" to moveNumber.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
+
     fun contractCompleted(
         contractId: String,
         type: String,

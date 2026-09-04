@@ -3,6 +3,8 @@ package com.steamforge.game.ui.game
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.GameMoveAnalytics
+import com.steamforge.game.analytics.log
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameRules
 import com.steamforge.game.core.GameState
@@ -210,6 +212,12 @@ class GameViewModel(
         val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
         val result = engine.applyMove(s.state, move, rng, multiplier)
         if (!result.moved) return
+
+        GameMoveAnalytics.eventsFor(
+            result = result,
+            previousMaxLevel = s.state.maxLevel,
+            daily = dailyMode,
+        ).forEach { event -> analytics.log(event) }
 
         var pressure = s.pressure
         var overdrive = s.overdriveRemaining
