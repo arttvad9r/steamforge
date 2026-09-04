@@ -40,6 +40,10 @@ object GameSaveCodec {
     private const val MAX_ANALYTICS_RUN_ID_LENGTH = 128
 
     fun encode(game: SavedGame): String = buildString {
+        val analyticsRunId = game.analyticsRunId.orEmpty()
+        require(analyticsRunId.length <= MAX_ANALYTICS_RUN_ID_LENGTH)
+        require('|' !in analyticsRunId)
+
         append(VERSION).append('|')
         append(game.state.size).append('|')
         append(game.state.score).append('|')
@@ -56,7 +60,7 @@ object GameSaveCodec {
         append(game.overdrivesSession.coerceAtLeast(0)).append('|')
         append(game.undosSession.coerceAtLeast(0)).append('|')
         append(game.highMergesSession.coerceAtLeast(0)).append('|')
-        append(game.analyticsRunId?.take(MAX_ANALYTICS_RUN_ID_LENGTH).orEmpty()).append('|')
+        append(analyticsRunId).append('|')
         game.state.tiles.joinTo(this, ";") { "${it.id},${it.level},${it.row},${it.col}" }
     }
 
