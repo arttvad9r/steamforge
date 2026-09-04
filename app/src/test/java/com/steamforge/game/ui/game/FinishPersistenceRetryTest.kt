@@ -163,6 +163,7 @@ class FinishPersistenceRetryTest {
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
         assertEquals(durable.xpGained, model.ui.value.effects?.xpGained)
         assertEquals(durable.gemsGained, model.ui.value.effects?.gemsGained)
+        assertEquals(durable.workshopPartsGained, model.ui.value.effects?.workshopPartsGained)
         assertEquals(1, analytics.names.count { it == "game_finished" })
         assertEquals(1, analytics.names.count { it == "game_finish_save_failed" })
         assertEquals(1, analytics.names.count { it == "game_finish_save_retry" })
@@ -238,6 +239,7 @@ class FinishPersistenceRetryTest {
         assertEquals(durable.score, recreated.ui.value.state.score)
         assertEquals(durable.xpGained, recreated.ui.value.effects?.xpGained)
         assertEquals(durable.gemsGained, recreated.ui.value.effects?.gemsGained)
+        assertEquals(durable.workshopPartsGained, recreated.ui.value.effects?.workshopPartsGained)
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
         assertEquals(1, repo.finishAttempts)
     }
