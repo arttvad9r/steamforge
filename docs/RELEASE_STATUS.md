@@ -56,6 +56,7 @@
 - Adaptive Gameplay Window Smoke проверяет production gameplay bounds на трёх window shapes.
 - Accessibility UI Smoke запускает production app на API 36 при font scale 1.3, проходит Privacy → Home → Game и проверяет runtime touch geometry критичных controls, включая Undo/Wrench, а также board tile bounds.
 - Yandex Mobile Ads automatic initialization отключён в manifest; analytics/ads flow контролируется privacy decision.
+- AppMetrica активируется только после положительного privacy-решения; crash reporting оставлен включённым по умолчанию SDK, ANR monitoring явно включён, а location/advertising-identifier tracking для аналитики отключён.
 - Release signing/preflight tooling существует.
 - `targetSdk = 36`, `compileSdk = 36`, `minSdk = 24`, JDK 17.
 - Package ID: `com.steamforge.game`.
@@ -174,7 +175,7 @@ Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
 6. Запустить `bash tools/build-rustore-release.sh`.
 7. Использовать только `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
 8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, rewarded, interstitial, reset progress, offline, Privacy Policy, TalkBack/large text spot-check.
-9. Проверить AppMetrica до/после consent и production ad placements.
+9. Проверить AppMetrica analytics + crash/ANR reporting после consent и production ad placements.
 10. Повторно сверить SHA-256 и загрузить проверенный APK + утверждённые store assets.
 11. Для первого релиза использовать ручную публикацию после модерации.
 
