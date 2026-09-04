@@ -51,6 +51,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val overdrives = intPreferencesKey("stat_overdrives")
         val undos = intPreferencesKey("stat_undos")
         val dailyCompleted = intPreferencesKey("stat_daily")
+        val highestDailyStreak = intPreferencesKey("stat_highest_daily_streak")
         val gemsEarned = longPreferencesKey("stat_gems_earned")
         val achievements = stringSetPreferencesKey("achievements")
         val achievementDays = stringSetPreferencesKey("achievement_days")
@@ -309,6 +310,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 overdrives = prefs[Keys.overdrives] ?: 0,
                 undos = prefs[Keys.undos] ?: 0,
                 dailyCompleted = prefs[Keys.dailyCompleted] ?: 0,
+                highestDailyStreak = prefs[Keys.highestDailyStreak] ?: 0,
                 gemsEarned = prefs[Keys.gemsEarned] ?: 0L,
             ),
             unlockedAchievements = prefs[Keys.achievements] ?: emptySet(),
@@ -373,6 +375,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.overdrives] = p.stats.overdrives
         prefs[Keys.undos] = p.stats.undos
         prefs[Keys.dailyCompleted] = p.stats.dailyCompleted
+        prefs[Keys.highestDailyStreak] = p.stats.highestDailyStreak
         prefs[Keys.gemsEarned] = p.stats.gemsEarned
         prefs[Keys.achievements] = p.unlockedAchievements
         prefs[Keys.achievementDays] = p.achievementDays.map { (id, day) -> "$id:$day" }.toSet()
