@@ -110,7 +110,7 @@ class AdsManager(
             override fun onAdImpression(impressionData: com.yandex.mobile.ads.common.ImpressionData?) = Unit
 
             override fun onRewarded(reward: Reward) {
-                analytics.logEvent("rewarded_completed", mapOf("amount" to reward.amount))
+                analytics.logEvent("rewarded_sdk_completed", mapOf("amount" to reward.amount))
                 onReward()
             }
         })
