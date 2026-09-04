@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -42,10 +43,11 @@ class RunFunnelAnalyticsTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `fresh normal run emits one canonical game start`() = runTest(dispatcher) {
+    fun `fresh normal run emits one canonical game start and persists its run id`() = runTest(dispatcher) {
         val analytics = RecordingAnalytics()
+        val repo = FakeDataRepo(initialGame = null)
         GameViewModel(
-            repo = FakeDataRepo(initialGame = null),
+            repo = repo,
             analytics = analytics,
             seedProvider = { 41L },
             savedGameProvider = { null },
@@ -54,10 +56,35 @@ class RunFunnelAnalyticsTest {
 
         val starts = analytics.events.filter { it.first == AnalyticsEvents.GAME_STARTED }
         assertEquals(1, starts.size)
-        assertTrue((starts.single().second["run_id"] as String).startsWith("normal-"))
+        val runId = starts.single().second["run_id"] as String
+        assertTrue(runId.startsWith("normal-"))
         assertEquals(false, starts.single().second["daily"])
         assertFalse(starts.single().second.containsKey("daily_type"))
         assertEquals(0, analytics.events.count { it.first == "daily_started" })
+        assertEquals(runId, repo.currentGame?.analyticsRunId)
+    }
+
+    @Test
+    fun `same replay seed still produces distinct normal run ids`() = runTest(dispatcher) {
+        fun startId(): String {
+            val analytics = RecordingAnalytics()
+            GameViewModel(
+                repo = FakeDataRepo(initialGame = null),
+                analytics = analytics,
+                seedProvider = { 41L },
+                savedGameProvider = { null },
+            )
+            return analytics.events
+                .single { it.first == AnalyticsEvents.GAME_STARTED }
+                .second["run_id"] as String
+        }
+
+        val first = startId()
+        advanceUntilIdle()
+        val second = startId()
+        advanceUntilIdle()
+
+        assertNotEquals(first, second)
     }
 
     @Test
@@ -94,11 +121,12 @@ class RunFunnelAnalyticsTest {
     }
 
     @Test
-    fun `normal run id correlates start and finish across process restore`() = runTest(dispatcher) {
+    fun `persisted normal run id correlates start and finish across process restore`() = runTest(dispatcher) {
         val seed = 17L
         val startAnalytics = RecordingAnalytics()
+        val startRepo = FakeDataRepo(initialGame = null)
         GameViewModel(
-            repo = FakeDataRepo(initialGame = null),
+            repo = startRepo,
             analytics = startAnalytics,
             seedProvider = { seed },
             savedGameProvider = { null },
@@ -106,9 +134,11 @@ class RunFunnelAnalyticsTest {
         advanceUntilIdle()
         val startId = startAnalytics.events
             .single { it.first == AnalyticsEvents.GAME_STARTED }
-            .second["run_id"]
+            .second["run_id"] as String
+        val persistedId = requireNotNull(startRepo.currentGame?.analyticsRunId)
+        assertEquals(startId, persistedId)
 
-        val saved = finishingSavedGame(seed)
+        val saved = finishingSavedGame(seed, analyticsRunId = persistedId)
         val finishAnalytics = RecordingAnalytics()
         val restored = GameViewModel(
             repo = FakeDataRepo(initialGame = saved),
@@ -129,7 +159,7 @@ class RunFunnelAnalyticsTest {
         assertEquals(startId, finishId)
     }
 
-    private fun finishingSavedGame(seed: Long): SavedGame {
+    private fun finishingSavedGame(seed: Long, analyticsRunId: String? = null): SavedGame {
         val levels = listOf(
             1, 1, 3, 4,
             5, 6, 7, 8,
@@ -157,6 +187,7 @@ class RunFunnelAnalyticsTest {
             overdriveRemaining = 0,
             freeUndosLeft = 2,
             rngDraws = 0L,
+            analyticsRunId = analyticsRunId,
         )
     }
 }
