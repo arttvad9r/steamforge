@@ -35,4 +35,15 @@ class AnalyticsEventsTest {
         assertEquals(2, event.params["to_stage"])
         assertEquals(0, event.params["parts_spent"])
     }
+
+    @Test
+    fun `rewarded lifecycle events use stable typed schema`() {
+        val started = AnalyticsEvents.rewardedStarted()
+        val completed = AnalyticsEvents.rewardedCompleted(-5)
+
+        assertEquals("rewarded_started", started.name)
+        assertEquals(emptyMap<String, Any?>(), started.params)
+        assertEquals("rewarded_completed", completed.name)
+        assertEquals(0, completed.params["amount"])
+    }
 }

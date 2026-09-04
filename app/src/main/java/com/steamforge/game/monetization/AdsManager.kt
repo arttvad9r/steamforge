@@ -6,6 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import com.steamforge.game.BuildConfig
 import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.analytics.log
 import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.InitializationListener
@@ -90,7 +92,7 @@ class AdsManager(
         val ad = rewardedAd ?: return
         rewardedShowing = true
         _rewardedReady.value = false
-        analytics.logEvent("rewarded_started")
+        analytics.log(AnalyticsEvents.rewardedStarted())
         ad.setAdEventListener(object : RewardedAdEventListener {
             override fun onAdShown() {
                 interstitialPolicy.onRewardedShown()
@@ -110,7 +112,7 @@ class AdsManager(
             override fun onAdImpression(impressionData: com.yandex.mobile.ads.common.ImpressionData?) = Unit
 
             override fun onRewarded(reward: Reward) {
-                analytics.logEvent("rewarded_completed", mapOf("amount" to reward.amount))
+                analytics.log(AnalyticsEvents.rewardedCompleted(reward.amount))
                 onReward()
             }
         })

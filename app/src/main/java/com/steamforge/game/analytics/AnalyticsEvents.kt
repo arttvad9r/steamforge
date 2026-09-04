@@ -21,6 +21,7 @@ object AnalyticsEvents {
     const val BLUEPRINT_RECEIVED = "blueprint_received"
     const val COLLECTION_COMPLETED = "collection_completed"
     const val REWARDED_OFFER_SHOWN = "rewarded_offer_shown"
+    const val REWARDED_STARTED = "rewarded_started"
     const val REWARDED_COMPLETED = "rewarded_completed"
 
     fun merge(
@@ -110,5 +111,12 @@ object AnalyticsEvents {
             "collection_id" to collectionId,
             "total_pieces" to totalPieces.coerceAtLeast(0),
         ),
+    )
+
+    fun rewardedStarted() = AnalyticsEvent(REWARDED_STARTED)
+
+    fun rewardedCompleted(amount: Int) = AnalyticsEvent(
+        REWARDED_COMPLETED,
+        mapOf("amount" to amount.coerceAtLeast(0)),
     )
 }
