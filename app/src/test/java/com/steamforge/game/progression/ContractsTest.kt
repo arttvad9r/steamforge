@@ -30,6 +30,48 @@ class ContractsTest {
     }
 
     @Test
+    fun `typed game events reduce into contract counters`() {
+        val counters = ContractCounters().record(
+            listOf(
+                GameEvent.ScoreAdded(1_250),
+                GameEvent.TilesMerged(7),
+                GameEvent.MovesSurvived(14),
+                GameEvent.TileReached(8),
+                GameEvent.OverdriveActivated(2),
+                GameEvent.RunFinished,
+            ),
+        )
+
+        assertEquals(
+            ContractCounters(
+                score = 1_250,
+                merges = 7,
+                moves = 14,
+                runs = 1,
+                maxTileLevel = 8,
+                overdrives = 2,
+            ),
+            counters,
+        )
+    }
+
+    @Test
+    fun `game event reducer ignores negative deltas and never lowers reached tile`() {
+        val initial = ContractCounters(score = 9, merges = 4, moves = 3, maxTileLevel = 7, overdrives = 1)
+        val updated = initial.record(
+            listOf(
+                GameEvent.ScoreAdded(-100),
+                GameEvent.TilesMerged(-4),
+                GameEvent.MovesSurvived(-3),
+                GameEvent.TileReached(5),
+                GameEvent.OverdriveActivated(-1),
+            ),
+        )
+
+        assertEquals(initial, updated)
+    }
+
+    @Test
     fun `claim grants workshop parts once and marks contract claimed`() {
         val day = 20_000L
         val contract = DailyContracts.forEpochDay(day).first()
