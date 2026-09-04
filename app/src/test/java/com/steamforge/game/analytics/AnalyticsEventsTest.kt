@@ -1,9 +1,36 @@
 package com.steamforge.game.analytics
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AnalyticsEventsTest {
+    @Test
+    fun `run lifecycle events use one stable product schema`() {
+        val normalStart = AnalyticsEvents.gameStarted(daily = false)
+        val dailyStart = AnalyticsEvents.gameStarted(daily = true, dailyType = "REACH_SCORE")
+        val finished = AnalyticsEvents.gameFinished(
+            score = -10,
+            maxTile = 2048,
+            moves = -2,
+            daily = true,
+        )
+
+        assertEquals("game_started", normalStart.name)
+        assertEquals(false, normalStart.params["daily"])
+        assertFalse(normalStart.params.containsKey("daily_type"))
+
+        assertEquals("game_started", dailyStart.name)
+        assertEquals(true, dailyStart.params["daily"])
+        assertEquals("REACH_SCORE", dailyStart.params["daily_type"])
+
+        assertEquals("game_finished", finished.name)
+        assertEquals(0, finished.params["score"])
+        assertEquals(2048, finished.params["max_tile"])
+        assertEquals(0, finished.params["moves"])
+        assertEquals(true, finished.params["daily"])
+    }
+
     @Test
     fun `contract event uses stable product schema`() {
         val event = AnalyticsEvents.contractCompleted(
