@@ -187,6 +187,7 @@ class GameViewModel(
     private fun FinishedGameRecord.toEffects() = FinishEffects(
         xpGained = xpGained,
         gemsGained = gemsGained,
+        workshopPartsGained = workshopPartsGained,
         levelUps = levelUps,
         newAchievements = newAchievementIds.mapNotNull { Achievements.byId(it) },
         newBest = newBest,
