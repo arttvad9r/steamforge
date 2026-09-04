@@ -111,6 +111,14 @@ fun WorkshopScreen(
             )
             Spacer(Modifier.height(9.dp))
 
+            SteamEngineBlueprintModule(
+                piecesOwned = ui.steamEnginePieces,
+                piecesTotal = ui.steamEnginePiecesTotal,
+                unlocked = ui.steamEngineUnlocked,
+                animationsEnabled = ui.animationsEnabled,
+            )
+            Spacer(Modifier.height(9.dp))
+
             MechanismUpgradeSelector(
                 mechanisms = ui.mechanisms,
                 onUpgrade = { mechanism ->

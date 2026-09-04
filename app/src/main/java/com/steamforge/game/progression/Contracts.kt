@@ -32,12 +32,10 @@ sealed interface GameEvent {
 
 sealed interface ContractReward {
     data class WorkshopParts(val amount: Int) : ContractReward
-    data class BlueprintPiece(val id: String) : ContractReward
-
-    fun toReward(): Reward = when (this) {
-        is WorkshopParts -> Reward.WorkshopParts(amount)
-        is BlueprintPiece -> Reward.BlueprintPiece(id)
-    }
+    data class BlueprintPiece(
+        val collectionId: String,
+        val fallbackParts: Int,
+    ) : ContractReward
 }
 
 data class ContractDef(
@@ -184,13 +182,14 @@ data class ContractLedger(
 
 object DailyContracts {
     private const val CONTRACTS_PER_DAY = 3
+    private const val BLUEPRINT_REWARD_PERIOD_DAYS = 3L
 
-    fun forEpochDay(epochDay: Long): List<ContractDef> {
+    fun forEpochDay(epochDay: Long, blueprintAvailable: Boolean = true): List<ContractDef> {
         val rng = Random(epochDay * 6364136223846793005L + 1442695040888963407L)
         return ContractType.entries
             .shuffled(rng)
             .take(CONTRACTS_PER_DAY)
-            .mapIndexed { index, type -> definition(epochDay, index, type, rng) }
+            .mapIndexed { index, type -> definition(epochDay, index, type, rng, blueprintAvailable) }
     }
 
     fun progress(def: ContractDef, ledger: ContractLedger): Int {
@@ -215,10 +214,18 @@ object DailyContracts {
      */
     fun claim(progress: PlayerProgress, day: Long, contractId: String): PlayerProgress {
         val ledger = normalized(progress.contracts, day)
-        val contract = forEpochDay(day).firstOrNull { it.id == contractId } ?: return progress
+        val blueprintAvailable = !BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
+        val contract = forEpochDay(day, blueprintAvailable).firstOrNull { it.id == contractId } ?: return progress
         if (contract.id in ledger.claimedIds || !isComplete(contract, ledger)) return progress
 
-        val (rewarded, _) = RewardSystem.apply(progress, contract.reward.toReward())
+        val reward = when (val value = contract.reward) {
+            is ContractReward.WorkshopParts -> Reward.WorkshopParts(value.amount)
+            is ContractReward.BlueprintPiece -> {
+                val piece = BlueprintCollections.nextMissingPiece(value.collectionId, progress.blueprintPieces)
+                if (piece != null) Reward.BlueprintPiece(piece.id) else Reward.WorkshopParts(value.fallbackParts)
+            }
+        }
+        val (rewarded, _) = RewardSystem.apply(progress, reward)
         return rewarded.copy(
             contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
         )
@@ -319,7 +326,13 @@ object DailyContracts {
         if (runFinished) add(GameEvent.RunFinished)
     }
 
-    private fun definition(epochDay: Long, slot: Int, type: ContractType, rng: Random): ContractDef {
+    private fun definition(
+        epochDay: Long,
+        slot: Int,
+        type: ContractType,
+        rng: Random,
+        blueprintAvailable: Boolean,
+    ): ContractDef {
         val tileLevel = when (type) {
             ContractType.MAKE_TILE -> intArrayOf(6, 7, 7, 8)[rng.nextInt(4)]
             ContractType.REACH_TILE -> intArrayOf(7, 8, 8, 9)[rng.nextInt(4)]
@@ -366,11 +379,22 @@ object DailyContracts {
             ContractType.PLAY_RUNS -> "Засчитываются завершённые партии"
             ContractType.SURVIVE_MOVES -> "Ходы суммируются между партиями"
         }
+        val blueprintReward = blueprintAvailable &&
+            slot == 0 &&
+            Math.floorMod(epochDay, BLUEPRINT_REWARD_PERIOD_DAYS) == 0L
+        val reward = if (blueprintReward) {
+            ContractReward.BlueprintPiece(
+                collectionId = BlueprintCollections.STEAM_ENGINE_ID,
+                fallbackParts = rewardParts,
+            )
+        } else {
+            ContractReward.WorkshopParts(rewardParts)
+        }
         return ContractDef(
             id = "$epochDay-$slot-${type.name}",
             type = type,
             target = target,
-            reward = ContractReward.WorkshopParts(rewardParts),
+            reward = reward,
             title = title,
             description = description,
             tileLevel = tileLevel,

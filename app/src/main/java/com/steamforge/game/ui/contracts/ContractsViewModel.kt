@@ -3,7 +3,9 @@ package com.steamforge.game.ui.contracts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
+import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.ContractDef
+import com.steamforge.game.progression.ContractReward
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.LocalDay
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,7 +40,13 @@ class ContractsViewModel(
     val ui: StateFlow<ContractsUiState> = repo.progress.map { progress ->
         val day = today()
         val ledger = DailyContracts.normalized(progress.contracts, day)
-        val items = DailyContracts.forEpochDay(day).map { def ->
+        val completedCollection = BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
+        val scheduledWithBlueprint = DailyContracts.forEpochDay(day, blueprintAvailable = true)
+        val claimedBlueprintToday = scheduledWithBlueprint.any { def ->
+            def.reward is ContractReward.BlueprintPiece && def.id in ledger.claimedIds
+        }
+        val blueprintAvailable = !completedCollection || claimedBlueprintToday
+        val items = DailyContracts.forEpochDay(day, blueprintAvailable).map { def ->
             ContractItemUi(
                 def = def,
                 progress = DailyContracts.progress(def, ledger),
