@@ -70,6 +70,7 @@ class ContractsViewModel(
         viewModelScope.launch {
             val day = today()
             var completedEvent: AnalyticsEvent? = null
+            var economyEvent: AnalyticsEvent? = null
             var blueprintEvent: AnalyticsEvent? = null
             var collectionEvent: AnalyticsEvent? = null
 
@@ -99,6 +100,20 @@ class ContractsViewModel(
                     rewardAmount = rewardAmount,
                 )
 
+                if (contract.reward is ContractReward.WorkshopParts) {
+                    val earnedParts = (
+                        updated.workshopParts - progress.workshopParts.coerceAtLeast(0)
+                    ).coerceAtLeast(0)
+                    if (earnedParts > 0) {
+                        economyEvent = AnalyticsEvents.resourceEarned(
+                            resourceType = "workshop_parts",
+                            source = "daily_contract",
+                            amount = earnedParts,
+                            balanceAfter = updated.workshopParts,
+                        )
+                    }
+                }
+
                 val addedPieceId = (updated.blueprintPieces - beforePieces).singleOrNull()
                 if (addedPieceId != null) {
                     val collection = BlueprintCollections.all.firstOrNull { addedPieceId in it.pieceIds }
@@ -123,6 +138,7 @@ class ContractsViewModel(
             }
 
             completedEvent?.let { analytics.log(it) }
+            economyEvent?.let { analytics.log(it) }
             blueprintEvent?.let { analytics.log(it) }
             collectionEvent?.let { analytics.log(it) }
         }
