@@ -8,6 +8,23 @@ import org.junit.Test
 class ContractsTest {
 
     @Test
+    fun `contract catalog matches stage eight plan`() {
+        assertEquals(
+            setOf(
+                ContractType.MAKE_TILE,
+                ContractType.REACH_TILE,
+                ContractType.MERGE_COUNT,
+                ContractType.SCORE,
+                ContractType.TOTAL_SCORE,
+                ContractType.COMBO_COUNT,
+                ContractType.PLAY_RUNS,
+                ContractType.SURVIVE_MOVES,
+            ),
+            ContractType.entries.toSet(),
+        )
+    }
+
+    @Test
     fun `same day produces same three unique contracts`() {
         val first = DailyContracts.forEpochDay(20_000L)
         val second = DailyContracts.forEpochDay(20_000L)
@@ -20,6 +37,14 @@ class ContractsTest {
                 it.target > 0 && (it.reward as? ContractReward.WorkshopParts)?.amount?.let { amount -> amount > 0 } == true
             },
         )
+        assertTrue(
+            first.all { def ->
+                when (def.type) {
+                    ContractType.MAKE_TILE, ContractType.REACH_TILE -> def.tileLevel?.let { it in 1..30 } == true
+                    else -> def.tileLevel == null
+                }
+            },
+        )
     }
 
     @Test
@@ -27,6 +52,48 @@ class ContractsTest {
         val first = DailyContracts.forEpochDay(20_000L).map { it.id }
         val second = DailyContracts.forEpochDay(20_001L).map { it.id }
         assertNotEquals(first, second)
+    }
+
+    @Test
+    fun `full contract types read the intended counters`() {
+        val ledger = ContractLedger(
+            day = 1L,
+            totals = ContractCounters(
+                score = 12_000,
+                bestRunScore = 4_500,
+                merges = 31,
+                moves = 104,
+                runs = 2,
+                maxTileLevel = 8,
+                maxCombo = 3,
+                madeTilesByLevel = mapOf(7 to 3, 8 to 1),
+            ),
+        )
+
+        assertEquals(3, DailyContracts.progress(def(ContractType.MAKE_TILE, target = 4, tileLevel = 7), ledger))
+        assertEquals(1, DailyContracts.progress(def(ContractType.REACH_TILE, target = 1, tileLevel = 8), ledger))
+        assertEquals(0, DailyContracts.progress(def(ContractType.REACH_TILE, target = 1, tileLevel = 9), ledger))
+        assertEquals(31, DailyContracts.progress(def(ContractType.MERGE_COUNT, target = 40), ledger))
+        assertEquals(4_500, DailyContracts.progress(def(ContractType.SCORE, target = 5_000), ledger))
+        assertEquals(10_000, DailyContracts.progress(def(ContractType.TOTAL_SCORE, target = 10_000), ledger))
+        assertEquals(3, DailyContracts.progress(def(ContractType.COMBO_COUNT, target = 4), ledger))
+        assertEquals(2, DailyContracts.progress(def(ContractType.PLAY_RUNS, target = 3), ledger))
+        assertEquals(100, DailyContracts.progress(def(ContractType.SURVIVE_MOVES, target = 100), ledger))
+    }
+
+    @Test
+    fun `make tile counts creations and does not complete from reach high water alone`() {
+        val contract = def(ContractType.MAKE_TILE, target = 3, tileLevel = 7)
+        val ledger = ContractLedger(
+            day = 1L,
+            totals = ContractCounters(
+                maxTileLevel = 10,
+                madeTilesByLevel = mapOf(7 to 1),
+            ),
+        )
+
+        assertEquals(1, DailyContracts.progress(contract, ledger))
+        assertTrue(!DailyContracts.isComplete(contract, ledger))
     }
 
     @Test
@@ -293,23 +360,27 @@ class ContractsTest {
 
     private fun completedLedgerFor(def: ContractDef, day: Long): ContractLedger {
         val totals = when (def.type) {
-            ContractType.MAKE_TILE -> ContractCounters(maxTileLevel = tileLevelForValue(def.target))
+            ContractType.MAKE_TILE -> ContractCounters(
+                madeTilesByLevel = mapOf(requireNotNull(def.tileLevel) to def.target),
+            )
+            ContractType.REACH_TILE -> ContractCounters(maxTileLevel = requireNotNull(def.tileLevel))
             ContractType.MERGE_COUNT -> ContractCounters(merges = def.target)
-            ContractType.SCORE -> ContractCounters(score = def.target)
+            ContractType.SCORE -> ContractCounters(bestRunScore = def.target)
+            ContractType.TOTAL_SCORE -> ContractCounters(score = def.target)
+            ContractType.COMBO_COUNT -> ContractCounters(maxCombo = def.target)
             ContractType.PLAY_RUNS -> ContractCounters(runs = def.target)
             ContractType.SURVIVE_MOVES -> ContractCounters(moves = def.target)
-            ContractType.OVERDRIVE -> ContractCounters(overdrives = def.target)
         }
         return ContractLedger(day = day, totals = totals)
     }
 
-    private fun tileLevelForValue(value: Int): Int {
-        var level = 0
-        var current = 1
-        while (current < value) {
-            current = current shl 1
-            level++
-        }
-        return level
-    }
+    private fun def(type: ContractType, target: Int, tileLevel: Int? = null): ContractDef = ContractDef(
+        id = "test-${type.name}",
+        type = type,
+        target = target,
+        reward = ContractReward.WorkshopParts(1),
+        title = type.name,
+        description = type.name,
+        tileLevel = tileLevel,
+    )
 }
