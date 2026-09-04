@@ -30,13 +30,16 @@ class ContractsTest {
     }
 
     @Test
-    fun `typed game events reduce into contract counters`() {
+    fun `typed game events reduce into rich contract counters`() {
         val counters = ContractCounters().record(
             listOf(
                 GameEvent.ScoreAdded(1_250),
+                GameEvent.ScoreReached(1_250),
                 GameEvent.TilesMerged(7),
+                GameEvent.TileCreated(level = 7, count = 3),
                 GameEvent.MovesSurvived(14),
                 GameEvent.TileReached(8),
+                GameEvent.ComboReached(3),
                 GameEvent.OverdriveActivated(2),
                 GameEvent.RunFinished,
             ),
@@ -45,30 +48,102 @@ class ContractsTest {
         assertEquals(
             ContractCounters(
                 score = 1_250,
+                bestRunScore = 1_250,
                 merges = 7,
                 moves = 14,
                 runs = 1,
                 maxTileLevel = 8,
+                maxCombo = 3,
                 overdrives = 2,
+                madeTilesByLevel = mapOf(7 to 3),
             ),
             counters,
         )
     }
 
     @Test
-    fun `game event reducer ignores negative deltas and never lowers reached tile`() {
-        val initial = ContractCounters(score = 9, merges = 4, moves = 3, maxTileLevel = 7, overdrives = 1)
+    fun `game event reducer ignores invalid negative facts`() {
+        val initial = ContractCounters(
+            score = 9,
+            bestRunScore = 20,
+            merges = 4,
+            moves = 3,
+            maxTileLevel = 7,
+            maxCombo = 2,
+            overdrives = 1,
+            madeTilesByLevel = mapOf(7 to 2),
+        )
         val updated = initial.record(
             listOf(
                 GameEvent.ScoreAdded(-100),
+                GameEvent.ScoreReached(-10),
                 GameEvent.TilesMerged(-4),
+                GameEvent.TileCreated(-1, 3),
+                GameEvent.TileCreated(7, -3),
                 GameEvent.MovesSurvived(-3),
                 GameEvent.TileReached(5),
+                GameEvent.ComboReached(-2),
                 GameEvent.OverdriveActivated(-1),
             ),
         )
 
         assertEquals(initial, updated)
+    }
+
+    @Test
+    fun `rich live snapshot preserves high water through undo and adds only new tile counts`() {
+        val day = 150L
+        val seed = 44L
+        val first = DailyContracts.recordLiveSnapshot(
+            progress = PlayerProgress(),
+            day = day,
+            runSeed = seed,
+            snapshot = ContractCounters(
+                score = 800,
+                bestRunScore = 800,
+                merges = 9,
+                moves = 15,
+                maxTileLevel = 7,
+                maxCombo = 2,
+                madeTilesByLevel = mapOf(7 to 2),
+            ),
+        )
+        val afterUndo = DailyContracts.recordLiveSnapshot(
+            progress = first,
+            day = day,
+            runSeed = seed,
+            snapshot = ContractCounters(
+                score = 600,
+                bestRunScore = 600,
+                merges = 7,
+                moves = 12,
+                maxTileLevel = 6,
+                maxCombo = 1,
+                madeTilesByLevel = mapOf(7 to 1),
+            ),
+        )
+        val replay = DailyContracts.recordLiveSnapshot(
+            progress = afterUndo,
+            day = day,
+            runSeed = seed,
+            snapshot = ContractCounters(
+                score = 950,
+                bestRunScore = 950,
+                merges = 11,
+                moves = 17,
+                maxTileLevel = 8,
+                maxCombo = 3,
+                madeTilesByLevel = mapOf(7 to 2, 8 to 1),
+            ),
+        )
+
+        assertEquals(950, replay.contracts.totals.score)
+        assertEquals(950, replay.contracts.totals.bestRunScore)
+        assertEquals(11, replay.contracts.totals.merges)
+        assertEquals(17, replay.contracts.totals.moves)
+        assertEquals(8, replay.contracts.totals.maxTileLevel)
+        assertEquals(3, replay.contracts.totals.maxCombo)
+        assertEquals(mapOf(7 to 2, 8 to 1), replay.contracts.totals.madeTilesByLevel)
     }
 
     @Test
@@ -160,21 +235,23 @@ class ContractsTest {
             progress = PlayerProgress(),
             day = day,
             runSeed = seed,
-            snapshot = ContractCounters(score = 900, merges = 15, moves = 30, maxTileLevel = 6, overdrives = 1),
+            snapshot = ContractCounters(score = 900, bestRunScore = 900, merges = 15, moves = 30, maxTileLevel = 6, maxCombo = 2, overdrives = 1),
         )
 
         val finished = DailyContracts.recordFinishedRun(
             progress = live,
             day = day,
             runSeed = seed,
-            summary = GameSummary(score = 1200, merges = 20, moves = 36, maxTileLevel = 7, overdrives = 2),
+            summary = GameSummary(score = 1200, merges = 20, moves = 36, maxTileLevel = 7, maxMergesInOneMove = 3, overdrives = 2),
         )
 
         assertEquals(1200, finished.contracts.totals.score)
+        assertEquals(1200, finished.contracts.totals.bestRunScore)
         assertEquals(20, finished.contracts.totals.merges)
         assertEquals(36, finished.contracts.totals.moves)
         assertEquals(1, finished.contracts.totals.runs)
         assertEquals(7, finished.contracts.totals.maxTileLevel)
+        assertEquals(3, finished.contracts.totals.maxCombo)
         assertEquals(2, finished.contracts.totals.overdrives)
         assertEquals(null, finished.contracts.activeRunSeed)
     }
@@ -188,7 +265,7 @@ class ContractsTest {
             progress = PlayerProgress(),
             day = day,
             runSeed = normalSeed,
-            snapshot = ContractCounters(score = 600, merges = 10, moves = 20, maxTileLevel = 6),
+            snapshot = ContractCounters(score = 600, bestRunScore = 600, merges = 10, moves = 20, maxTileLevel = 6),
         )
 
         val afterDaily = DailyContracts.recordFinishedRun(
@@ -201,15 +278,17 @@ class ContractsTest {
         assertEquals(normalSeed, afterDaily.contracts.activeRunSeed)
         assertEquals(600, afterDaily.contracts.activeRun.score)
         assertEquals(900, afterDaily.contracts.totals.score)
+        assertEquals(600, afterDaily.contracts.totals.bestRunScore)
         assertEquals(1, afterDaily.contracts.totals.runs)
 
         val resumedNormal = DailyContracts.recordLiveSnapshot(
             progress = afterDaily,
             day = day,
             runSeed = normalSeed,
-            snapshot = ContractCounters(score = 650, merges = 11, moves = 21, maxTileLevel = 6),
+            snapshot = ContractCounters(score = 650, bestRunScore = 650, merges = 11, moves = 21, maxTileLevel = 6),
         )
         assertEquals(950, resumedNormal.contracts.totals.score)
+        assertEquals(650, resumedNormal.contracts.totals.bestRunScore)
     }
 
     private fun completedLedgerFor(def: ContractDef, day: Long): ContractLedger {

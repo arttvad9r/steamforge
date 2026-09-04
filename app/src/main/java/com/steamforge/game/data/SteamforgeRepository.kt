@@ -14,6 +14,7 @@ import com.steamforge.game.progression.Achievements
 import com.steamforge.game.progression.ContractCounters
 import com.steamforge.game.progression.ContractLedger
 import com.steamforge.game.progression.DailyContracts
+import com.steamforge.game.progression.GameEvent
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
@@ -61,18 +62,24 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
         val contractDay = longPreferencesKey("contract_day")
         val contractScore = intPreferencesKey("contract_score")
+        val contractBestRunScore = intPreferencesKey("contract_best_run_score")
         val contractMerges = intPreferencesKey("contract_merges")
         val contractMoves = intPreferencesKey("contract_moves")
         val contractRuns = intPreferencesKey("contract_runs")
         val contractMaxTile = intPreferencesKey("contract_max_tile")
+        val contractMaxCombo = intPreferencesKey("contract_max_combo")
         val contractOverdrives = intPreferencesKey("contract_overdrives")
+        val contractMadeTiles = stringSetPreferencesKey("contract_made_tiles")
         val contractClaimed = stringSetPreferencesKey("contract_claimed")
         val contractActiveSeed = longPreferencesKey("contract_active_seed")
         val contractActiveScore = intPreferencesKey("contract_active_score")
+        val contractActiveBestRunScore = intPreferencesKey("contract_active_best_run_score")
         val contractActiveMerges = intPreferencesKey("contract_active_merges")
         val contractActiveMoves = intPreferencesKey("contract_active_moves")
         val contractActiveMaxTile = intPreferencesKey("contract_active_max_tile")
+        val contractActiveMaxCombo = intPreferencesKey("contract_active_max_combo")
         val contractActiveOverdrives = intPreferencesKey("contract_active_overdrives")
+        val contractActiveMadeTiles = stringSetPreferencesKey("contract_active_made_tiles")
 
         val soundEnabled = booleanPreferencesKey("sound_enabled")
         val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
@@ -103,7 +110,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 progress = base,
                 day = day,
                 runSeed = runSeed,
-                snapshot = state.toContractCounters(),
+                snapshot = contractSnapshot(base, state, previousSaved),
             )
             writeProgress(prefs, updated)
         }
@@ -121,7 +128,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 progress = base,
                 day = day,
                 runSeed = runSeed,
-                snapshot = state.toContractCounters(),
+                snapshot = contractSnapshot(base, state, previousSaved),
             )
             writeProgress(prefs, updated)
         }
@@ -154,7 +161,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                     progress = baseProgress,
                     day = record.day,
                     runSeed = finalSaved.seed,
-                    summary = finalSaved.toSummary(record.daily),
+                    snapshot = contractSnapshot(baseProgress, finalSaved, previousSaved),
                 )
             } else {
                 baseProgress
@@ -182,11 +189,17 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
             val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
             val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
+            val finalSaved = GameSaveCodec.decode(record.state)
+            val finalSnapshot = if (finalSaved?.seed == runSeed) {
+                contractSnapshot(base, finalSaved, previousSaved)
+            } else {
+                ContractCounters.fromSummary(summary)
+            }
             val withContracts = DailyContracts.recordFinishedRun(
                 progress = base,
                 day = day,
                 runSeed = runSeed,
-                summary = summary,
+                snapshot = finalSnapshot,
             )
             val (updated, effects) = finisher(withContracts)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
@@ -245,14 +258,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         var granted = false
         context.dataStore.edit { prefs ->
             val progress = mapProgress(prefs)
-            val ledger = DailyContracts.normalized(progress.contracts, day)
-            val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return@edit
-            if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) return@edit
-
-            val (rewarded, _) = RewardSystem.apply(progress, Reward.Gems(contract.rewardGems))
-            val updated = rewarded.copy(
-                contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
-            )
+            val updated = DailyContracts.claim(progress, day, contractId)
+            if (updated == progress) return@edit
             writeProgress(prefs, updated)
             granted = true
         }
@@ -320,20 +327,26 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 day = prefs[Keys.contractDay] ?: -1L,
                 totals = ContractCounters(
                     score = prefs[Keys.contractScore] ?: 0,
+                    bestRunScore = prefs[Keys.contractBestRunScore] ?: 0,
                     merges = prefs[Keys.contractMerges] ?: 0,
                     moves = prefs[Keys.contractMoves] ?: 0,
                     runs = prefs[Keys.contractRuns] ?: 0,
                     maxTileLevel = prefs[Keys.contractMaxTile] ?: 0,
+                    maxCombo = prefs[Keys.contractMaxCombo] ?: 0,
                     overdrives = prefs[Keys.contractOverdrives] ?: 0,
+                    madeTilesByLevel = decodeContractTileCounts(prefs[Keys.contractMadeTiles] ?: emptySet()),
                 ),
                 claimedIds = prefs[Keys.contractClaimed] ?: emptySet(),
                 activeRunSeed = prefs[Keys.contractActiveSeed],
                 activeRun = ContractCounters(
                     score = prefs[Keys.contractActiveScore] ?: 0,
+                    bestRunScore = prefs[Keys.contractActiveBestRunScore] ?: 0,
                     merges = prefs[Keys.contractActiveMerges] ?: 0,
                     moves = prefs[Keys.contractActiveMoves] ?: 0,
                     maxTileLevel = prefs[Keys.contractActiveMaxTile] ?: 0,
+                    maxCombo = prefs[Keys.contractActiveMaxCombo] ?: 0,
                     overdrives = prefs[Keys.contractActiveOverdrives] ?: 0,
+                    madeTilesByLevel = decodeContractTileCounts(prefs[Keys.contractActiveMadeTiles] ?: emptySet()),
                 ),
             ),
             soundEnabled = prefs[Keys.soundEnabled] ?: true,
@@ -371,11 +384,14 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
         prefs[Keys.contractDay] = p.contracts.day
         prefs[Keys.contractScore] = p.contracts.totals.score
+        prefs[Keys.contractBestRunScore] = p.contracts.totals.bestRunScore
         prefs[Keys.contractMerges] = p.contracts.totals.merges
         prefs[Keys.contractMoves] = p.contracts.totals.moves
         prefs[Keys.contractRuns] = p.contracts.totals.runs
         prefs[Keys.contractMaxTile] = p.contracts.totals.maxTileLevel
+        prefs[Keys.contractMaxCombo] = p.contracts.totals.maxCombo
         prefs[Keys.contractOverdrives] = p.contracts.totals.overdrives
+        prefs[Keys.contractMadeTiles] = encodeContractTileCounts(p.contracts.totals.madeTilesByLevel)
         prefs[Keys.contractClaimed] = p.contracts.claimedIds
         if (p.contracts.activeRunSeed != null) {
             prefs[Keys.contractActiveSeed] = p.contracts.activeRunSeed
@@ -383,10 +399,13 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             prefs.remove(Keys.contractActiveSeed)
         }
         prefs[Keys.contractActiveScore] = p.contracts.activeRun.score
+        prefs[Keys.contractActiveBestRunScore] = p.contracts.activeRun.bestRunScore
         prefs[Keys.contractActiveMerges] = p.contracts.activeRun.merges
         prefs[Keys.contractActiveMoves] = p.contracts.activeRun.moves
         prefs[Keys.contractActiveMaxTile] = p.contracts.activeRun.maxTileLevel
+        prefs[Keys.contractActiveMaxCombo] = p.contracts.activeRun.maxCombo
         prefs[Keys.contractActiveOverdrives] = p.contracts.activeRun.overdrives
+        prefs[Keys.contractActiveMadeTiles] = encodeContractTileCounts(p.contracts.activeRun.madeTilesByLevel)
 
         prefs[Keys.soundEnabled] = p.soundEnabled
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
@@ -410,12 +429,37 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         )
     }
 
-    private fun SavedGame.toContractCounters(): ContractCounters = ContractCounters(
+    private fun contractSnapshot(
+        progress: PlayerProgress,
+        state: SavedGame,
+        previousSaved: SavedGame?,
+    ): ContractCounters {
+        val runSeed = state.seed
+        val previousRun = if (runSeed != null && progress.contracts.activeRunSeed == runSeed) {
+            progress.contracts.activeRun
+        } else {
+            ContractCounters()
+        }
+        val inferred = if (state.state.moves > previousRun.moves) {
+            inferMergeCreatedTileEvents(previousSaved, state)
+        } else {
+            emptyList()
+        }
+        val madeTiles = previousRun.record(inferred).madeTilesByLevel
+        return state.toContractCounters(madeTiles)
+    }
+
+    private fun SavedGame.toContractCounters(
+        madeTilesByLevel: Map<Int, Int> = emptyMap(),
+    ): ContractCounters = ContractCounters(
         score = state.score,
+        bestRunScore = state.score,
         merges = mergesTotal,
         moves = state.moves,
         maxTileLevel = state.maxLevel,
+        maxCombo = maxMergesInOneMove,
         overdrives = overdrivesSession,
+        madeTilesByLevel = madeTilesByLevel,
     )
 
     private fun SavedGame.toSummary(daily: Boolean): GameSummary = GameSummary(
@@ -430,3 +474,49 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         daily = daily,
     )
 }
+
+/**
+ * Выводит только merge-created tiles из двух соседних autosave-состояний одного run.
+ * Последний новый id всегда принадлежит spawned tile; он намеренно не считается MAKE_TILE.
+ * При пропущенном autosave функция возвращает пусто, чтобы лучше недосчитать, чем начислить ложный прогресс.
+ */
+internal fun inferMergeCreatedTileEvents(previous: SavedGame?, current: SavedGame): List<GameEvent.TileCreated> {
+    val currentSeed = current.seed ?: return emptyList()
+    if (previous?.seed != currentSeed) return emptyList()
+    if (current.state.moves != previous.state.moves + 1) return emptyList()
+
+    val mergeDelta = current.mergesTotal - previous.mergesTotal
+    if (mergeDelta <= 0) return emptyList()
+
+    val previousIds = previous.state.tiles.asSequence().map { it.id }.toHashSet()
+    val newTiles = current.state.tiles.filter { it.id !in previousIds }
+    if (newTiles.size != mergeDelta + 1) return emptyList()
+
+    val spawnedId = newTiles.maxOfOrNull { it.id } ?: return emptyList()
+    val mergedTiles = newTiles.filterNot { it.id == spawnedId }
+    if (mergedTiles.size != mergeDelta) return emptyList()
+
+    return mergedTiles
+        .groupingBy { it.level }
+        .eachCount()
+        .filterKeys { it in 1..30 }
+        .map { (level, count) -> GameEvent.TileCreated(level, count) }
+}
+
+internal fun encodeContractTileCounts(counts: Map<Int, Int>): Set<String> = counts
+    .asSequence()
+    .filter { (level, count) -> level in 1..30 && count > 0 }
+    .map { (level, count) -> "$level:${count.coerceAtMost(10_000_000)}" }
+    .toSet()
+
+internal fun decodeContractTileCounts(entries: Set<String>): Map<Int, Int> = entries
+    .mapNotNull { entry ->
+        val separator = entry.indexOf(':')
+        if (separator <= 0) return@mapNotNull null
+        val level = entry.take(separator).toIntOrNull() ?: return@mapNotNull null
+        val count = entry.substring(separator + 1).toIntOrNull() ?: return@mapNotNull null
+        if (level !in 1..30 || count <= 0) null else level to count.coerceAtMost(10_000_000)
+    }
+    .groupBy({ it.first }, { it.second })
+    .mapValues { (_, values) -> values.maxOrNull() ?: 0 }
+    .filterValues { it > 0 }
