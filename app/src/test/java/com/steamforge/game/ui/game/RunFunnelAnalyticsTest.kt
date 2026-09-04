@@ -1,0 +1,88 @@
+package com.steamforge.game.ui.game
+
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.data.FakeDataRepo
+import com.steamforge.game.progression.DailyChallenge
+import com.steamforge.game.progression.DailyGoalType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class RunFunnelAnalyticsTest {
+    private val dispatcher = StandardTestDispatcher()
+
+    private class RecordingAnalytics : Analytics {
+        val events = mutableListOf<Pair<String, Map<String, Any?>>>()
+
+        override fun logEvent(name: String, params: Map<String, Any?>) {
+            events += name to params
+        }
+    }
+
+    @Before
+    fun setUp() = Dispatchers.setMain(dispatcher)
+
+    @After
+    fun tearDown() = Dispatchers.resetMain()
+
+    @Test
+    fun `fresh normal run emits one canonical game start`() = runTest(dispatcher) {
+        val analytics = RecordingAnalytics()
+        GameViewModel(
+            repo = FakeDataRepo(initialGame = null),
+            analytics = analytics,
+            seedProvider = { 41L },
+            savedGameProvider = { null },
+        )
+        advanceUntilIdle()
+
+        val starts = analytics.events.filter { it.first == AnalyticsEvents.GAME_STARTED }
+        assertEquals(1, starts.size)
+        assertEquals(false, starts.single().second["daily"])
+        assertFalse(starts.single().second.containsKey("daily_type"))
+        assertEquals(0, analytics.events.count { it.first == "daily_started" })
+    }
+
+    @Test
+    fun `daily run joins canonical funnel and preserves legacy start`() = runTest(dispatcher) {
+        val challenge = DailyChallenge(
+            epochDay = 12_345L,
+            type = DailyGoalType.REACH_SCORE,
+            target = 1_000,
+            mergeLevel = 6,
+            seed = 73L,
+            rewardGems = 15,
+            bonusXp = 60,
+        )
+        val analytics = RecordingAnalytics()
+        GameViewModel(
+            repo = FakeDataRepo(initialGame = null),
+            analytics = analytics,
+            dailyMode = true,
+            dailyProvider = { challenge },
+            seedProvider = { 999L },
+            savedGameProvider = { null },
+        )
+        advanceUntilIdle()
+
+        val starts = analytics.events.filter { it.first == AnalyticsEvents.GAME_STARTED }
+        assertEquals(1, starts.size)
+        assertEquals(true, starts.single().second["daily"])
+        assertEquals(challenge.type.name, starts.single().second["daily_type"])
+
+        val legacy = analytics.events.filter { it.first == "daily_started" }
+        assertEquals(1, legacy.size)
+        assertEquals(challenge.type.name, legacy.single().second["daily_type"])
+    }
+}
