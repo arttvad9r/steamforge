@@ -133,10 +133,10 @@ PY
 
 assert_play_reachable() {
   local label="$1"
-  for i in $(seq 0 3); do
+  for i in $(seq 0 4); do
     dump_ui "${label}-play-${i}"
     if grep -Fqi 'ИГРАТЬ' /tmp/window.xml; then
-      python3 - "$label" <<'PY'
+      if python3 - "$label" <<'PY'
 import re, subprocess, sys, xml.etree.ElementTree as ET
 label=sys.argv[1]
 root=ET.parse('/tmp/window.xml').getroot()
@@ -160,14 +160,19 @@ assert candidates, f'{label}: Play text exists but clickable ancestor missing'
 node,(l,t,r,b)=min(candidates,key=lambda x:(x[1][2]-x[1][0])*(x[1][3]-x[1][1]))
 density=int(re.findall(r'\d+',subprocess.check_output(['adb','shell','wm','density'],text=True))[-1])
 min_px=48*density/160
-assert r-l>=min_px-1 and b-t>=min_px-1, (label,node.attrib,min_px)
-print(f'{label}: Play reachable [{l},{t}][{r},{b}]')
+if r-l>=min_px-1 and b-t>=min_px-1:
+    print(f'{label}: Play reachable [{l},{t}][{r},{b}]')
+    raise SystemExit(0)
+print(f'{label}: Play only partially visible [{l},{t}][{r},{b}], scrolling', file=sys.stderr)
+raise SystemExit(3)
 PY
-      return 0
+      then
+        return 0
+      fi
     fi
     swipe_up
   done
-  echo "$label: Play CTA not reachable" >&2
+  echo "$label: Play CTA not reachable at full minimum touch size" >&2
   return 1
 }
 
