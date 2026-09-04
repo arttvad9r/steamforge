@@ -106,7 +106,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<Workshop> {
-                val vm: WorkshopViewModel = viewModel { WorkshopViewModel(container.repo) }
+                val vm: WorkshopViewModel = viewModel {
+                    WorkshopViewModel(container.repo, analytics = container.analytics)
+                }
                 WorkshopScreen(
                     vm = vm,
                     sfx = container.sfx,
@@ -117,7 +119,9 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 )
             }
             entry<Contracts> {
-                val vm: ContractsViewModel = viewModel { ContractsViewModel(container.repo) }
+                val vm: ContractsViewModel = viewModel {
+                    ContractsViewModel(container.repo, analytics = container.analytics)
+                }
                 ContractsScreen(vm = vm, onBack = { back() })
             }
             entry<Game> { key ->

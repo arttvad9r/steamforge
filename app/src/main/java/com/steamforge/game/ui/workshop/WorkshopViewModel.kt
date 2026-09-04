@@ -2,6 +2,11 @@ package com.steamforge.game.ui.workshop
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvent
+import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.analytics.log
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.LevelInfo
@@ -57,6 +62,7 @@ class WorkshopViewModel(
     private val repo: DataRepo,
     private val cfg: ProgressionConfig = ProgressionConfig(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
+    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
 
     val ui: StateFlow<WorkshopUiState> = repo.progress.map { p ->
@@ -113,7 +119,23 @@ class WorkshopViewModel(
 
     fun upgradeMechanism(mechanism: WorkshopMechanism) {
         viewModelScope.launch {
-            repo.updateProgress { p -> WorkshopProgression.upgradeMechanism(p, mechanism, cfg) }
+            var event: AnalyticsEvent? = null
+            repo.updateProgress { p ->
+                val fromStage = WorkshopProgression.mechanismStage(p, mechanism, cfg)
+                val cost = WorkshopProgression.mechanismUpgradeCost(fromStage, cfg)
+                val updated = WorkshopProgression.upgradeMechanism(p, mechanism, cfg)
+                val toStage = WorkshopProgression.mechanismStage(updated, mechanism, cfg)
+                if (toStage > fromStage && cost != null) {
+                    event = AnalyticsEvents.workshopUpgrade(
+                        mechanism = mechanism.name,
+                        fromStage = fromStage,
+                        toStage = toStage,
+                        partsSpent = cost,
+                    )
+                }
+                updated
+            }
+            event?.let { analytics.log(it) }
         }
     }
 

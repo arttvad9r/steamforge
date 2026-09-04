@@ -2,6 +2,11 @@ package com.steamforge.game.ui.contracts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.analytics.Analytics
+import com.steamforge.game.analytics.AnalyticsEvent
+import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.analytics.log
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.ContractDef
@@ -35,6 +40,7 @@ data class ContractsUiState(
 class ContractsViewModel(
     private val repo: DataRepo,
     private val today: () -> Long = { LocalDay.todayEpochDay() },
+    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
 
     val ui: StateFlow<ContractsUiState> = repo.progress.map { progress ->
@@ -63,7 +69,62 @@ class ContractsViewModel(
     fun claim(contractId: String) {
         viewModelScope.launch {
             val day = today()
-            repo.updateProgress { progress -> DailyContracts.claim(progress, day, contractId) }
+            var completedEvent: AnalyticsEvent? = null
+            var blueprintEvent: AnalyticsEvent? = null
+            var collectionEvent: AnalyticsEvent? = null
+
+            repo.updateProgress { progress ->
+                val ledger = DailyContracts.normalized(progress.contracts, day)
+                val blueprintAvailable = !BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
+                val contract = DailyContracts.forEpochDay(day, blueprintAvailable)
+                    .firstOrNull { it.id == contractId }
+                    ?: return@updateProgress progress
+                if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) {
+                    return@updateProgress progress
+                }
+
+                val beforePieces = progress.blueprintPieces
+                val updated = DailyContracts.claim(progress, day, contractId)
+                if (updated == progress) return@updateProgress progress
+
+                val (rewardType, rewardAmount) = when (val reward = contract.reward) {
+                    is ContractReward.WorkshopParts -> "workshop_parts" to reward.amount
+                    is ContractReward.BlueprintPiece -> "blueprint_piece" to 1
+                }
+                completedEvent = AnalyticsEvents.contractCompleted(
+                    contractId = contract.id,
+                    type = contract.type.name,
+                    target = contract.target,
+                    rewardType = rewardType,
+                    rewardAmount = rewardAmount,
+                )
+
+                val addedPieceId = (updated.blueprintPieces - beforePieces).singleOrNull()
+                if (addedPieceId != null) {
+                    val collection = BlueprintCollections.all.firstOrNull { addedPieceId in it.pieceIds }
+                    if (collection != null) {
+                        blueprintEvent = AnalyticsEvents.blueprintReceived(
+                            collectionId = collection.id,
+                            pieceId = addedPieceId,
+                            owned = BlueprintCollections.ownedCount(collection, updated.blueprintPieces),
+                            total = collection.pieces.size,
+                        )
+                        val wasComplete = BlueprintCollections.isComplete(collection, beforePieces)
+                        val isComplete = BlueprintCollections.isComplete(collection, updated.blueprintPieces)
+                        if (!wasComplete && isComplete) {
+                            collectionEvent = AnalyticsEvents.collectionCompleted(
+                                collectionId = collection.id,
+                                totalPieces = collection.pieces.size,
+                            )
+                        }
+                    }
+                }
+                updated
+            }
+
+            completedEvent?.let { analytics.log(it) }
+            blueprintEvent?.let { analytics.log(it) }
+            collectionEvent?.let { analytics.log(it) }
         }
     }
 }
