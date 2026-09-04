@@ -12,6 +12,19 @@ enum class ContractType {
     OVERDRIVE,
 }
 
+/**
+ * Typed gameplay facts consumed by meta systems. Contracts reduce these events into persisted counters;
+ * gameplay does not need a contract-specific branch.
+ */
+sealed interface GameEvent {
+    data class ScoreAdded(val amount: Int) : GameEvent
+    data class TilesMerged(val count: Int) : GameEvent
+    data class MovesSurvived(val count: Int) : GameEvent
+    data class TileReached(val level: Int) : GameEvent
+    data class OverdriveActivated(val count: Int) : GameEvent
+    data object RunFinished : GameEvent
+}
+
 sealed interface ContractReward {
     data class WorkshopParts(val amount: Int) : ContractReward
     data class BlueprintPiece(val id: String) : ContractReward
@@ -69,16 +82,35 @@ data class ContractCounters(
     )
 
     fun plus(delta: ContractCounters): ContractCounters = ContractCounters(
-        score = (score + delta.score).coerceAtMost(MAX_COUNTER),
-        merges = (merges + delta.merges).coerceAtMost(MAX_COUNTER),
-        moves = (moves + delta.moves).coerceAtMost(MAX_COUNTER),
-        runs = (runs + delta.runs).coerceAtMost(MAX_COUNTER),
+        score = saturatingAdd(score, delta.score),
+        merges = saturatingAdd(merges, delta.merges),
+        moves = saturatingAdd(moves, delta.moves),
+        runs = saturatingAdd(runs, delta.runs),
         maxTileLevel = max(maxTileLevel, delta.maxTileLevel),
-        overdrives = (overdrives + delta.overdrives).coerceAtMost(MAX_COUNTER),
+        overdrives = saturatingAdd(overdrives, delta.overdrives),
     )
+
+    /** Single reducer used by Contracts for all gameplay progress. */
+    fun record(event: GameEvent): ContractCounters = when (event) {
+        is GameEvent.ScoreAdded -> copy(score = saturatingAdd(score, event.amount))
+        is GameEvent.TilesMerged -> copy(merges = saturatingAdd(merges, event.count))
+        is GameEvent.MovesSurvived -> copy(moves = saturatingAdd(moves, event.count))
+        is GameEvent.TileReached -> copy(maxTileLevel = max(maxTileLevel, event.level.coerceAtLeast(0)))
+        is GameEvent.OverdriveActivated -> copy(overdrives = saturatingAdd(overdrives, event.count))
+        GameEvent.RunFinished -> copy(runs = saturatingAdd(runs, 1))
+    }
+
+    fun record(events: Iterable<GameEvent>): ContractCounters = events.fold(this) { current, event ->
+        current.record(event)
+    }
 
     companion object {
         private const val MAX_COUNTER = 10_000_000
+
+        private fun saturatingAdd(value: Int, amount: Int): Int =
+            (value.toLong().coerceAtLeast(0L) + amount.toLong().coerceAtLeast(0L))
+                .coerceAtMost(MAX_COUNTER.toLong())
+                .toInt()
 
         fun fromSummary(summary: GameSummary): ContractCounters = ContractCounters(
             score = summary.score,
@@ -138,6 +170,10 @@ object DailyContracts {
         )
     }
 
+    /**
+     * Snapshot is only an idempotency adapter for autosave/undo. Persisted contract totals are updated
+     * exclusively by typed GameEvent values produced from the positive high-water delta.
+     */
     fun recordLiveSnapshot(
         progress: PlayerProgress,
         day: Long,
@@ -148,9 +184,11 @@ object DailyContracts {
         val previous = if (ledger.activeRunSeed == runSeed) ledger.activeRun else ContractCounters()
         val highWater = previous.highWater(snapshot)
         val delta = highWater.positiveDelta(previous)
-        val totals = ledger.totals.plus(delta).copy(
-            maxTileLevel = max(ledger.totals.maxTileLevel, highWater.maxTileLevel),
+        val events = eventsForDelta(
+            delta = delta,
+            reachedLevel = highWater.maxTileLevel.takeIf { it > ledger.totals.maxTileLevel },
         )
+        val totals = ledger.totals.record(events)
         return progress.copy(
             contracts = ledger.copy(
                 totals = totals,
@@ -160,6 +198,7 @@ object DailyContracts {
         )
     }
 
+    /** Final snapshot contributes only the missing delta, then emits exactly one RunFinished event. */
     fun recordFinishedRun(
         progress: PlayerProgress,
         day: Long,
@@ -172,10 +211,12 @@ object DailyContracts {
         val previous = if (sameAsActiveRun) ledger.activeRun else ContractCounters()
         val highWater = previous.highWater(snapshot)
         val delta = highWater.positiveDelta(previous)
-        val totals = ledger.totals
-            .plus(delta)
-            .plus(ContractCounters(runs = 1))
-            .copy(maxTileLevel = max(ledger.totals.maxTileLevel, highWater.maxTileLevel))
+        val events = eventsForDelta(
+            delta = delta,
+            reachedLevel = highWater.maxTileLevel.takeIf { it > ledger.totals.maxTileLevel },
+            runFinished = true,
+        )
+        val totals = ledger.totals.record(events)
 
         return progress.copy(
             contracts = ledger.copy(
@@ -188,6 +229,19 @@ object DailyContracts {
 
     fun normalized(ledger: ContractLedger, day: Long): ContractLedger =
         if (ledger.day == day) ledger else ContractLedger(day = day)
+
+    private fun eventsForDelta(
+        delta: ContractCounters,
+        reachedLevel: Int?,
+        runFinished: Boolean = false,
+    ): List<GameEvent> = buildList {
+        if (delta.score > 0) add(GameEvent.ScoreAdded(delta.score))
+        if (delta.merges > 0) add(GameEvent.TilesMerged(delta.merges))
+        if (delta.moves > 0) add(GameEvent.MovesSurvived(delta.moves))
+        if (reachedLevel != null && reachedLevel > 0) add(GameEvent.TileReached(reachedLevel))
+        if (delta.overdrives > 0) add(GameEvent.OverdriveActivated(delta.overdrives))
+        if (runFinished) add(GameEvent.RunFinished)
+    }
 
     private fun definition(epochDay: Long, slot: Int, type: ContractType, rng: Random): ContractDef {
         val target = when (type) {
