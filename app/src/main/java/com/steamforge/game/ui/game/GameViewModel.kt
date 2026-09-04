@@ -404,10 +404,15 @@ class GameViewModel(
                 finishPersistenceFailed = false,
             )
         }
-        analytics.logEvent(
-            if (dailyMode) "daily_started" else "game_started",
-            daily?.let { mapOf("daily_type" to it.type.name) } ?: emptyMap(),
+        analytics.log(
+            AnalyticsEvents.gameStarted(
+                daily = dailyMode,
+                dailyType = daily?.type?.name,
+            ),
         )
+        if (dailyMode) {
+            daily?.let { analytics.logEvent("daily_started", mapOf("daily_type" to it.type.name)) }
+        }
         if (!dailyMode) persistGame()
     }
 
@@ -545,13 +550,12 @@ class GameViewModel(
                 if (recovered) analytics.logEvent("game_finish_save_recovered")
                 ads?.onGameFinished()
                 logRewardedOfferIfVisible()
-                analytics.logEvent(
-                    "game_finished",
-                    mapOf(
-                        "score" to pending.summary.score,
-                        "max_tile" to (1 shl pending.summary.maxTileLevel),
-                        "moves" to pending.summary.moves,
-                        "daily" to pending.summary.daily,
+                analytics.log(
+                    AnalyticsEvents.gameFinished(
+                        score = pending.summary.score,
+                        maxTile = 1 shl pending.summary.maxTileLevel,
+                        moves = pending.summary.moves,
+                        daily = pending.summary.daily,
                     ),
                 )
             } catch (_: IOException) {
