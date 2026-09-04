@@ -18,9 +18,12 @@ enum class ContractType {
  */
 sealed interface GameEvent {
     data class ScoreAdded(val amount: Int) : GameEvent
+    data class ScoreReached(val score: Int) : GameEvent
     data class TilesMerged(val count: Int) : GameEvent
+    data class TileCreated(val level: Int, val count: Int = 1) : GameEvent
     data class MovesSurvived(val count: Int) : GameEvent
     data class TileReached(val level: Int) : GameEvent
+    data class ComboReached(val merges: Int) : GameEvent
     data class OverdriveActivated(val count: Int) : GameEvent
     data object RunFinished : GameEvent
 }
@@ -56,46 +59,72 @@ data class ContractDef(
 }
 
 data class ContractCounters(
+    /** Сумма очков за день; будущий TOTAL_SCORE использует именно этот счётчик. */
     val score: Int = 0,
+    /** Лучший результат одной партии за день; будущий SCORE использует этот high-water. */
+    val bestRunScore: Int = 0,
     val merges: Int = 0,
     val moves: Int = 0,
     val runs: Int = 0,
     val maxTileLevel: Int = 0,
+    /** Максимальное число merge за один ход. */
+    val maxCombo: Int = 0,
     val overdrives: Int = 0,
+    /** Число реально созданных merge-плиток по level; spawn 2/4 сюда не входит. */
+    val madeTilesByLevel: Map<Int, Int> = emptyMap(),
 ) {
     fun highWater(other: ContractCounters): ContractCounters = ContractCounters(
         score = max(score, other.score),
+        bestRunScore = max(bestRunScore, other.bestRunScore),
         merges = max(merges, other.merges),
         moves = max(moves, other.moves),
         runs = max(runs, other.runs),
         maxTileLevel = max(maxTileLevel, other.maxTileLevel),
+        maxCombo = max(maxCombo, other.maxCombo),
         overdrives = max(overdrives, other.overdrives),
+        madeTilesByLevel = mapHighWater(madeTilesByLevel, other.madeTilesByLevel),
     )
 
     fun positiveDelta(previous: ContractCounters): ContractCounters = ContractCounters(
         score = (score - previous.score).coerceAtLeast(0),
+        bestRunScore = bestRunScore,
         merges = (merges - previous.merges).coerceAtLeast(0),
         moves = (moves - previous.moves).coerceAtLeast(0),
         runs = (runs - previous.runs).coerceAtLeast(0),
         maxTileLevel = maxTileLevel,
+        maxCombo = maxCombo,
         overdrives = (overdrives - previous.overdrives).coerceAtLeast(0),
+        madeTilesByLevel = mapPositiveDelta(madeTilesByLevel, previous.madeTilesByLevel),
     )
 
     fun plus(delta: ContractCounters): ContractCounters = ContractCounters(
         score = saturatingAdd(score, delta.score),
+        bestRunScore = max(bestRunScore, delta.bestRunScore),
         merges = saturatingAdd(merges, delta.merges),
         moves = saturatingAdd(moves, delta.moves),
         runs = saturatingAdd(runs, delta.runs),
         maxTileLevel = max(maxTileLevel, delta.maxTileLevel),
+        maxCombo = max(maxCombo, delta.maxCombo),
         overdrives = saturatingAdd(overdrives, delta.overdrives),
+        madeTilesByLevel = mapSum(madeTilesByLevel, delta.madeTilesByLevel),
     )
+
+    fun madeTileCount(level: Int): Int = madeTilesByLevel[level] ?: 0
 
     /** Single reducer used by Contracts for all gameplay progress. */
     fun record(event: GameEvent): ContractCounters = when (event) {
         is GameEvent.ScoreAdded -> copy(score = saturatingAdd(score, event.amount))
+        is GameEvent.ScoreReached -> copy(bestRunScore = max(bestRunScore, event.score.coerceAtLeast(0)))
         is GameEvent.TilesMerged -> copy(merges = saturatingAdd(merges, event.count))
+        is GameEvent.TileCreated -> {
+            if (event.level !in 1..30 || event.count <= 0) this else copy(
+                madeTilesByLevel = madeTilesByLevel +
+                    (event.level to saturatingAdd(madeTileCount(event.level), event.count)),
+            )
+        }
         is GameEvent.MovesSurvived -> copy(moves = saturatingAdd(moves, event.count))
         is GameEvent.TileReached -> copy(maxTileLevel = max(maxTileLevel, event.level.coerceAtLeast(0)))
+        is GameEvent.ComboReached -> copy(maxCombo = max(maxCombo, event.merges.coerceAtLeast(0)))
         is GameEvent.OverdriveActivated -> copy(overdrives = saturatingAdd(overdrives, event.count))
         GameEvent.RunFinished -> copy(runs = saturatingAdd(runs, 1))
     }
@@ -112,11 +141,29 @@ data class ContractCounters(
                 .coerceAtMost(MAX_COUNTER.toLong())
                 .toInt()
 
+        private fun mapHighWater(first: Map<Int, Int>, second: Map<Int, Int>): Map<Int, Int> =
+            (first.keys + second.keys).associateWith { level ->
+                max(first[level] ?: 0, second[level] ?: 0).coerceAtMost(MAX_COUNTER)
+            }.filterValues { it > 0 }
+
+        private fun mapPositiveDelta(current: Map<Int, Int>, previous: Map<Int, Int>): Map<Int, Int> =
+            current.mapNotNull { (level, count) ->
+                val delta = (count - (previous[level] ?: 0)).coerceAtLeast(0)
+                if (delta > 0) level to delta else null
+            }.toMap()
+
+        private fun mapSum(first: Map<Int, Int>, second: Map<Int, Int>): Map<Int, Int> =
+            (first.keys + second.keys).associateWith { level ->
+                saturatingAdd(first[level] ?: 0, second[level] ?: 0)
+            }.filterValues { it > 0 }
+
         fun fromSummary(summary: GameSummary): ContractCounters = ContractCounters(
             score = summary.score,
+            bestRunScore = summary.score,
             merges = summary.merges,
             moves = summary.moves,
             maxTileLevel = summary.maxTileLevel,
+            maxCombo = summary.maxMergesInOneMove,
             overdrives = summary.overdrives,
         )
     }
@@ -186,7 +233,9 @@ object DailyContracts {
         val delta = highWater.positiveDelta(previous)
         val events = eventsForDelta(
             delta = delta,
+            reachedScore = highWater.bestRunScore.takeIf { it > ledger.totals.bestRunScore },
             reachedLevel = highWater.maxTileLevel.takeIf { it > ledger.totals.maxTileLevel },
+            reachedCombo = highWater.maxCombo.takeIf { it > ledger.totals.maxCombo },
         )
         val totals = ledger.totals.record(events)
         return progress.copy(
@@ -198,22 +247,35 @@ object DailyContracts {
         )
     }
 
-    /** Final snapshot contributes only the missing delta, then emits exactly one RunFinished event. */
     fun recordFinishedRun(
         progress: PlayerProgress,
         day: Long,
         runSeed: Long,
         summary: GameSummary,
+    ): PlayerProgress = recordFinishedRun(
+        progress = progress,
+        day = day,
+        runSeed = runSeed,
+        snapshot = ContractCounters.fromSummary(summary),
+    )
+
+    /** Final snapshot contributes only the missing delta, then emits exactly one RunFinished event. */
+    fun recordFinishedRun(
+        progress: PlayerProgress,
+        day: Long,
+        runSeed: Long,
+        snapshot: ContractCounters,
     ): PlayerProgress {
         val ledger = normalized(progress.contracts, day)
-        val snapshot = ContractCounters.fromSummary(summary)
         val sameAsActiveRun = ledger.activeRunSeed == runSeed
         val previous = if (sameAsActiveRun) ledger.activeRun else ContractCounters()
         val highWater = previous.highWater(snapshot)
         val delta = highWater.positiveDelta(previous)
         val events = eventsForDelta(
             delta = delta,
+            reachedScore = highWater.bestRunScore.takeIf { it > ledger.totals.bestRunScore },
             reachedLevel = highWater.maxTileLevel.takeIf { it > ledger.totals.maxTileLevel },
+            reachedCombo = highWater.maxCombo.takeIf { it > ledger.totals.maxCombo },
             runFinished = true,
         )
         val totals = ledger.totals.record(events)
@@ -232,13 +294,20 @@ object DailyContracts {
 
     private fun eventsForDelta(
         delta: ContractCounters,
+        reachedScore: Int?,
         reachedLevel: Int?,
+        reachedCombo: Int?,
         runFinished: Boolean = false,
     ): List<GameEvent> = buildList {
         if (delta.score > 0) add(GameEvent.ScoreAdded(delta.score))
+        if (reachedScore != null && reachedScore > 0) add(GameEvent.ScoreReached(reachedScore))
         if (delta.merges > 0) add(GameEvent.TilesMerged(delta.merges))
+        delta.madeTilesByLevel.forEach { (level, count) ->
+            if (count > 0) add(GameEvent.TileCreated(level, count))
+        }
         if (delta.moves > 0) add(GameEvent.MovesSurvived(delta.moves))
         if (reachedLevel != null && reachedLevel > 0) add(GameEvent.TileReached(reachedLevel))
+        if (reachedCombo != null && reachedCombo > 0) add(GameEvent.ComboReached(reachedCombo))
         if (delta.overdrives > 0) add(GameEvent.OverdriveActivated(delta.overdrives))
         if (runFinished) add(GameEvent.RunFinished)
     }
