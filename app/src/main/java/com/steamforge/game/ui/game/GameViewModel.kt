@@ -130,7 +130,7 @@ class GameViewModel(
                 val restored = runCatching { savedGameProvider() }.getOrNull()
                 if (!dailyMode && restored != null) {
                     sessionSeed = restored.seed ?: seedProvider()
-                    runAnalyticsId = normalRunAnalyticsId(sessionSeed)
+                    runAnalyticsId = restored.analyticsRunId ?: legacyNormalRunAnalyticsId(sessionSeed)
                     rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
                     _ui.update {
                         it.copy(
@@ -180,6 +180,7 @@ class GameViewModel(
     private fun restoreFinished(record: FinishedGameRecord) {
         sessionSeed = null
         val restoredState = GameSaveCodec.decode(record.state)
+        runAnalyticsId = restoredState?.analyticsRunId
         _ui.update {
             it.copy(
                 finished = true,
@@ -488,6 +489,7 @@ class GameViewModel(
                     overdrivesSession = s.overdrivesSession,
                     undosSession = s.undosSession,
                     highMergesSession = s.highMergesSession,
+                    analyticsRunId = currentRunAnalyticsId(),
                 ),
             ),
         )
@@ -621,16 +623,13 @@ class GameViewModel(
         }
     }
 
-    private fun createRunAnalyticsId(): String = if (dailyMode) {
-        "daily-" + UUID.randomUUID().toString()
-    } else {
-        normalRunAnalyticsId(sessionSeed)
-    }
+    private fun createRunAnalyticsId(): String =
+        (if (dailyMode) "daily-" else "normal-") + UUID.randomUUID().toString()
 
     private fun currentRunAnalyticsId(): String =
         runAnalyticsId ?: createRunAnalyticsId().also { runAnalyticsId = it }
 
-    private fun normalRunAnalyticsId(seed: Long?): String {
+    private fun legacyNormalRunAnalyticsId(seed: Long?): String {
         val stableSource = seed?.toString() ?: UUID.randomUUID().toString()
         val stableUuid = UUID.nameUUIDFromBytes(stableSource.toByteArray(Charsets.UTF_8))
         return "normal-$stableUuid"
@@ -651,6 +650,7 @@ class GameViewModel(
             overdrivesSession = s.overdrivesSession,
             undosSession = s.undosSession,
             highMergesSession = s.highMergesSession,
+            analyticsRunId = currentRunAnalyticsId(),
         )
         writesScope.launch {
             try {
