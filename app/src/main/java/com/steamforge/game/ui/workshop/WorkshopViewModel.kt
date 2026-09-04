@@ -6,6 +6,7 @@ import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.WorkshopProgression
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -17,6 +18,11 @@ data class WorkshopUiState(
     val level: Int = 1,
     val levelInfo: LevelInfo = LevelInfo(1, 0, 1),
     val gems: Int = 0,
+    val workshopParts: Int = 0,
+    val coreStage: Int = 0,
+    val coreStageLabel: String = "СЛОМАНО",
+    val nextCoreCost: Int? = null,
+    val canUpgradeCore: Boolean = false,
     val bestScore: Int = 0,
     val gamesPlayed: Int = 0,
     val achievementsUnlocked: Int = 0,
@@ -29,7 +35,9 @@ data class WorkshopUiState(
     val animationsEnabled: Boolean = true,
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
-)
+) {
+    val coreMaxed: Boolean get() = nextCoreCost == null
+}
 
 class WorkshopViewModel(
     private val repo: DataRepo,
@@ -43,11 +51,18 @@ class WorkshopViewModel(
         val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
         val nextDay = (continuingStreak % cfg.dailyRewardCycle) + 1
         val li = p.levelInfo(cfg)
+        val coreStage = WorkshopProgression.normalizedCoreStage(p.workshopCoreStage, cfg)
+        val nextCoreCost = WorkshopProgression.coreUpgradeCost(coreStage, cfg)
         WorkshopUiState(
             loaded = true,
             level = li.level,
             levelInfo = li,
             gems = p.gems,
+            workshopParts = p.workshopParts,
+            coreStage = coreStage,
+            coreStageLabel = WorkshopProgression.coreStageLabel(coreStage, cfg),
+            nextCoreCost = nextCoreCost,
+            canUpgradeCore = nextCoreCost != null && p.workshopParts >= nextCoreCost,
             bestScore = p.bestScore,
             gamesPlayed = p.stats.gamesPlayed,
             achievementsUnlocked = p.unlockedAchievements.size,
@@ -62,6 +77,12 @@ class WorkshopViewModel(
             hapticsEnabled = p.hapticsEnabled,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorkshopUiState())
+
+    fun upgradeCore() {
+        viewModelScope.launch {
+            repo.updateProgress { p -> WorkshopProgression.upgradeCore(p, cfg) }
+        }
+    }
 
     fun claimDailyReward() {
         viewModelScope.launch {

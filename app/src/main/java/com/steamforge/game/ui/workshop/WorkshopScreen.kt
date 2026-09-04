@@ -91,7 +91,7 @@ fun WorkshopScreen(
             Spacer(Modifier.height(10.dp))
             WorkshopHeader(
                 gems = ui.gems,
-                streak = ui.dailyRewardStreak,
+                workshopParts = ui.workshopParts,
                 onAchievements = onAchievements,
                 onSettings = onSettings,
             )
@@ -104,8 +104,24 @@ fun WorkshopScreen(
                 accent = accent,
                 gamesPlayed = ui.gamesPlayed,
                 bestScore = ui.bestScore,
+                coreStage = ui.coreStage,
+                coreStageLabel = ui.coreStageLabel,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(9.dp))
+
+            CoreUpgradeAction(
+                stageLabel = ui.coreStageLabel,
+                nextCost = ui.nextCoreCost,
+                canUpgrade = ui.canUpgradeCore,
+                onUpgrade = {
+                    sfx.play(Sfx.COIN)
+                    if (ui.hapticsEnabled) {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    }
+                    vm.upgradeCore()
+                },
+            )
+            Spacer(Modifier.height(9.dp))
 
             SteamButton(
                 text = "ИГРАТЬ",
@@ -153,7 +169,7 @@ fun WorkshopScreen(
 @Composable
 private fun WorkshopHeader(
     gems: Int,
-    streak: Int,
+    workshopParts: Int,
     onAchievements: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -181,9 +197,9 @@ private fun WorkshopHeader(
         }
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CompactResource("◆", gems.toString(), TealGlow, "Гемы: $gems")
+            CompactResource("⚙", workshopParts.toString(), BrassBright, "Детали мастерской: $workshopParts")
             Spacer(Modifier.width(8.dp))
-            CompactResource("↟", streak.toString(), BrassBright, "Серия дней: $streak")
+            CompactResource("◆", gems.toString(), TealGlow, "Гемы: $gems")
         }
     }
 }
@@ -219,7 +235,10 @@ private fun WorkshopHero(
     accent: Color,
     gamesPlayed: Int,
     bestScore: Int,
+    coreStage: Int,
+    coreStageLabel: String,
 ) {
+    val normalizedStage = coreStage.coerceIn(0, 4)
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -235,9 +254,10 @@ private fun WorkshopHero(
                     color = TextMuted,
                 )
                 Text(
-                    "МЕХАНИЧЕСКОЕ ЯДРО",
+                    "МЕХАНИЧЕСКОЕ ЯДРО · $coreStageLabel",
                     style = MaterialTheme.typography.labelSmall,
-                    color = accent,
+                    color = if (normalizedStage >= 3) accent else BrassBright,
+                    maxLines = 1,
                 )
             }
             Text(
@@ -253,19 +273,24 @@ private fun WorkshopHero(
                 .height(204.dp),
             contentAlignment = Alignment.Center,
         ) {
-            WorkshopScene(animationsEnabled, accent)
+            WorkshopScene(animationsEnabled, accent, normalizedStage)
             Box(
                 Modifier
                     .size(82.dp)
                     .clip(RoundedCornerShape(26.dp))
                     .background(Recess.copy(alpha = 0.90f))
-                    .border(1.dp, accent.copy(alpha = 0.58f), RoundedCornerShape(26.dp)),
+                    .border(
+                        1.dp,
+                        (if (normalizedStage >= 3) accent else BrassDark)
+                            .copy(alpha = if (normalizedStage == 0) 0.32f else 0.62f),
+                        RoundedCornerShape(26.dp),
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     "CORE",
                     style = MaterialTheme.typography.titleMedium,
-                    color = accent,
+                    color = if (normalizedStage >= 3) accent else TextMuted,
                 )
             }
         }
@@ -299,6 +324,47 @@ private fun WorkshopHero(
             )
             InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
         }
+    }
+}
+
+@Composable
+private fun CoreUpgradeAction(
+    stageLabel: String,
+    nextCost: Int?,
+    canUpgrade: Boolean,
+    onUpgrade: () -> Unit,
+) {
+    val maxed = nextCost == null
+    val enabled = !maxed && canUpgrade
+    val accent = when {
+        maxed -> TealGlow
+        enabled -> BrassBright
+        else -> TextMuted
+    }
+    val action = when {
+        maxed -> "МАКСИМУМ"
+        enabled -> "УЛУЧШИТЬ · ⚙ $nextCost"
+        else -> "НУЖНО ⚙ $nextCost"
+    }
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.48f))
+            .border(1.dp, accent.copy(alpha = if (enabled || maxed) 0.34f else 0.16f), shape)
+            .clickable(enabled = enabled, onClick = onUpgrade)
+            .padding(horizontal = 12.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Механическое ядро: $stageLabel. $action"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("ЯДРО · $stageLabel", style = MaterialTheme.typography.labelMedium, color = TextWarm, maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        Text(action, style = MaterialTheme.typography.labelSmall, color = accent, maxLines = 1)
     }
 }
 
@@ -340,8 +406,8 @@ private fun GaugeBar(fraction: Float, accent: Color, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
-    val angle = if (animationsEnabled) {
+private fun WorkshopScene(animationsEnabled: Boolean, accent: Color, coreStage: Int) {
+    val angle = if (animationsEnabled && coreStage >= 3) {
         val transition = rememberInfiniteTransition(label = "gears")
         val animated by transition.animateFloat(
             initialValue = 0f,
@@ -352,29 +418,98 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color) {
         animated
     } else 0f
 
-    Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Механическое ядро мастерской" }) {
+    Canvas(
+        Modifier
+            .fillMaxSize()
+            .semantics { contentDescription = "Механическое ядро мастерской, стадия $coreStage" },
+    ) {
         val c = center
-        drawCircle(accent.copy(alpha = 0.075f), radius = size.minDimension * 0.48f, center = c)
-        drawCircle(Brass.copy(alpha = 0.06f), radius = size.minDimension * 0.40f, center = c)
-        drawGear(c, size.minDimension * 0.30f, angle, Brass.copy(alpha = 0.66f))
-        drawGear(
-            Offset(size.width * 0.69f, size.height * 0.69f),
-            size.minDimension * 0.105f,
-            -angle * 1.4f,
-            Copper.copy(alpha = 0.72f),
-        )
-        drawGear(
-            Offset(size.width * 0.31f, size.height * 0.36f),
-            size.minDimension * 0.075f,
-            angle * 1.9f,
-            BrassDark.copy(alpha = 0.76f),
-        )
-        drawCircle(
-            accent.copy(alpha = 0.22f),
-            radius = size.minDimension * 0.20f,
-            center = c,
-            style = Stroke(3.dp.toPx()),
-        )
+        val min = size.minDimension
+
+        drawCircle(Brass.copy(alpha = 0.045f + coreStage * 0.012f), radius = min * 0.44f, center = c)
+
+        if (coreStage == 0) {
+            drawGear(c, min * 0.27f, 8f, BrassDark.copy(alpha = 0.38f))
+            drawLine(
+                color = Copper.copy(alpha = 0.34f),
+                start = Offset(size.width * 0.24f, size.height * 0.68f),
+                end = Offset(size.width * 0.43f, size.height * 0.57f),
+                strokeWidth = 3.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = Copper.copy(alpha = 0.28f),
+                start = Offset(size.width * 0.57f, size.height * 0.43f),
+                end = Offset(size.width * 0.76f, size.height * 0.32f),
+                strokeWidth = 3.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+        }
+
+        if (coreStage >= 1) {
+            drawCircle(
+                Brass.copy(alpha = 0.24f),
+                radius = min * 0.38f,
+                center = c,
+                style = Stroke(3.dp.toPx()),
+            )
+            drawGear(c, min * 0.30f, angle, Brass.copy(alpha = 0.60f + coreStage * 0.05f))
+        }
+
+        if (coreStage >= 2) {
+            drawGear(
+                Offset(size.width * 0.69f, size.height * 0.69f),
+                min * 0.105f,
+                -angle * 1.4f,
+                Copper.copy(alpha = 0.72f),
+            )
+            drawGear(
+                Offset(size.width * 0.31f, size.height * 0.36f),
+                min * 0.075f,
+                angle * 1.9f,
+                BrassDark.copy(alpha = 0.82f),
+            )
+        }
+
+        if (coreStage >= 3) {
+            drawCircle(accent.copy(alpha = 0.07f), radius = min * 0.49f, center = c)
+            drawCircle(
+                accent.copy(alpha = 0.30f),
+                radius = min * 0.20f,
+                center = c,
+                style = Stroke(3.dp.toPx()),
+            )
+            drawLine(
+                color = Copper.copy(alpha = 0.54f),
+                start = Offset(size.width * 0.14f, c.y),
+                end = Offset(size.width * 0.31f, c.y),
+                strokeWidth = 5.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = Copper.copy(alpha = 0.54f),
+                start = Offset(size.width * 0.69f, c.y),
+                end = Offset(size.width * 0.86f, c.y),
+                strokeWidth = 5.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+        }
+
+        if (coreStage >= 4) {
+            drawGear(
+                Offset(size.width * 0.76f, size.height * 0.31f),
+                min * 0.065f,
+                angle * 2.2f,
+                BrassBright.copy(alpha = 0.86f),
+            )
+            drawCircle(
+                accent.copy(alpha = 0.28f),
+                radius = min * 0.48f,
+                center = c,
+                style = Stroke(2.dp.toPx()),
+            )
+            drawCircle(accent.copy(alpha = 0.055f), radius = min * 0.56f, center = c)
+        }
     }
 }
 

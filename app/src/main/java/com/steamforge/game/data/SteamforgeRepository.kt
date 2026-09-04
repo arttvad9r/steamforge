@@ -35,6 +35,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val gems = intPreferencesKey("gems")
         val totalXp = intPreferencesKey("total_xp")
         val bestScore = intPreferencesKey("best_score")
+        val workshopParts = intPreferencesKey("workshop_parts")
+        val workshopCoreStage = intPreferencesKey("workshop_core_stage")
         val gamesPlayed = intPreferencesKey("stat_games")
         val totalScore = longPreferencesKey("stat_total_score")
         val maxTileLevel = intPreferencesKey("stat_max_tile")
@@ -283,6 +285,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             gems = prefs[Keys.gems] ?: 0,
             totalXp = prefs[Keys.totalXp] ?: 0,
             bestScore = persistedBest,
+            workshopParts = prefs[Keys.workshopParts] ?: 0,
+            workshopCoreStage = prefs[Keys.workshopCoreStage] ?: 0,
             stats = PlayerStats(
                 gamesPlayed = prefs[Keys.gamesPlayed] ?: 0,
                 bestScore = persistedBest,
@@ -338,6 +342,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.gems] = p.gems
         prefs[Keys.totalXp] = p.totalXp
         prefs[Keys.bestScore] = p.bestScore
+        prefs[Keys.workshopParts] = p.workshopParts
+        prefs[Keys.workshopCoreStage] = p.workshopCoreStage
         prefs[Keys.gamesPlayed] = p.stats.gamesPlayed
         prefs[Keys.totalScore] = p.stats.totalScore
         prefs[Keys.maxTileLevel] = p.stats.maxTileLevel
