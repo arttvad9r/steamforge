@@ -334,10 +334,12 @@ private fun rewardAccent(reward: ContractReward): Color = when (reward) {
 }
 
 private fun contractIcon(item: ContractItemUi): String = when (item.def.type) {
-    com.steamforge.game.progression.ContractType.MAKE_TILE -> "2048"
+    com.steamforge.game.progression.ContractType.MAKE_TILE -> "◆"
+    com.steamforge.game.progression.ContractType.REACH_TILE -> "↑"
     com.steamforge.game.progression.ContractType.MERGE_COUNT -> "⇄"
     com.steamforge.game.progression.ContractType.SCORE -> "★"
+    com.steamforge.game.progression.ContractType.TOTAL_SCORE -> "Σ"
+    com.steamforge.game.progression.ContractType.COMBO_COUNT -> "×N"
     com.steamforge.game.progression.ContractType.PLAY_RUNS -> "▶"
     com.steamforge.game.progression.ContractType.SURVIVE_MOVES -> "↟"
-    com.steamforge.game.progression.ContractType.OVERDRIVE -> "⚡"
 }

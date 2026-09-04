@@ -5,11 +5,13 @@ import kotlin.random.Random
 
 enum class ContractType {
     MAKE_TILE,
+    REACH_TILE,
     MERGE_COUNT,
     SCORE,
+    TOTAL_SCORE,
+    COMBO_COUNT,
     PLAY_RUNS,
     SURVIVE_MOVES,
-    OVERDRIVE,
 }
 
 /**
@@ -41,10 +43,13 @@ sealed interface ContractReward {
 data class ContractDef(
     val id: String,
     val type: ContractType,
+    /** Progress required for completion: count, score, merges, runs or moves. */
     val target: Int,
     val reward: ContractReward,
     val title: String,
     val description: String,
+    /** Tile level qualifier for MAKE_TILE / REACH_TILE. Level 1 == tile value 2. */
+    val tileLevel: Int? = null,
 ) {
     /**
      * Совместимость со старым repository claim-path. Новый UI этот путь не использует:
@@ -59,9 +64,9 @@ data class ContractDef(
 }
 
 data class ContractCounters(
-    /** Сумма очков за день; будущий TOTAL_SCORE использует именно этот счётчик. */
+    /** Сумма очков за день; TOTAL_SCORE использует именно этот счётчик. */
     val score: Int = 0,
-    /** Лучший результат одной партии за день; будущий SCORE использует этот high-water. */
+    /** Лучший результат одной партии за день; SCORE использует этот high-water. */
     val bestRunScore: Int = 0,
     val merges: Int = 0,
     val moves: Int = 0,
@@ -190,12 +195,14 @@ object DailyContracts {
 
     fun progress(def: ContractDef, ledger: ContractLedger): Int {
         val raw = when (def.type) {
-            ContractType.MAKE_TILE -> tileValue(ledger.totals.maxTileLevel)
+            ContractType.MAKE_TILE -> ledger.totals.madeTileCount(def.tileLevel ?: 0)
+            ContractType.REACH_TILE -> if (ledger.totals.maxTileLevel >= (def.tileLevel ?: Int.MAX_VALUE)) 1 else 0
             ContractType.MERGE_COUNT -> ledger.totals.merges
-            ContractType.SCORE -> ledger.totals.score
+            ContractType.SCORE -> ledger.totals.bestRunScore
+            ContractType.TOTAL_SCORE -> ledger.totals.score
+            ContractType.COMBO_COUNT -> ledger.totals.maxCombo
             ContractType.PLAY_RUNS -> ledger.totals.runs
             ContractType.SURVIVE_MOVES -> ledger.totals.moves
-            ContractType.OVERDRIVE -> ledger.totals.overdrives
         }
         return raw.coerceIn(0, def.target)
     }
@@ -313,37 +320,51 @@ object DailyContracts {
     }
 
     private fun definition(epochDay: Long, slot: Int, type: ContractType, rng: Random): ContractDef {
-        val target = when (type) {
-            ContractType.MAKE_TILE -> intArrayOf(128, 256, 256, 512)[rng.nextInt(4)]
-            ContractType.MERGE_COUNT -> 20 + rng.nextInt(4) * 10
-            ContractType.SCORE -> 1_500 + rng.nextInt(5) * 500
-            ContractType.PLAY_RUNS -> 1 + rng.nextInt(3)
-            ContractType.SURVIVE_MOVES -> 60 + rng.nextInt(5) * 20
-            ContractType.OVERDRIVE -> 1 + rng.nextInt(3)
+        val tileLevel = when (type) {
+            ContractType.MAKE_TILE -> intArrayOf(6, 7, 7, 8)[rng.nextInt(4)]
+            ContractType.REACH_TILE -> intArrayOf(7, 8, 8, 9)[rng.nextInt(4)]
+            else -> null
         }
+        val target = when (type) {
+            ContractType.MAKE_TILE -> 2 + rng.nextInt(3)
+            ContractType.REACH_TILE -> 1
+            ContractType.MERGE_COUNT -> 25 + rng.nextInt(4) * 10
+            ContractType.SCORE -> 3_000 + rng.nextInt(4) * 1_000
+            ContractType.TOTAL_SCORE -> 8_000 + rng.nextInt(5) * 2_000
+            ContractType.COMBO_COUNT -> 2 + rng.nextInt(3)
+            ContractType.PLAY_RUNS -> 1 + rng.nextInt(3)
+            ContractType.SURVIVE_MOVES -> 80 + rng.nextInt(5) * 20
+        }
+        val tile = tileLevel?.let(::tileValue)
         val rewardParts = when (type) {
-            ContractType.MAKE_TILE -> if (target >= 512) 18 else 14
+            ContractType.MAKE_TILE -> 10 + (tileLevel ?: 0) + target * 2
+            ContractType.REACH_TILE -> 10 + (tileLevel ?: 0) * 2
             ContractType.MERGE_COUNT -> 10 + target / 10
             ContractType.SCORE -> 10 + target / 500
+            ContractType.TOTAL_SCORE -> 10 + target / 1_500
+            ContractType.COMBO_COUNT -> 10 + target * 3
             ContractType.PLAY_RUNS -> 8 + target * 3
             ContractType.SURVIVE_MOVES -> 10 + target / 20
-            ContractType.OVERDRIVE -> 10 + target * 4
         }
         val title = when (type) {
-            ContractType.MAKE_TILE -> "Собрать деталь $target"
+            ContractType.MAKE_TILE -> "Создать деталь $tile ×$target"
+            ContractType.REACH_TILE -> "Достичь детали $tile"
             ContractType.MERGE_COUNT -> "Выполнить $target объединений"
-            ContractType.SCORE -> "Набрать $target очков"
+            ContractType.SCORE -> "Набрать $target очков за партию"
+            ContractType.TOTAL_SCORE -> "Набрать $target очков суммарно"
+            ContractType.COMBO_COUNT -> "Сделать комбо ×$target"
             ContractType.PLAY_RUNS -> "Завершить $target ${runWord(target)}"
             ContractType.SURVIVE_MOVES -> "Сделать $target ходов"
-            ContractType.OVERDRIVE -> "Запустить Overdrive ×$target"
         }
         val description = when (type) {
-            ContractType.MAKE_TILE -> "Лучший достигнутый номинал за сегодня"
+            ContractType.MAKE_TILE -> "Считаются только детали, созданные объединением"
+            ContractType.REACH_TILE -> "Лучший достигнутый номинал за сегодня"
             ContractType.MERGE_COUNT -> "Объединения суммируются между партиями"
-            ContractType.SCORE -> "Очки суммируются между партиями"
+            ContractType.SCORE -> "Лучший результат одной партии"
+            ContractType.TOTAL_SCORE -> "Очки суммируются между партиями"
+            ContractType.COMBO_COUNT -> "Максимум объединений за один ход"
             ContractType.PLAY_RUNS -> "Засчитываются завершённые партии"
             ContractType.SURVIVE_MOVES -> "Ходы суммируются между партиями"
-            ContractType.OVERDRIVE -> "Активации давления суммируются за день"
         }
         return ContractDef(
             id = "$epochDay-$slot-${type.name}",
@@ -352,6 +373,7 @@ object DailyContracts {
             reward = ContractReward.WorkshopParts(rewardParts),
             title = title,
             description = description,
+            tileLevel = tileLevel,
         )
     }
 
