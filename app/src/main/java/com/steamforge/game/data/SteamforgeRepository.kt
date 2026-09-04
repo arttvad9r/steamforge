@@ -39,6 +39,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val bestScore = intPreferencesKey("best_score")
         val workshopParts = intPreferencesKey("workshop_parts")
         val workshopCoreStage = intPreferencesKey("workshop_core_stage")
+        val workshopPressureStage = intPreferencesKey("workshop_pressure_stage")
+        val workshopGearPressStage = intPreferencesKey("workshop_gear_press_stage")
         val blueprintPieces = stringSetPreferencesKey("blueprint_pieces")
         val gamesPlayed = intPreferencesKey("stat_games")
         val totalScore = longPreferencesKey("stat_total_score")
@@ -287,6 +289,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             bestScore = persistedBest,
             workshopParts = prefs[Keys.workshopParts] ?: 0,
             workshopCoreStage = prefs[Keys.workshopCoreStage] ?: 0,
+            workshopPressureStage = prefs[Keys.workshopPressureStage] ?: 0,
+            workshopGearPressStage = prefs[Keys.workshopGearPressStage] ?: 0,
             blueprintPieces = prefs[Keys.blueprintPieces] ?: emptySet(),
             stats = PlayerStats(
                 gamesPlayed = prefs[Keys.gamesPlayed] ?: 0,
@@ -345,6 +349,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.bestScore] = p.bestScore
         prefs[Keys.workshopParts] = p.workshopParts
         prefs[Keys.workshopCoreStage] = p.workshopCoreStage
+        prefs[Keys.workshopPressureStage] = p.workshopPressureStage
+        prefs[Keys.workshopGearPressStage] = p.workshopGearPressStage
         prefs[Keys.blueprintPieces] = p.blueprintPieces
         prefs[Keys.gamesPlayed] = p.stats.gamesPlayed
         prefs[Keys.totalScore] = p.stats.totalScore
