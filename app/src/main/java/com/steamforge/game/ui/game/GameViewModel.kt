@@ -510,6 +510,7 @@ class GameViewModel(
                 }
                 val committedRecord = repo.finishedGame.first()?.takeIf { it.id == pending.record.id }
                 if (committedRecord != null) eff = committedRecord.toEffects()
+                val committedProgress = repo.progress.first()
                 if (discardFinishedRecord) repo.clearFinishedGame()
 
                 finishWriteInFlight = false
@@ -520,6 +521,16 @@ class GameViewModel(
                 eff?.let { effects ->
                     effects.levelUps.forEach { analytics.logEvent("workshop_level_up", mapOf("level" to it)) }
                     effects.newAchievements.forEach { analytics.logEvent("achievement_unlocked", mapOf("id" to it.id)) }
+                    if (effects.workshopPartsGained > 0) {
+                        analytics.log(
+                            AnalyticsEvents.resourceEarned(
+                                resourceType = "workshop_parts",
+                                source = "game_finish",
+                                amount = effects.workshopPartsGained,
+                                balanceAfter = committedProgress.workshopParts,
+                            ),
+                        )
+                    }
                 }
                 _ui.update {
                     it.copy(
