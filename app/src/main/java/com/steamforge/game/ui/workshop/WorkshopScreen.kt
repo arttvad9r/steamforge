@@ -106,19 +106,19 @@ fun WorkshopScreen(
                 bestScore = ui.bestScore,
                 coreStage = ui.coreStage,
                 coreStageLabel = ui.coreStageLabel,
+                pressureStage = ui.pressureStage,
+                gearPressStage = ui.gearPressStage,
             )
             Spacer(Modifier.height(9.dp))
 
-            CoreUpgradeAction(
-                stageLabel = ui.coreStageLabel,
-                nextCost = ui.nextCoreCost,
-                canUpgrade = ui.canUpgradeCore,
-                onUpgrade = {
+            MechanismUpgradeSelector(
+                mechanisms = ui.mechanisms,
+                onUpgrade = { mechanism ->
                     sfx.play(Sfx.COIN)
                     if (ui.hapticsEnabled) {
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     }
-                    vm.upgradeCore()
+                    vm.upgradeMechanism(mechanism)
                 },
             )
             Spacer(Modifier.height(9.dp))
@@ -237,8 +237,12 @@ private fun WorkshopHero(
     bestScore: Int,
     coreStage: Int,
     coreStageLabel: String,
+    pressureStage: Int,
+    gearPressStage: Int,
 ) {
     val normalizedStage = coreStage.coerceIn(0, 4)
+    val normalizedPressure = pressureStage.coerceIn(0, 4)
+    val normalizedPress = gearPressStage.coerceIn(0, 4)
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -273,7 +277,13 @@ private fun WorkshopHero(
                 .height(204.dp),
             contentAlignment = Alignment.Center,
         ) {
-            WorkshopScene(animationsEnabled, accent, normalizedStage)
+            WorkshopScene(
+                animationsEnabled = animationsEnabled,
+                accent = accent,
+                coreStage = normalizedStage,
+                pressureStage = normalizedPressure,
+                gearPressStage = normalizedPress,
+            )
             Box(
                 Modifier
                     .size(82.dp)
@@ -328,42 +338,83 @@ private fun WorkshopHero(
 }
 
 @Composable
-private fun CoreUpgradeAction(
-    stageLabel: String,
-    nextCost: Int?,
-    canUpgrade: Boolean,
+private fun MechanismUpgradeSelector(
+    mechanisms: List<WorkshopMechanismUi>,
+    onUpgrade: (com.steamforge.game.progression.WorkshopMechanism) -> Unit,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.44f))
+            .border(1.dp, BrassDark.copy(alpha = 0.34f), shape)
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("ВОССТАНОВЛЕНИЕ ЦЕХА", style = MaterialTheme.typography.labelMedium, color = TextWarm)
+            Spacer(Modifier.weight(1f))
+            Text("ВЫБЕРИТЕ УЗЕЛ", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+        }
+        Spacer(Modifier.height(5.dp))
+        mechanisms.forEachIndexed { index, mechanism ->
+            MechanismUpgradeRow(mechanism, onUpgrade = { onUpgrade(mechanism.mechanism) })
+            if (index != mechanisms.lastIndex) Spacer(Modifier.height(5.dp))
+        }
+    }
+}
+
+@Composable
+private fun MechanismUpgradeRow(
+    mechanism: WorkshopMechanismUi,
     onUpgrade: () -> Unit,
 ) {
-    val maxed = nextCost == null
-    val enabled = !maxed && canUpgrade
+    val maxed = mechanism.nextCost == null
+    val enabled = !maxed && mechanism.canUpgrade
     val accent = when {
         maxed -> TealGlow
         enabled -> BrassBright
         else -> TextMuted
     }
     val action = when {
-        maxed -> "МАКСИМУМ"
-        enabled -> "УЛУЧШИТЬ · ⚙ $nextCost"
-        else -> "НУЖНО ⚙ $nextCost"
+        maxed -> "ГОТОВО"
+        enabled -> "УЛУЧШИТЬ · ⚙ ${mechanism.nextCost}"
+        else -> "НУЖНО ⚙ ${mechanism.nextCost}"
     }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(10.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(50.dp)
+            .height(48.dp)
             .clip(shape)
-            .background(Panel.copy(alpha = 0.48f))
-            .border(1.dp, accent.copy(alpha = if (enabled || maxed) 0.34f else 0.16f), shape)
+            .background(Recess.copy(alpha = 0.62f))
+            .border(1.dp, accent.copy(alpha = if (enabled || maxed) 0.28f else 0.12f), shape)
             .clickable(enabled = enabled, onClick = onUpgrade)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 10.dp)
             .semantics {
                 role = Role.Button
-                contentDescription = "Механическое ядро: $stageLabel. $action"
+                contentDescription = "${mechanism.mechanism.title}: ${mechanism.stageLabel}. $action"
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("ЯДРО · $stageLabel", style = MaterialTheme.typography.labelMedium, color = TextWarm, maxLines = 1)
-        Spacer(Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(
+                mechanism.mechanism.shortTitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = TextWarm,
+                maxLines = 1,
+            )
+            Text(
+                mechanism.stageLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (mechanism.stage >= 3) TealGlow else TextMuted,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
         Text(action, style = MaterialTheme.typography.labelSmall, color = accent, maxLines = 1)
     }
 }
@@ -406,8 +457,15 @@ private fun GaugeBar(fraction: Float, accent: Color, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun WorkshopScene(animationsEnabled: Boolean, accent: Color, coreStage: Int) {
-    val angle = if (animationsEnabled && coreStage >= 3) {
+private fun WorkshopScene(
+    animationsEnabled: Boolean,
+    accent: Color,
+    coreStage: Int,
+    pressureStage: Int,
+    gearPressStage: Int,
+) {
+    val machineryActive = coreStage >= 3 || pressureStage >= 3 || gearPressStage >= 3
+    val angle = if (animationsEnabled && machineryActive) {
         val transition = rememberInfiniteTransition(label = "gears")
         val animated by transition.animateFloat(
             initialValue = 0f,
@@ -421,7 +479,9 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color, coreStage: 
     Canvas(
         Modifier
             .fillMaxSize()
-            .semantics { contentDescription = "Механическое ядро мастерской, стадия $coreStage" },
+            .semantics {
+                contentDescription = "Цех мастерской. Ядро: стадия $coreStage. Генератор: стадия $pressureStage. Пресс: стадия $gearPressStage"
+            },
     ) {
         val c = center
         val min = size.minDimension
@@ -509,6 +569,125 @@ private fun WorkshopScene(animationsEnabled: Boolean, accent: Color, coreStage: 
                 style = Stroke(2.dp.toPx()),
             )
             drawCircle(accent.copy(alpha = 0.055f), radius = min * 0.56f, center = c)
+        }
+
+        val generatorCenter = Offset(size.width * 0.14f, size.height * 0.55f)
+        val generatorRadius = min * 0.085f
+        val generatorMetal = if (pressureStage >= 3) BrassBright else BrassDark
+        drawGear(
+            generatorCenter,
+            generatorRadius,
+            if (pressureStage >= 3) -angle * 1.35f else 0f,
+            generatorMetal.copy(alpha = 0.26f + pressureStage * 0.13f),
+        )
+        if (pressureStage >= 1) {
+            drawLine(
+                Brass.copy(alpha = 0.50f),
+                Offset(generatorCenter.x - generatorRadius, generatorCenter.y + generatorRadius * 1.65f),
+                Offset(generatorCenter.x + generatorRadius, generatorCenter.y + generatorRadius * 1.65f),
+                3.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                Copper.copy(alpha = 0.46f),
+                Offset(generatorCenter.x, generatorCenter.y + generatorRadius),
+                Offset(generatorCenter.x, generatorCenter.y + generatorRadius * 1.65f),
+                3.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (pressureStage >= 2) {
+            drawCircle(
+                Brass.copy(alpha = 0.54f),
+                generatorRadius * 1.32f,
+                generatorCenter,
+                style = Stroke(2.dp.toPx()),
+            )
+        }
+        if (pressureStage >= 3) {
+            drawCircle(accent.copy(alpha = 0.24f), generatorRadius * 0.52f, generatorCenter)
+            drawLine(
+                Copper.copy(alpha = 0.62f),
+                Offset(generatorCenter.x + generatorRadius * 1.25f, generatorCenter.y),
+                Offset(size.width * 0.31f, c.y),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (pressureStage >= 4) {
+            drawCircle(
+                accent.copy(alpha = 0.30f),
+                generatorRadius * 1.62f,
+                generatorCenter,
+                style = Stroke(2.dp.toPx()),
+            )
+        }
+
+        val pressCenter = Offset(size.width * 0.86f, size.height * 0.55f)
+        val pressRadius = min * 0.075f
+        val frameAlpha = 0.24f + gearPressStage * 0.11f
+        drawLine(
+            BrassDark.copy(alpha = frameAlpha),
+            Offset(pressCenter.x - pressRadius * 1.45f, pressCenter.y - pressRadius * 1.7f),
+            Offset(pressCenter.x - pressRadius * 1.45f, pressCenter.y + pressRadius * 1.7f),
+            4.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawLine(
+            BrassDark.copy(alpha = frameAlpha),
+            Offset(pressCenter.x + pressRadius * 1.45f, pressCenter.y - pressRadius * 1.7f),
+            Offset(pressCenter.x + pressRadius * 1.45f, pressCenter.y + pressRadius * 1.7f),
+            4.dp.toPx(),
+            StrokeCap.Round,
+        )
+        if (gearPressStage >= 1) {
+            drawLine(
+                Brass.copy(alpha = 0.56f),
+                Offset(pressCenter.x - pressRadius * 1.45f, pressCenter.y - pressRadius * 1.7f),
+                Offset(pressCenter.x + pressRadius * 1.45f, pressCenter.y - pressRadius * 1.7f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                Brass.copy(alpha = 0.48f),
+                Offset(pressCenter.x - pressRadius * 1.7f, pressCenter.y + pressRadius * 1.7f),
+                Offset(pressCenter.x + pressRadius * 1.7f, pressCenter.y + pressRadius * 1.7f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (gearPressStage >= 2) {
+            drawGear(
+                pressCenter,
+                pressRadius,
+                if (gearPressStage >= 3) angle * 1.55f else 0f,
+                Copper.copy(alpha = 0.68f),
+            )
+            drawLine(
+                Copper.copy(alpha = 0.56f),
+                Offset(pressCenter.x, pressCenter.y - pressRadius * 1.45f),
+                Offset(pressCenter.x, pressCenter.y - pressRadius * 0.82f),
+                5.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (gearPressStage >= 3) {
+            drawCircle(accent.copy(alpha = 0.20f), pressRadius * 0.45f, pressCenter)
+            drawLine(
+                Copper.copy(alpha = 0.62f),
+                Offset(size.width * 0.69f, c.y),
+                Offset(pressCenter.x - pressRadius * 1.35f, pressCenter.y),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (gearPressStage >= 4) {
+            drawGear(
+                Offset(pressCenter.x + pressRadius * 1.55f, pressCenter.y - pressRadius * 1.1f),
+                pressRadius * 0.48f,
+                -angle * 2f,
+                BrassBright.copy(alpha = 0.82f),
+            )
         }
     }
 }
