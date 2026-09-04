@@ -78,6 +78,15 @@ data class LevelInfo(val level: Int, val xpIntoLevel: Int, val xpToNext: Int) {
         get() = if (xpToNext <= 0) 1f else xpIntoLevel.toFloat() / xpToNext
 }
 
+enum class WorkshopMechanism(
+    val title: String,
+    val shortTitle: String,
+) {
+    CORE("МЕХАНИЧЕСКОЕ ЯДРО", "ЯДРО"),
+    PRESSURE_GENERATOR("ГЕНЕРАТОР ДАВЛЕНИЯ", "ГЕНЕРАТОР"),
+    GEAR_PRESS("ШЕСТЕРЁНОЧНЫЙ ПРЕСС", "ПРЕСС"),
+}
+
 object WorkshopProgression {
     fun xpToNext(level: Int, cfg: ProgressionConfig): Int =
         cfg.baseXpToLevel + (level - 1) * cfg.xpGrowthPerLevel
@@ -109,12 +118,17 @@ object WorkshopProgression {
             .coerceAtLeast(1)
     }
 
-    fun maxCoreStage(cfg: ProgressionConfig): Int = cfg.workshopCoreUpgradeCosts.size
+    fun maxMechanismStage(cfg: ProgressionConfig): Int = cfg.workshopCoreUpgradeCosts.size
+
+    fun maxCoreStage(cfg: ProgressionConfig): Int = maxMechanismStage(cfg)
+
+    fun normalizedMechanismStage(stage: Int, cfg: ProgressionConfig): Int =
+        stage.coerceIn(0, maxMechanismStage(cfg))
 
     fun normalizedCoreStage(stage: Int, cfg: ProgressionConfig): Int =
-        stage.coerceIn(0, maxCoreStage(cfg))
+        normalizedMechanismStage(stage, cfg)
 
-    fun coreStageLabel(stage: Int, cfg: ProgressionConfig): String = when (normalizedCoreStage(stage, cfg)) {
+    fun mechanismStageLabel(stage: Int, cfg: ProgressionConfig): String = when (normalizedMechanismStage(stage, cfg)) {
         0 -> "СЛОМАНО"
         1 -> "КАРКАС"
         2 -> "МЕХАНИЗМЫ"
@@ -122,25 +136,63 @@ object WorkshopProgression {
         else -> "УСИЛЕНО"
     }
 
-    fun coreUpgradeCost(stage: Int, cfg: ProgressionConfig): Int? =
-        cfg.workshopCoreUpgradeCosts.getOrNull(normalizedCoreStage(stage, cfg))
+    fun coreStageLabel(stage: Int, cfg: ProgressionConfig): String = mechanismStageLabel(stage, cfg)
+
+    fun mechanismUpgradeCost(stage: Int, cfg: ProgressionConfig): Int? =
+        cfg.workshopCoreUpgradeCosts.getOrNull(normalizedMechanismStage(stage, cfg))
+
+    fun coreUpgradeCost(stage: Int, cfg: ProgressionConfig): Int? = mechanismUpgradeCost(stage, cfg)
+
+    fun mechanismStage(progress: PlayerProgress, mechanism: WorkshopMechanism, cfg: ProgressionConfig): Int =
+        normalizedMechanismStage(
+            when (mechanism) {
+                WorkshopMechanism.CORE -> progress.workshopCoreStage
+                WorkshopMechanism.PRESSURE_GENERATOR -> progress.workshopPressureStage
+                WorkshopMechanism.GEAR_PRESS -> progress.workshopGearPressStage
+            },
+            cfg,
+        )
+
+    fun canUpgradeMechanism(progress: PlayerProgress, mechanism: WorkshopMechanism, cfg: ProgressionConfig): Boolean {
+        val cost = mechanismUpgradeCost(mechanismStage(progress, mechanism, cfg), cfg) ?: return false
+        return progress.workshopParts >= cost
+    }
 
     fun canUpgradeCore(parts: Int, stage: Int, cfg: ProgressionConfig): Boolean {
         val cost = coreUpgradeCost(stage, cfg) ?: return false
         return parts >= cost
     }
 
-    fun upgradeCore(progress: PlayerProgress, cfg: ProgressionConfig): PlayerProgress {
-        val stage = normalizedCoreStage(progress.workshopCoreStage, cfg)
-        val cost = coreUpgradeCost(stage, cfg)
-            ?: return if (stage == progress.workshopCoreStage) progress else progress.copy(workshopCoreStage = stage)
-        if (progress.workshopParts < cost) {
-            return if (stage == progress.workshopCoreStage) progress else progress.copy(workshopCoreStage = stage)
+    fun upgradeMechanism(
+        progress: PlayerProgress,
+        mechanism: WorkshopMechanism,
+        cfg: ProgressionConfig,
+    ): PlayerProgress {
+        val rawStage = when (mechanism) {
+            WorkshopMechanism.CORE -> progress.workshopCoreStage
+            WorkshopMechanism.PRESSURE_GENERATOR -> progress.workshopPressureStage
+            WorkshopMechanism.GEAR_PRESS -> progress.workshopGearPressStage
         }
-        return progress.copy(
-            workshopParts = progress.workshopParts - cost,
-            workshopCoreStage = stage + 1,
-        )
+        val stage = normalizedMechanismStage(rawStage, cfg)
+        val cost = mechanismUpgradeCost(stage, cfg)
+        if (cost == null || progress.workshopParts < cost) {
+            return if (rawStage == stage) progress else progress.withMechanismStage(mechanism, stage)
+        }
+        return progress
+            .copy(workshopParts = progress.workshopParts - cost)
+            .withMechanismStage(mechanism, stage + 1)
+    }
+
+    fun upgradeCore(progress: PlayerProgress, cfg: ProgressionConfig): PlayerProgress =
+        upgradeMechanism(progress, WorkshopMechanism.CORE, cfg)
+
+    private fun PlayerProgress.withMechanismStage(
+        mechanism: WorkshopMechanism,
+        stage: Int,
+    ): PlayerProgress = when (mechanism) {
+        WorkshopMechanism.CORE -> copy(workshopCoreStage = stage)
+        WorkshopMechanism.PRESSURE_GENERATOR -> copy(workshopPressureStage = stage)
+        WorkshopMechanism.GEAR_PRESS -> copy(workshopGearPressStage = stage)
     }
 }
 
@@ -212,6 +264,8 @@ data class PlayerProgress(
     val analyticsConsent: Boolean? = null,
     val workshopParts: Int = 0,
     val workshopCoreStage: Int = 0,
+    val workshopPressureStage: Int = 0,
+    val workshopGearPressStage: Int = 0,
     val blueprintPieces: Set<String> = emptySet(),
 ) {
     fun levelInfo(cfg: ProgressionConfig): LevelInfo = WorkshopProgression.levelInfo(totalXp, cfg)

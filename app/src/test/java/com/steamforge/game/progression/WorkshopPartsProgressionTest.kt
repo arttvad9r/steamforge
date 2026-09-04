@@ -85,4 +85,71 @@ class WorkshopPartsProgressionTest {
         assertFalse(WorkshopProgression.canUpgradeCore(progress.workshopParts, progress.workshopCoreStage, cfg))
         assertEquals(progress, WorkshopProgression.upgradeCore(progress, cfg))
     }
+
+    @Test
+    fun `selected mechanism upgrades independently and spends exact shared parts`() {
+        val cost = WorkshopProgression.mechanismUpgradeCost(0, cfg)!!
+        val initial = PlayerProgress(
+            workshopParts = cost + 9,
+            workshopCoreStage = 2,
+            workshopPressureStage = 0,
+            workshopGearPressStage = 1,
+        )
+
+        val upgraded = WorkshopProgression.upgradeMechanism(
+            initial,
+            WorkshopMechanism.PRESSURE_GENERATOR,
+            cfg,
+        )
+
+        assertEquals(2, upgraded.workshopCoreStage)
+        assertEquals(1, upgraded.workshopPressureStage)
+        assertEquals(1, upgraded.workshopGearPressStage)
+        assertEquals(9, upgraded.workshopParts)
+    }
+
+    @Test
+    fun `all workshop mechanisms share the five stage lifecycle and stop independently`() {
+        var progress = PlayerProgress(workshopParts = cfg.workshopCoreUpgradeCosts.sum() * WorkshopMechanism.entries.size)
+
+        WorkshopMechanism.entries.forEach { mechanism ->
+            repeat(cfg.workshopCoreUpgradeCosts.size) {
+                assertTrue(WorkshopProgression.canUpgradeMechanism(progress, mechanism, cfg))
+                progress = WorkshopProgression.upgradeMechanism(progress, mechanism, cfg)
+            }
+            assertEquals(4, WorkshopProgression.mechanismStage(progress, mechanism, cfg))
+            assertFalse(WorkshopProgression.canUpgradeMechanism(progress, mechanism, cfg))
+        }
+
+        assertEquals(0, progress.workshopParts)
+        assertEquals(4, progress.workshopCoreStage)
+        assertEquals(4, progress.workshopPressureStage)
+        assertEquals(4, progress.workshopGearPressStage)
+    }
+
+    @Test
+    fun `out of range mechanism stage is normalized without charging parts`() {
+        val corrupted = PlayerProgress(
+            workshopParts = 100,
+            workshopCoreStage = 2,
+            workshopPressureStage = 99,
+            workshopGearPressStage = -5,
+        )
+
+        val pressure = WorkshopProgression.upgradeMechanism(
+            corrupted,
+            WorkshopMechanism.PRESSURE_GENERATOR,
+            cfg,
+        )
+        assertEquals(4, pressure.workshopPressureStage)
+        assertEquals(100, pressure.workshopParts)
+
+        val press = WorkshopProgression.upgradeMechanism(
+            pressure,
+            WorkshopMechanism.GEAR_PRESS,
+            cfg,
+        )
+        assertEquals(1, press.workshopGearPressStage)
+        assertEquals(80, press.workshopParts)
+    }
 }
