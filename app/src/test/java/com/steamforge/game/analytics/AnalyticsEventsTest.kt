@@ -7,9 +7,14 @@ import org.junit.Test
 class AnalyticsEventsTest {
     @Test
     fun `run lifecycle events use one stable product schema`() {
-        val normalStart = AnalyticsEvents.gameStarted(daily = false)
-        val dailyStart = AnalyticsEvents.gameStarted(daily = true, dailyType = "REACH_SCORE")
+        val normalStart = AnalyticsEvents.gameStarted(runId = "run-normal", daily = false)
+        val dailyStart = AnalyticsEvents.gameStarted(
+            runId = "run-daily",
+            daily = true,
+            dailyType = "REACH_SCORE",
+        )
         val finished = AnalyticsEvents.gameFinished(
+            runId = "run-daily",
             score = -10,
             maxTile = 2048,
             moves = -2,
@@ -17,14 +22,17 @@ class AnalyticsEventsTest {
         )
 
         assertEquals("game_started", normalStart.name)
+        assertEquals("run-normal", normalStart.params["run_id"])
         assertEquals(false, normalStart.params["daily"])
         assertFalse(normalStart.params.containsKey("daily_type"))
 
         assertEquals("game_started", dailyStart.name)
+        assertEquals("run-daily", dailyStart.params["run_id"])
         assertEquals(true, dailyStart.params["daily"])
         assertEquals("REACH_SCORE", dailyStart.params["daily_type"])
 
         assertEquals("game_finished", finished.name)
+        assertEquals("run-daily", finished.params["run_id"])
         assertEquals(0, finished.params["score"])
         assertEquals(2048, finished.params["max_tile"])
         assertEquals(0, finished.params["moves"])
