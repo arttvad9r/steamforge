@@ -18,6 +18,8 @@ import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
+import com.steamforge.game.progression.Reward
+import com.steamforge.game.progression.RewardSystem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -37,6 +39,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val bestScore = intPreferencesKey("best_score")
         val workshopParts = intPreferencesKey("workshop_parts")
         val workshopCoreStage = intPreferencesKey("workshop_core_stage")
+        val blueprintPieces = stringSetPreferencesKey("blueprint_pieces")
         val gamesPlayed = intPreferencesKey("stat_games")
         val totalScore = longPreferencesKey("stat_total_score")
         val maxTileLevel = intPreferencesKey("stat_max_tile")
@@ -196,15 +199,10 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { prefs ->
             val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
             if (record != null && record.id == gameResultId && !record.rewardedClaimed) {
-                prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
                 val progress = mapProgress(prefs)
-                writeProgress(
-                    prefs,
-                    progress.copy(
-                        gems = progress.gems + gems,
-                        stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + gems),
-                    ),
-                )
+                val (updated, _) = RewardSystem.apply(progress, Reward.Gems(gems))
+                prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
+                writeProgress(prefs, updated)
                 granted = true
             }
         }
@@ -220,16 +218,20 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
             val baseStats = progress.stats.copy(dailyCompleted = progress.stats.dailyCompleted + 1)
             val unlocked = Achievements.newlyUnlocked(baseStats, progress.unlockedAchievements)
-            val unlockedGems = unlocked.sumOf { it.gemReward }
-            val totalGems = rewardGems + unlockedGems
-            val updated = progress.copy(
+            val base = progress.copy(
                 dailyChallengeDay = day,
                 dailyChallengeDone = true,
-                gems = progress.gems + totalGems,
-                totalXp = progress.totalXp + bonusXp,
-                stats = baseStats.copy(gemsEarned = baseStats.gemsEarned + totalGems),
+                totalXp = (progress.totalXp.toLong() + bonusXp.toLong())
+                    .coerceAtMost(Int.MAX_VALUE.toLong())
+                    .toInt(),
+                stats = baseStats,
                 unlockedAchievements = progress.unlockedAchievements + unlocked.map { it.id }.toSet(),
                 achievementDays = progress.achievementDays + unlocked.associate { it.id to day },
+            )
+            val (updated, _) = RewardSystem.apply(
+                base,
+                Reward.Gems(rewardGems),
+                Reward.Gems(unlocked.sumOf { it.gemReward }),
             )
             writeProgress(prefs, updated)
             granted = true
@@ -245,10 +247,8 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             val contract = DailyContracts.forEpochDay(day).firstOrNull { it.id == contractId } ?: return@edit
             if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) return@edit
 
-            val reward = contract.rewardGems
-            val updated = progress.copy(
-                gems = progress.gems + reward,
-                stats = progress.stats.copy(gemsEarned = progress.stats.gemsEarned + reward),
+            val (rewarded, _) = RewardSystem.apply(progress, Reward.Gems(contract.rewardGems))
+            val updated = rewarded.copy(
                 contracts = ledger.copy(claimedIds = ledger.claimedIds + contract.id),
             )
             writeProgress(prefs, updated)
@@ -287,6 +287,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             bestScore = persistedBest,
             workshopParts = prefs[Keys.workshopParts] ?: 0,
             workshopCoreStage = prefs[Keys.workshopCoreStage] ?: 0,
+            blueprintPieces = prefs[Keys.blueprintPieces] ?: emptySet(),
             stats = PlayerStats(
                 gamesPlayed = prefs[Keys.gamesPlayed] ?: 0,
                 bestScore = persistedBest,
@@ -344,6 +345,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.bestScore] = p.bestScore
         prefs[Keys.workshopParts] = p.workshopParts
         prefs[Keys.workshopCoreStage] = p.workshopCoreStage
+        prefs[Keys.blueprintPieces] = p.blueprintPieces
         prefs[Keys.gamesPlayed] = p.stats.gamesPlayed
         prefs[Keys.totalScore] = p.stats.totalScore
         prefs[Keys.maxTileLevel] = p.stats.maxTileLevel

@@ -20,6 +20,7 @@ data class FinishedGameRecord(
     val newBest: Boolean = false,
     val xpGained: Int = 0,
     val gemsGained: Int = 0,
+    val workshopPartsGained: Int = 0,
     val levelUps: List<Int> = emptyList(),
     val newAchievementIds: List<String> = emptyList(),
     /** Финальная доска (GameSaveCodec) для восстановления overlay после process death. */
@@ -32,6 +33,7 @@ internal fun FinishedGameRecord.withEffects(effects: FinishEffects): FinishedGam
     newBest = effects.newBest,
     xpGained = effects.xpGained,
     gemsGained = effects.gemsGained,
+    workshopPartsGained = effects.workshopPartsGained,
     levelUps = effects.levelUps,
     newAchievementIds = effects.newAchievements.map { it.id },
 )
