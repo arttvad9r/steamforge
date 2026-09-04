@@ -19,6 +19,8 @@ data class SavedGame(
     val overdrivesSession: Int = 0,
     val undosSession: Int = 0,
     val highMergesSession: Int = 0,
+    /** Opaque product-analytics correlation key for one run; not a user/device identifier. */
+    val analyticsRunId: String? = null,
 )
 
 /**
@@ -28,11 +30,14 @@ data class SavedGame(
  * v3: v3|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|tiles
  * v4: v4|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|
  *     mergesTotal|maxMergesInOneMove|overdrivesSession|undosSession|highMergesSession|tiles
+ * v5: v5|size|score|nextTileId|won|moves|seed|pressure|overdrive|freeUndos|rngDraws|
+ *     mergesTotal|maxMergesInOneMove|overdrivesSession|undosSession|highMergesSession|analyticsRunId|tiles
  */
 object GameSaveCodec {
 
-    private const val VERSION = "v4"
+    private const val VERSION = "v5"
     private const val MAX_COUNTER = 1_000_000
+    private const val MAX_ANALYTICS_RUN_ID_LENGTH = 128
 
     fun encode(game: SavedGame): String = buildString {
         append(VERSION).append('|')
@@ -51,16 +56,18 @@ object GameSaveCodec {
         append(game.overdrivesSession.coerceAtLeast(0)).append('|')
         append(game.undosSession.coerceAtLeast(0)).append('|')
         append(game.highMergesSession.coerceAtLeast(0)).append('|')
+        append(game.analyticsRunId?.take(MAX_ANALYTICS_RUN_ID_LENGTH).orEmpty()).append('|')
         game.state.tiles.joinTo(this, ";") { "${it.id},${it.level},${it.row},${it.col}" }
     }
 
     fun decode(raw: String): SavedGame? {
         val parts = raw.split('|')
+        val isV5 = parts.size == 18 && parts[0] == "v5"
         val isV4 = parts.size == 17 && parts[0] == "v4"
         val isV3 = parts.size == 12 && parts[0] == "v3"
         val isV2 = parts.size == 11 && parts[0] == "v2"
         val isV1 = parts.size == 7 && parts[0] == "v1"
-        if (!isV4 && !isV3 && !isV2 && !isV1) return null
+        if (!isV5 && !isV4 && !isV3 && !isV2 && !isV1) return null
         return runCatching {
             val size = parts[1].toInt().also { require(it in 2..8) }
             val score = parts[2].toInt().also { require(it >= 0) }
@@ -78,8 +85,25 @@ object GameSaveCodec {
             var overdrivesSession = 0
             var undosSession = 0
             var highMergesSession = 0
+            var analyticsRunId: String? = null
             val tilesIndex: Int
             when {
+                isV5 -> {
+                    seed = parts[6].toLong().takeIf { it >= 0 }
+                    pressure = parts[7].toInt().coerceIn(0, 1000)
+                    overdrive = parts[8].toInt().coerceIn(0, 1000)
+                    freeUndos = parts[9].toInt().coerceIn(0, 1000)
+                    rngDraws = parts[10].toLong().coerceIn(0L, 1_000_000L)
+                    mergesTotal = parts[11].toInt().coerceIn(0, MAX_COUNTER)
+                    maxMergesInOneMove = parts[12].toInt().coerceIn(0, MAX_COUNTER)
+                    overdrivesSession = parts[13].toInt().coerceIn(0, MAX_COUNTER)
+                    undosSession = parts[14].toInt().coerceIn(0, MAX_COUNTER)
+                    highMergesSession = parts[15].toInt().coerceIn(0, MAX_COUNTER)
+                    val rawRunId = parts[16]
+                    require(rawRunId.length <= MAX_ANALYTICS_RUN_ID_LENGTH)
+                    analyticsRunId = rawRunId.takeIf { it.isNotBlank() }
+                    tilesIndex = 17
+                }
                 isV4 -> {
                     seed = parts[6].toLong().takeIf { it >= 0 }
                     pressure = parts[7].toInt().coerceIn(0, 1000)
@@ -148,6 +172,7 @@ object GameSaveCodec {
                 overdrivesSession = overdrivesSession,
                 undosSession = undosSession,
                 highMergesSession = highMergesSession,
+                analyticsRunId = analyticsRunId,
             )
         }.getOrNull()
     }
