@@ -3,7 +3,7 @@ package com.steamforge.game.progression
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
-import kotlin.random.Random
+import com.steamforge.game.core.ReplayableRandom
 
 data class WeeklyRunSubmission(
     val protocolVersion: Int,
@@ -49,7 +49,7 @@ object WeeklyRunReplay {
 
     fun replay(challenge: WeeklyChallenge, moves: List<Move>): GameState {
         require(challenge.rules.type == WeeklyRuleType.STANDARD_SCORE_ATTACK)
-        val rng = WeeklyDeterministicRandom(challenge.seed)
+        val rng = ReplayableRandom(challenge.seed)
         val engine = GameEngine()
         var state = engine.newGame(rng = rng)
         for (move in moves) {
@@ -127,32 +127,5 @@ object WeeklyRunReplay {
             result += move
         }
         return result
-    }
-}
-
-/**
- * Stable SplitMix64-style stream for the Weekly replay protocol. Do not replace it with
- * `Random(seed)`: the weekly protocol must not depend on Kotlin implementation details.
- */
-private class WeeklyDeterministicRandom(
-    private val seed: Long,
-) : Random() {
-    private var draws: Long = 0L
-
-    override fun nextBits(bitCount: Int): Int {
-        require(bitCount in 0..32)
-        if (bitCount == 0) return 0
-        val index = draws++
-        var z = seed + GOLDEN_GAMMA * (index + 1L)
-        z = (z xor (z ushr 30)) * MIX_1
-        z = (z xor (z ushr 27)) * MIX_2
-        z = z xor (z ushr 31)
-        return (z ushr (64 - bitCount)).toInt()
-    }
-
-    private companion object {
-        const val GOLDEN_GAMMA = -7046029254386353131L
-        const val MIX_1 = -4658895280553007687L
-        const val MIX_2 = -7723592293110705685L
     }
 }
