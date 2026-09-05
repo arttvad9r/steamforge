@@ -7,6 +7,8 @@ import com.steamforge.game.analytics.AnalyticsEvent
 import com.steamforge.game.analytics.AnalyticsEvents
 import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.analytics.log
+import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.LevelInfo
@@ -18,7 +20,7 @@ import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -61,11 +63,16 @@ data class WorkshopUiState(
 class WorkshopViewModel(
     private val repo: DataRepo,
     private val cfg: ProgressionConfig = ProgressionConfig(),
+    private val remoteConfigProvider: RemoteConfigProvider = LocalDefaultRemoteConfigProvider(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
     private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
 
-    val ui: StateFlow<WorkshopUiState> = repo.progress.map { p ->
+    val ui: StateFlow<WorkshopUiState> = combine(
+        repo.progress,
+        remoteConfigProvider.snapshot,
+    ) { p, remoteSnapshot ->
+        val workshopCfg = remoteSnapshot.config.toProgressionConfig(cfg)
         val todayDay = today()
         val canClaim = p.dailyRewardDay != todayDay
         val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
@@ -73,12 +80,12 @@ class WorkshopViewModel(
         val nextDay = (continuingStreak % cycle) + 1
         val li = p.levelInfo(cfg)
         val mechanisms = WorkshopMechanism.entries.map { mechanism ->
-            val stage = WorkshopProgression.mechanismStage(p, mechanism, cfg)
-            val nextCost = WorkshopProgression.mechanismUpgradeCost(stage, cfg)
+            val stage = WorkshopProgression.mechanismStage(p, mechanism, workshopCfg)
+            val nextCost = WorkshopProgression.mechanismUpgradeCost(stage, workshopCfg)
             WorkshopMechanismUi(
                 mechanism = mechanism,
                 stage = stage,
-                stageLabel = WorkshopProgression.mechanismStageLabel(stage, cfg),
+                stageLabel = WorkshopProgression.mechanismStageLabel(stage, workshopCfg),
                 nextCost = nextCost,
                 canUpgrade = nextCost != null && p.workshopParts >= nextCost,
             )
@@ -119,13 +126,14 @@ class WorkshopViewModel(
 
     fun upgradeMechanism(mechanism: WorkshopMechanism) {
         viewModelScope.launch {
+            val workshopCfg = remoteConfigProvider.snapshot.value.config.toProgressionConfig(cfg)
             var upgradeEvent: AnalyticsEvent? = null
             var economyEvent: AnalyticsEvent? = null
             repo.updateProgress { p ->
-                val fromStage = WorkshopProgression.mechanismStage(p, mechanism, cfg)
-                val cost = WorkshopProgression.mechanismUpgradeCost(fromStage, cfg)
-                val updated = WorkshopProgression.upgradeMechanism(p, mechanism, cfg)
-                val toStage = WorkshopProgression.mechanismStage(updated, mechanism, cfg)
+                val fromStage = WorkshopProgression.mechanismStage(p, mechanism, workshopCfg)
+                val cost = WorkshopProgression.mechanismUpgradeCost(fromStage, workshopCfg)
+                val updated = WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
+                val toStage = WorkshopProgression.mechanismStage(updated, mechanism, workshopCfg)
                 if (toStage > fromStage && cost != null) {
                     upgradeEvent = AnalyticsEvents.workshopUpgrade(
                         mechanism = mechanism.name,

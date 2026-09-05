@@ -2,6 +2,11 @@ package com.steamforge.game.ui.workshop
 
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.config.RemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigRefreshResult
+import com.steamforge.game.config.RemoteConfigSnapshot
+import com.steamforge.game.config.RemoteConfigSource
+import com.steamforge.game.config.RemoteGameConfig
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.ProgressionConfig
@@ -9,6 +14,9 @@ import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -29,6 +37,23 @@ class WorkshopAnalyticsTest {
         override fun logEvent(name: String, params: Map<String, Any?>) {
             events += name to params
         }
+    }
+
+    private class MutableRemoteConfigProvider(config: RemoteGameConfig) : RemoteConfigProvider {
+        private val state = MutableStateFlow(snapshotFor(config, "test-1"))
+        override val snapshot: StateFlow<RemoteConfigSnapshot> = state
+
+        fun update(config: RemoteGameConfig) {
+            state.value = snapshotFor(config, "test-2")
+        }
+
+        override suspend fun refresh(): RemoteConfigRefreshResult = RemoteConfigRefreshResult.UPDATED
+
+        private fun snapshotFor(config: RemoteGameConfig, revision: String) = RemoteConfigSnapshot(
+            config = config.sanitized(),
+            source = RemoteConfigSource.REMOTE,
+            revision = revision,
+        )
     }
 
     @Before
@@ -65,6 +90,65 @@ class WorkshopAnalyticsTest {
         assertEquals("workshop_upgrade", economyParams["source"])
         assertEquals(cost, economyParams["amount"])
         assertEquals(remaining, economyParams["balance_after"])
+    }
+
+    @Test
+    fun `runtime remote config cost is used by persisted upgrade and analytics`() = runTest(dispatcher) {
+        val remoteCost = 7
+        val remaining = 11
+        val provider = MutableRemoteConfigProvider(
+            RemoteGameConfig(workshopUpgradeCosts = listOf(remoteCost, 15, 30, 60)),
+        )
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(workshopParts = remoteCost + remaining),
+        )
+        val analytics = RecordingAnalytics()
+        val vm = WorkshopViewModel(
+            repo = repo,
+            remoteConfigProvider = provider,
+            analytics = analytics,
+        )
+
+        vm.upgradeMechanism(WorkshopMechanism.CORE)
+        advanceUntilIdle()
+
+        assertEquals(1, repo.currentProgress.workshopCoreStage)
+        assertEquals(remaining, repo.currentProgress.workshopParts)
+
+        val upgradeParams = analytics.events
+            .single { it.first == AnalyticsEvents.WORKSHOP_UPGRADE }
+            .second
+        assertEquals(remoteCost, upgradeParams["parts_spent"])
+
+        val economyParams = analytics.events
+            .single { it.first == AnalyticsEvents.RESOURCE_SPENT }
+            .second
+        assertEquals(remoteCost, economyParams["amount"])
+        assertEquals(remaining, economyParams["balance_after"])
+    }
+
+    @Test
+    fun `workshop ui reacts to remote config snapshot updates`() = runTest(dispatcher) {
+        val provider = MutableRemoteConfigProvider(
+            RemoteGameConfig(workshopUpgradeCosts = listOf(7, 15, 30, 60)),
+        )
+        val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = 100))
+        val vm = WorkshopViewModel(repo = repo, remoteConfigProvider = provider)
+        backgroundScope.launch { vm.ui.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(
+            7,
+            vm.ui.value.mechanisms.first { it.mechanism == WorkshopMechanism.CORE }.nextCost,
+        )
+
+        provider.update(RemoteGameConfig(workshopUpgradeCosts = listOf(9, 18, 36, 72)))
+        advanceUntilIdle()
+
+        assertEquals(
+            9,
+            vm.ui.value.mechanisms.first { it.mechanism == WorkshopMechanism.CORE }.nextCost,
+        )
     }
 
     @Test
