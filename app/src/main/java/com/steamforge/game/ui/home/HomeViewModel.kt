@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.continuingDailyRewardStreak
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -61,11 +62,11 @@ class HomeViewModel(
             workshopLevel = progress.levelInfo(cfg).level,
             achievementsUnlocked = progress.unlockedAchievements.size,
             dailyDone = progress.dailyChallengeDay == todayDay && progress.dailyChallengeDone,
-            dailyRewardStreak = if (progress.dailyRewardDay == todayDay || progress.dailyRewardDay == todayDay - 1) {
-                progress.dailyRewardStreak
-            } else {
-                0
-            },
+            dailyRewardStreak = continuingDailyRewardStreak(
+                lastClaimDay = progress.dailyRewardDay,
+                storedStreak = progress.dailyRewardStreak,
+                today = todayDay,
+            ),
             hasSavedRun = savedGame != null,
             featureVisibility = homeFeatureVisibility(
                 gamesPlayed = progress.stats.gamesPlayed,
