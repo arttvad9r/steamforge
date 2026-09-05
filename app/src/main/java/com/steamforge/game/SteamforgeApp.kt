@@ -49,12 +49,18 @@ class AppContainer(context: Context) {
         }
         metrica?.setSendingEnabled(granted)
         analytics.setDelegate(if (granted) metrica else null)
-        if (!adsInitialized) {
-            adsInitialized = true
-            runCatching { ads.init(appContext, userConsent = granted) }
-        } else {
-            runCatching { com.yandex.mobile.ads.common.YandexAds.setUserConsent(granted) }
+
+        // Advertising stays compiled for later, but the current product build keeps it fully inactive.
+        // Do not initialize the SDK or forward consent while the AdsManager master switch is off.
+        if (ads.enabled) {
+            if (!adsInitialized) {
+                adsInitialized = true
+                runCatching { ads.init(appContext, userConsent = granted) }
+            } else {
+                runCatching { com.yandex.mobile.ads.common.YandexAds.setUserConsent(granted) }
+            }
         }
+
         if (isDebug && BuildConfig.APPMETRICA_API_KEY.isBlank()) {
             println("Steamforge: APPMETRICA_API_KEY не задан (steamforge.appmetricaApiKey) — аналитика отключена")
         }

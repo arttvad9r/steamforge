@@ -15,6 +15,7 @@ internal class InterstitialSessionPolicy(
     private var rewardedShownSincePause = false
 
     fun onGameFinished() {
+        if (!cfg.enabled) return
         gamesFinished++
         if (
             gamesFinished >= cfg.interstitialMinGames &&
@@ -25,6 +26,7 @@ internal class InterstitialSessionPolicy(
     }
 
     fun onRewardedShown() {
+        if (!cfg.enabled) return
         rewardedShownSincePause = true
     }
 
@@ -33,6 +35,7 @@ internal class InterstitialSessionPolicy(
      * Merely asking does not consume a pending moment unless it is the one-shot rewarded suppression.
      */
     fun shouldAttemptInterstitial(): Boolean {
+        if (!cfg.enabled) return false
         if (rewardedShownSincePause) {
             rewardedShownSincePause = false
             return false
@@ -42,11 +45,13 @@ internal class InterstitialSessionPolicy(
 
     /** Call only after a concrete loaded interstitial is about to be shown. */
     fun onInterstitialAttemptStarted() {
+        if (!cfg.enabled) return
         interstitialPending = false
     }
 
     /** A failed show restores the same natural ad moment instead of losing it. */
     fun onInterstitialAttemptFailed() {
+        if (!cfg.enabled) return
         interstitialPending = true
     }
 }

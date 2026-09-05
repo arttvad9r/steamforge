@@ -7,9 +7,24 @@ import org.junit.Test
 class InterstitialSessionPolicyTest {
 
     @Test
-    fun `cadence schedules first interstitial at minimum then configured interval`() {
+    fun `default ads config keeps advertising globally disabled`() {
+        val cfg = AdsConfig()
+        val policy = InterstitialSessionPolicy(cfg)
+
+        repeat(10) { policy.onGameFinished() }
+
+        assertFalse(cfg.enabled)
+        assertFalse(policy.shouldAttemptInterstitial())
+    }
+
+    @Test
+    fun `cadence schedules first interstitial at minimum then configured interval when explicitly enabled`() {
         val policy = InterstitialSessionPolicy(
-            AdsConfig(interstitialMinGames = 3, interstitialEveryGames = 5),
+            AdsConfig(
+                enabled = true,
+                interstitialMinGames = 3,
+                interstitialEveryGames = 5,
+            ),
         )
 
         repeat(2) {
@@ -33,7 +48,11 @@ class InterstitialSessionPolicyTest {
     @Test
     fun `missing loaded ad does not consume pending natural pause`() {
         val policy = InterstitialSessionPolicy(
-            AdsConfig(interstitialMinGames = 1, interstitialEveryGames = 5),
+            AdsConfig(
+                enabled = true,
+                interstitialMinGames = 1,
+                interstitialEveryGames = 5,
+            ),
         )
 
         policy.onGameFinished()
@@ -45,7 +64,11 @@ class InterstitialSessionPolicyTest {
     @Test
     fun `rewarded suppresses exactly one interstitial opportunity without losing pending`() {
         val policy = InterstitialSessionPolicy(
-            AdsConfig(interstitialMinGames = 1, interstitialEveryGames = 5),
+            AdsConfig(
+                enabled = true,
+                interstitialMinGames = 1,
+                interstitialEveryGames = 5,
+            ),
         )
 
         policy.onGameFinished()
@@ -58,7 +81,11 @@ class InterstitialSessionPolicyTest {
     @Test
     fun `failed interstitial show restores pending moment`() {
         val policy = InterstitialSessionPolicy(
-            AdsConfig(interstitialMinGames = 1, interstitialEveryGames = 5),
+            AdsConfig(
+                enabled = true,
+                interstitialMinGames = 1,
+                interstitialEveryGames = 5,
+            ),
         )
 
         policy.onGameFinished()
@@ -74,6 +101,7 @@ class InterstitialSessionPolicyTest {
     fun `disabled interstitial never becomes eligible to show`() {
         val policy = InterstitialSessionPolicy(
             AdsConfig(
+                enabled = true,
                 interstitialMinGames = 1,
                 interstitialEveryGames = 1,
                 interstitialEnabled = false,

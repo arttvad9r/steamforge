@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.min
 
 data class AdsConfig(
+    /** Master switch. Keep the integration compiled, but do not initialize, load or show ads while false. */
+    val enabled: Boolean = false,
     val interstitialMinGames: Int = 3,
     val interstitialEveryGames: Int = 5,
     val rewardedEnabled: Boolean = true,
@@ -40,6 +42,8 @@ class AdsManager(
     private val cfg: AdsConfig = AdsConfig(),
     private val isDebug: Boolean = false,
 ) {
+    val enabled: Boolean get() = cfg.enabled
+
     private var initialized = false
     private val handler = Handler(Looper.getMainLooper())
     private val interstitialPolicy = InterstitialSessionPolicy(cfg)
@@ -61,7 +65,7 @@ class AdsManager(
     private var interstitialRetryScheduled = false
 
     fun init(context: Context, userConsent: Boolean) {
-        if (initialized) return
+        if (!cfg.enabled || initialized) return
         initialized = true
         runCatching {
             YandexAds.setUserConsent(userConsent)
@@ -86,7 +90,7 @@ class AdsManager(
     }
 
     fun showRewarded(activity: Activity, onReward: () -> Unit) {
-        if (rewardedShowing) return
+        if (!cfg.enabled || rewardedShowing) return
         val ad = rewardedAd ?: return
         rewardedShowing = true
         _rewardedReady.value = false
@@ -119,13 +123,14 @@ class AdsManager(
 
     /** Отмечает рекламный момент; если ad ещё не загружен, момент сохраняется до следующей естественной паузы. */
     fun onGameFinished() {
+        if (!cfg.enabled) return
         interstitialPolicy.onGameFinished()
         if (rewardedAd == null) loadRewarded()
         if (interstitialAd == null) loadInterstitial()
     }
 
     fun maybeShowInterstitial(activity: Activity) {
-        if (interstitialShowing) return
+        if (!cfg.enabled || interstitialShowing) return
         // Никогда не ставим interstitial сразу после rewarded на одном и том же result screen.
         if (!interstitialPolicy.shouldAttemptInterstitial()) return
         val ad = interstitialAd ?: run {
@@ -177,7 +182,7 @@ class AdsManager(
     }
 
     private fun loadRewarded() {
-        if (!initialized || rewardedAd != null || rewardedLoading || rewardedShowing) return
+        if (!cfg.enabled || !initialized || rewardedAd != null || rewardedLoading || rewardedShowing) return
         val loader = rewardedLoader ?: return
         val id = rewardedId()
         if (id.isBlank()) return
@@ -212,7 +217,7 @@ class AdsManager(
     }
 
     private fun loadInterstitial() {
-        if (!initialized || interstitialAd != null || interstitialLoading || interstitialShowing) return
+        if (!cfg.enabled || !initialized || interstitialAd != null || interstitialLoading || interstitialShowing) return
         val loader = interstitialLoader ?: return
         val id = interstitialId()
         if (id.isBlank()) return
@@ -245,7 +250,7 @@ class AdsManager(
     }
 
     private fun scheduleRewardedRetry() {
-        if (!initialized || rewardedRetryScheduled || rewardedId().isBlank()) return
+        if (!cfg.enabled || !initialized || rewardedRetryScheduled || rewardedId().isBlank()) return
         rewardedRetryScheduled = true
         val delayMs = retryDelayMs(rewardedRetryAttempt++)
         handler.postDelayed({
@@ -255,7 +260,7 @@ class AdsManager(
     }
 
     private fun scheduleInterstitialRetry() {
-        if (!initialized || interstitialRetryScheduled || interstitialId().isBlank()) return
+        if (!cfg.enabled || !initialized || interstitialRetryScheduled || interstitialId().isBlank()) return
         interstitialRetryScheduled = true
         val delayMs = retryDelayMs(interstitialRetryAttempt++)
         handler.postDelayed({
