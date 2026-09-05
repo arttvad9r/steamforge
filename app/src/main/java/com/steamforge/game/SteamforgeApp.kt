@@ -14,6 +14,7 @@ import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,8 +41,15 @@ class AppContainer(context: Context) {
 
     init {
         appScope.launch {
-            // A network/cache failure must never make startup depend on connectivity.
-            runCatching { remoteConfig.refresh() }
+            // A network/cache failure must never make startup depend on connectivity, while
+            // structured-concurrency cancellation must still propagate normally.
+            try {
+                remoteConfig.refresh()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Provider keeps the compiled local snapshot active.
+            }
         }
         appScope.launch {
             repo.progress
