@@ -2,6 +2,11 @@ package com.steamforge.game.ui.contracts
 
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.config.RemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigRefreshResult
+import com.steamforge.game.config.RemoteConfigSnapshot
+import com.steamforge.game.config.RemoteConfigSource
+import com.steamforge.game.config.RemoteGameConfig
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.ContractCounters
@@ -11,8 +16,12 @@ import com.steamforge.game.progression.ContractReward
 import com.steamforge.game.progression.ContractType
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.PlayerProgress
+import com.steamforge.game.progression.scaledWorkshopParts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -33,6 +42,18 @@ class ContractsAnalyticsTest {
         override fun logEvent(name: String, params: Map<String, Any?>) {
             events += name to params
         }
+    }
+
+    private class FixedRemoteConfigProvider(config: RemoteGameConfig) : RemoteConfigProvider {
+        override val snapshot: StateFlow<RemoteConfigSnapshot> = MutableStateFlow(
+            RemoteConfigSnapshot(
+                config = config.sanitized(),
+                source = RemoteConfigSource.REMOTE,
+                revision = "test",
+            ),
+        )
+
+        override suspend fun refresh(): RemoteConfigRefreshResult = RemoteConfigRefreshResult.UPDATED
     }
 
     @Before
@@ -92,6 +113,63 @@ class ContractsAnalyticsTest {
         assertEquals(reward.amount, params["amount"])
         assertEquals(initialBalance + reward.amount, params["balance_after"])
         assertEquals(initialBalance + reward.amount, repo.currentProgress.workshopParts)
+    }
+
+    @Test
+    fun `remote multiplier matches displayed claimed and analytics reward`() = runTest(dispatcher) {
+        val (day, contract) = findWorkshopPartsContract()
+        val multiplier = 1.5
+        val effectiveReward = contract.reward.scaledWorkshopParts(multiplier) as ContractReward.WorkshopParts
+        val initialBalance = 13
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(
+                workshopParts = initialBalance,
+                contracts = ContractLedger(day = day, totals = completedCounters(contract)),
+            ),
+        )
+        val analytics = RecordingAnalytics()
+        val provider = FixedRemoteConfigProvider(
+            RemoteGameConfig(contractRewardMultiplier = multiplier),
+        )
+        val vm = ContractsViewModel(
+            repo = repo,
+            remoteConfigProvider = provider,
+            today = { day },
+            analytics = analytics,
+        )
+        backgroundScope.launch { vm.ui.collect {} }
+        advanceUntilIdle()
+
+        val displayed = vm.ui.value.items.single { it.def.id == contract.id }.def.reward
+            as ContractReward.WorkshopParts
+        assertEquals(effectiveReward.amount, displayed.amount)
+
+        vm.claim(contract.id)
+        advanceUntilIdle()
+
+        assertEquals(initialBalance + effectiveReward.amount, repo.currentProgress.workshopParts)
+
+        val completedParams = analytics.events
+            .single { it.first == AnalyticsEvents.CONTRACT_COMPLETED }
+            .second
+        assertEquals("workshop_parts", completedParams["reward_type"])
+        assertEquals(effectiveReward.amount, completedParams["reward_amount"])
+
+        val economyParams = analytics.events
+            .single { it.first == AnalyticsEvents.RESOURCE_EARNED }
+            .second
+        assertEquals(effectiveReward.amount, economyParams["amount"])
+        assertEquals(initialBalance + effectiveReward.amount, economyParams["balance_after"])
+    }
+
+    @Test
+    fun `blueprint reward identity stays unchanged while fallback parts scale`() {
+        val reward = ContractReward.BlueprintPiece(collectionId = "steam_engine", fallbackParts = 10)
+
+        val scaled = reward.scaledWorkshopParts(1.5) as ContractReward.BlueprintPiece
+
+        assertEquals(reward.collectionId, scaled.collectionId)
+        assertEquals(15, scaled.fallbackParts)
     }
 
     @Test

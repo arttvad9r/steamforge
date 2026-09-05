@@ -1,6 +1,7 @@
 package com.steamforge.game.progression
 
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 enum class ContractType {
@@ -36,6 +37,19 @@ sealed interface ContractReward {
         val collectionId: String,
         val fallbackParts: Int,
     ) : ContractReward
+}
+
+fun ContractReward.scaledWorkshopParts(multiplier: Double): ContractReward {
+    val safeMultiplier = if (multiplier.isFinite() && multiplier in 0.25..4.0) multiplier else 1.0
+    fun scaled(amount: Int): Int =
+        (amount.coerceAtLeast(1).toDouble() * safeMultiplier)
+            .roundToInt()
+            .coerceAtLeast(1)
+
+    return when (this) {
+        is ContractReward.WorkshopParts -> copy(amount = scaled(amount))
+        is ContractReward.BlueprintPiece -> copy(fallbackParts = scaled(fallbackParts))
+    }
 }
 
 data class ContractDef(
@@ -212,13 +226,19 @@ object DailyContracts {
      * Атомарно вызывается внутри DataRepo.updateProgress. Награда всегда проходит через RewardSystem,
      * а claimedIds делает повторный tap безопасным и идемпотентным.
      */
-    fun claim(progress: PlayerProgress, day: Long, contractId: String): PlayerProgress {
+    fun claim(
+        progress: PlayerProgress,
+        day: Long,
+        contractId: String,
+        workshopPartsMultiplier: Double = 1.0,
+    ): PlayerProgress {
         val ledger = normalized(progress.contracts, day)
         val blueprintAvailable = !BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
         val contract = forEpochDay(day, blueprintAvailable).firstOrNull { it.id == contractId } ?: return progress
         if (contract.id in ledger.claimedIds || !isComplete(contract, ledger)) return progress
 
-        val reward = when (val value = contract.reward) {
+        val effectiveReward = contract.reward.scaledWorkshopParts(workshopPartsMultiplier)
+        val reward = when (val value = effectiveReward) {
             is ContractReward.WorkshopParts -> Reward.WorkshopParts(value.amount)
             is ContractReward.BlueprintPiece -> {
                 val piece = BlueprintCollections.nextMissingPiece(value.collectionId, progress.blueprintPieces)
