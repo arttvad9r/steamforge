@@ -1,8 +1,10 @@
 # Steamforge 1.0 — release status
 
-**Актуализировано:** 03.09.2026.
+**Актуализировано:** 05.09.2026.
 
 Этот файл фиксирует фактическое состояние первого релиза в `master`. Product roadmap и поздние feature-ветки находятся отдельно; наличие старого PR не означает, что функция входит в V1 baseline.
+
+> **Advertising decision:** Steamforge является no-ads продуктом. Реклама и её разработка заморожены согласно `docs/ADR_0001_NO_ADS.md`. Старый Yandex Ads код не является release requirement или будущей задачей и не должен возвращаться в работу без отдельного ADR, явно отменяющего ADR 0001.
 
 ## Consolidated baseline
 
@@ -12,8 +14,9 @@
 - Android CI для обычных и stacked pull requests;
 - Android 17 / API 37 + 16 KiB runtime smoke;
 - release AAB build и structural validation;
-- `GameSaveCodec` v4 с backward read старых форматов;
+- `GameSaveCodec` v5 с backward read старых форматов;
 - deterministic replayable RNG и сохранение session counters;
+- stable analytics `run_id` для normal/daily run funnel и process-death correlation;
 - low-storage active-run autosave recovery;
 - terminal Game Over persistence recovery с retry того же result ID и идемпотентным `applyGameFinish`;
 - process recreation smoke через production UI и `am force-stop`;
@@ -29,8 +32,12 @@
 - отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape;
 - large-font Accessibility UI Smoke: production Home/Game при font scale 1.3, critical touch targets не меньше 48dp и runtime bounds внутри display;
 - curated V1 visual clean pass: спокойные Workshop/Achievements/Settings surfaces и выборочно адаптированный gameplay chrome без отката поздних contrast/input/feedback/adaptive fixes;
-- Home как Navigation3 root с одним Play/Continue CTA и отдельными входами в Workshop, Daily, Contracts, Collection и Settings;
-- ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave и атомарные идемпотентные gem claims.
+- Home как Navigation3 root с одним Play/Continue CTA и progressive disclosure новых meta-систем для первого пользователя;
+- first-run gameplay onboarding: hint первого swipe → merge → дальнейшая свободная игра;
+- ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave, атомарные идемпотентные gem claims и сфокусированный первый onboarding Contract;
+- Blueprint Collection с первой коллекцией Steam Engine;
+- детерминированный core-balance simulation baseline для измеримого difficulty/spawn tuning;
+- typed `game_restarted` telemetry для явного restart незавершённого run без загрязнения Play Again после Game Over.
 
 Полный branch decision log: `docs/BRANCH_AUDIT_2026-09-01.md`.
 
@@ -42,10 +49,9 @@
 - Transient/low-storage `IOException` обычной autosave не уничтожает текущую in-memory партию; следующая успешная autosave догоняет durable state.
 - Terminal finish хранит один pending result; retry использует тот же result ID и не должен повторно начислять progression/reward.
 - Ambiguous terminal I/O после фактического commit восстанавливает persisted finish effects вместо повторного начисления.
-- Save codec v4 сохраняет board/meta/RNG + session statistics и читает старые форматы.
+- Save codec v5 сохраняет board/meta/RNG + session statistics + analytics run ID и читает старые форматы.
 - Home является production root; незавершённая normal run возвращается через `ПРОДОЛЖИТЬ`.
 - Contracts имеют отдельный экран и persistent daily ledger; progress записывается внутри существующих save/finish транзакций без второго DataStore write на каждый swipe.
-- Rewarded x2 защищён от повторной выдачи по `gameResultId`.
 - Daily reward защищён по `epochDay`.
 - Android CI проверяет unit tests, `lintDebug`, `lintRelease`, debug/release APK, Macrobenchmark compile, 16 KiB APK, `bundleRelease` и структуру release AAB.
 - Release AAB gate требует один непустой `.aab`, валидный ZIP, base manifest/resources и DEX payload.
@@ -55,7 +61,7 @@
 - Frame Timing Diagnostic Smoke исполняет release-like dense-merge workload на hosted emulator; physical-device `FrameTimingMetric` остаётся обязательным для performance acceptance.
 - Adaptive Gameplay Window Smoke проверяет production gameplay bounds на трёх window shapes.
 - Accessibility UI Smoke запускает production app на API 36 при font scale 1.3, проходит Privacy → Home → Game и проверяет runtime touch geometry критичных controls, включая Undo/Wrench, а также board tile bounds.
-- Yandex Mobile Ads automatic initialization отключён в manifest; analytics/ads flow контролируется privacy decision.
+- Yandex Mobile Ads automatic initialization отключён в manifest; существующая legacy integration не является активной продуктовой функцией и не должна расширяться по ADR 0001.
 - Release signing/preflight tooling существует.
 - `targetSdk = 36`, `compileSdk = 36`, `minSdk = 24`, JDK 17.
 - Package ID: `com.steamforge.game`.
@@ -74,7 +80,7 @@ Baseline проверяет:
 6. terminal finish retry/idempotency при I/O failure;
 7. network-off startup (`airplane_mode_on=1`, outbound ping недоступен) → offline `ПРОДОЛЖИТЬ` → реальный swipe/autosave → повторный offline process recreation с точным восстановлением нового durable board state.
 
-Interrupted rewarded/interstitial уже после показа остаётся отдельным manual real-device release gate; offline lifecycle smoke не считается его заменой.
+Rewarded/interstitial lifecycle больше не является release gate: advertising product work заморожен ADR 0001.
 
 При изменениях persistence/navigation/game UI эти workflows должны снова проходить на новом `master` head.
 
@@ -154,13 +160,13 @@ Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
 Обязательные значения вне git:
 
 - `steamforge.appmetricaApiKey`;
-- `steamforge.rewardedAdUnitId`;
-- `steamforge.interstitialAdUnitId`;
 - публичный HTTPS Privacy Policy URL (`steamforge.privacyPolicyUrl`);
 - owner/legal name для Privacy Policy;
 - support/privacy e-mail;
 - release keystore + passwords;
 - минимум две независимые backup-копии release key.
+
+Ad unit IDs не являются production requirements и не должны запрашиваться/добавляться, пока ADR 0001 активен.
 
 Секреты и keystore в git не коммитятся.
 
@@ -170,28 +176,28 @@ Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
 2. Выполнить physical-device Macrobenchmark и сохранить реальные frame-timing результаты.
 3. Опубликовать Privacy Policy по постоянному HTTPS URL.
 4. Подключить production keystore и проверить backups.
-5. Добавить локально production AppMetrica/Yandex Ads IDs и Privacy Policy URL.
+5. Добавить локально production AppMetrica key и Privacy Policy URL. Не добавлять ad unit IDs.
 6. Запустить `bash tools/build-rustore-release.sh`.
 7. Использовать только `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
-8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, rewarded, interstitial, reset progress, offline, Privacy Policy, TalkBack/large text spot-check.
-9. Проверить AppMetrica до/после consent и production ad placements.
+8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, Contracts, Workshop/Collection access, reset progress, offline, Privacy Policy, TalkBack/large text spot-check.
+9. Проверить AppMetrica до/после consent и убедиться, что рекламные поверхности не появляются и рекламная инициализация не является частью release flow.
 10. Повторно сверить SHA-256 и загрузить проверенный APK + утверждённые store assets.
 11. Для первого релиза использовать ручную публикацию после модерации.
 
 ## Не входят в текущий V1 baseline
 
-Следующие старые stacked PR существуют в истории, но пока не считаются частью consolidated V1 `master`:
+Следующие старые stacked PR/идеи существуют в истории, но пока не считаются частью consolidated V1 `master`:
 
-- Blueprint Collection;
 - Weekly Challenge;
 - forgiving streak extension;
 - generic LiveOps framework;
-- onboarding redesign;
 - Remote Config;
 - seasonal/event presentation;
 - tile milestone reveals;
-- Remove Ads / paid cosmetics;
+- paid cosmetics / non-ad store work;
 - Reward Track / Season Pass readiness;
 - rotating events и retention funnel extensions.
+
+`Remove Ads`, rewarded/interstitial placements и другая реклама не являются «неперенесёнными» feature-ветками: они исключены продуктовым решением ADR 0001.
 
 Их перенос должен быть отдельными читаемыми commits/PR поверх текущего `master`, а не raw merge старого cumulative integration branch.
