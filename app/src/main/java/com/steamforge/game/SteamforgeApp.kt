@@ -6,11 +6,15 @@ import android.content.pm.ApplicationInfo
 import com.steamforge.game.analytics.AppMetricaAnalytics
 import com.steamforge.game.analytics.MutableAnalytics
 import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.config.CachingRemoteConfigProvider
+import com.steamforge.game.config.HttpsRemoteConfigFetcher
 import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
+import com.steamforge.game.config.PreferencesRemoteConfigCache
 import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,7 +33,7 @@ class AppContainer(context: Context) {
 
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
     val ads = AdsManager(analytics, isDebug = isDebug)
-    val remoteConfig: RemoteConfigProvider = LocalDefaultRemoteConfigProvider()
+    val remoteConfig: RemoteConfigProvider = createRemoteConfigProvider(appContext)
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false
@@ -37,8 +41,15 @@ class AppContainer(context: Context) {
 
     init {
         appScope.launch {
-            // A future network-backed provider must never make startup depend on connectivity.
-            runCatching { remoteConfig.refresh() }
+            // A network/cache failure must never make startup depend on connectivity, while
+            // structured-concurrency cancellation must still propagate normally.
+            try {
+                remoteConfig.refresh()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Provider keeps the compiled local snapshot active.
+            }
         }
         appScope.launch {
             repo.progress
@@ -78,6 +89,16 @@ class AppContainer(context: Context) {
         appOpenLogged = true
         analytics.logEvent("app_open")
     }
+}
+
+private fun createRemoteConfigProvider(context: Context): RemoteConfigProvider {
+    val endpoint = BuildConfig.REMOTE_CONFIG_URL.trim()
+    if (endpoint.isBlank()) return LocalDefaultRemoteConfigProvider()
+
+    return CachingRemoteConfigProvider(
+        cache = PreferencesRemoteConfigCache(context),
+        fetcher = HttpsRemoteConfigFetcher(endpoint),
+    )
 }
 
 class SteamforgeApp : Application() {

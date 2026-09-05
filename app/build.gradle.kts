@@ -64,6 +64,7 @@ android {
 
         buildConfigField("String", "APPMETRICA_API_KEY", prop("steamforge.appmetricaApiKey", ""))
         buildConfigField("String", "PRIVACY_POLICY_URL", prop("steamforge.privacyPolicyUrl", ""))
+        buildConfigField("String", "REMOTE_CONFIG_URL", prop("steamforge.remoteConfigUrl", ""))
     }
 
     buildTypes {
