@@ -157,6 +157,17 @@ jobs:
             return 1
           }
 
+          assert_text_absent() {
+            local needle="$1"
+            local label="$2"
+            dump_ui "$label"
+            if grep -Fqi "$needle" /tmp/window.xml; then
+              echo "Unexpected text found: $needle"
+              cat /tmp/window.xml
+              return 1
+            fi
+          }
+
           wait_for_home() {
             local label="$1"
             for i in $(seq 1 15); do
@@ -202,13 +213,6 @@ jobs:
             else
               tap_node 'ИГРАТЬ' "${label}-play"
             fi
-          }
-
-          open_collection() {
-            local label="$1"
-            wait_for_text 'Коллекция' "$label"
-            tap_node 'Коллекция' "${label}-collection"
-            wait_for_text 'ПРОГРЕСС' "${label}-achievements"
           }
 
           open_settings() {
@@ -262,6 +266,10 @@ jobs:
           if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
           wait_for_home '01-home-window'
           shot '01-home.png'
+          assert_text_absent 'Мастерская' '01-home-no-workshop'
+          assert_text_absent 'Контракты' '01-home-no-contracts'
+          assert_text_absent 'Испытание дня' '01-home-no-daily'
+          assert_text_absent 'Коллекция' '01-home-no-collection'
 
           play_from_home '01-home-play'
           wait_for_tile '02-game-window'
@@ -269,12 +277,11 @@ jobs:
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           wait_for_home '02-back-to-home-window'
-
-          open_collection '03-home'
-          shot '03-achievements.png'
-          adb shell input keyevent KEYCODE_BACK
-          sleep 2
-          wait_for_home '03-back-to-home-window'
+          assert_text_absent 'Мастерская' '02-home-no-workshop'
+          assert_text_absent 'Контракты' '02-home-no-contracts'
+          assert_text_absent 'Испытание дня' '02-home-no-daily'
+          assert_text_absent 'Коллекция' '02-home-no-collection'
+          shot '03-first-run-home.png'
 
           open_settings '04-home'
           shot '04-settings.png'
