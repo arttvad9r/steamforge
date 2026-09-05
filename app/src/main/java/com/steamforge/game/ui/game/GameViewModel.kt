@@ -2,6 +2,8 @@ package com.steamforge.game.ui.game
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.steamforge.game.GameRunMode
+import com.steamforge.game.GameRunPolicies
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.analytics.AnalyticsEvents
 import com.steamforge.game.analytics.GameMoveAnalytics
@@ -25,6 +27,8 @@ import com.steamforge.game.progression.FinishEffects
 import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
+import com.steamforge.game.progression.WeeklyChallenge
+import com.steamforge.game.progression.WeeklyChallenges
 import com.steamforge.game.progression.applyGameFinished
 import java.io.IOException
 import java.util.UUID
@@ -74,18 +78,30 @@ class GameViewModel(
     private val repo: DataRepo,
     private val analytics: Analytics,
     private val cfg: ProgressionConfig = ProgressionConfig(),
-    private val dailyMode: Boolean = false,
+    dailyMode: Boolean = false,
+    private val runMode: GameRunMode = if (dailyMode) GameRunMode.DAILY else GameRunMode.NORMAL,
     private val dailyProvider: () -> DailyChallenge? = { null },
+    private val weeklyProvider: () -> WeeklyChallenge = { WeeklyChallenges.forUtcMillis() },
     private val seedProvider: () -> Long = { System.currentTimeMillis() },
     private val savedGameProvider: suspend () -> SavedGame? = { repo.savedGame.first() },
     private val systemAnimationsEnabled: Boolean = true,
     private val ads: AdsManager? = null,
 ) : ViewModel() {
 
+    private val dailyMode = runMode == GameRunMode.DAILY
     private val engine = GameEngine()
     private val daily = if (dailyMode) dailyProvider() else null
-    private var sessionSeed: Long? = if (dailyMode) daily?.seed else null
-    private var rng = ReplayableRandom(if (dailyMode) daily?.seed ?: 0L else seedProvider())
+    private val weekly = if (runMode == GameRunMode.WEEKLY) weeklyProvider() else null
+    private val policy = weekly?.let { GameRunPolicies.resolve(runMode, it.rules) }
+        ?: GameRunPolicies.resolve(runMode)
+    private var sessionSeed: Long? = when (runMode) {
+        GameRunMode.NORMAL -> null
+        GameRunMode.DAILY -> daily?.seed
+        GameRunMode.WEEKLY -> weekly?.seed
+    }
+    private var rng = ReplayableRandom(
+        sessionSeed ?: if (runMode == GameRunMode.NORMAL) seedProvider() else 0L,
+    )
     private var dailyCompletedToday = false
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -98,7 +114,12 @@ class GameViewModel(
     private var rewardedOfferLoggedResultId: String? = null
     private var runAnalyticsId: String? = null
 
-    private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
+    private val _ui = MutableStateFlow(
+        GameUiState(
+            freeUndosLeft = if (policy.allowUndo) cfg.freeUndosPerGame else 0,
+            daily = daily,
+        ),
+    )
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
 
     private var undoSnapshot: UndoSnapshot? = null
@@ -124,11 +145,16 @@ class GameViewModel(
     init {
         viewModelScope.launch {
             val record = runCatching { repo.finishedGame.first() }.getOrNull()
-            if (record != null && record.day == LocalDay.todayEpochDay() && record.daily == dailyMode) {
+            if (
+                policy.restoreFinishedResult &&
+                record != null &&
+                record.day == LocalDay.todayEpochDay() &&
+                record.daily == dailyMode
+            ) {
                 restoreFinished(record)
             } else {
                 val restored = runCatching { savedGameProvider() }.getOrNull()
-                if (!dailyMode && restored != null) {
+                if (policy.persistActiveRun && restored != null) {
                     sessionSeed = restored.seed ?: seedProvider()
                     runAnalyticsId = restored.analyticsRunId ?: legacyNormalRunAnalyticsId(sessionSeed)
                     rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
@@ -168,10 +194,12 @@ class GameViewModel(
                 }
             }
         }
-        ads?.let { manager ->
-            viewModelScope.launch {
-                manager.rewardedReady.collect { ready ->
-                    if (ready) logRewardedOfferIfVisible()
+        if (policy.grantProgressionOnFinish) {
+            ads?.let { manager ->
+                viewModelScope.launch {
+                    manager.rewardedReady.collect { ready ->
+                        if (ready) logRewardedOfferIfVisible()
+                    }
                 }
             }
         }
@@ -189,7 +217,7 @@ class GameViewModel(
                 effects = record.toEffects(),
                 state = restoredState?.state ?: GameState(score = record.score),
                 winCelebrated = record.maxTileLevel >= GameRules().winLevel,
-                freeUndosLeft = cfg.freeUndosPerGame,
+                freeUndosLeft = if (policy.allowUndo) cfg.freeUndosPerGame else 0,
                 finishPersistenceInProgress = false,
                 finishPersistenceFailed = false,
             )
@@ -209,40 +237,50 @@ class GameViewModel(
     fun onMove(move: Move) {
         val s = _ui.value
         if (s.finished || s.removingMode || finishStarted) return
-        val snapshot = UndoSnapshot(
-            state = s.state,
-            pressure = s.pressure,
-            overdriveRemaining = s.overdriveRemaining,
-            rngDraws = rng.draws,
-            mergesTotal = s.mergesTotal,
-            maxMergesInOneMove = s.maxMergesInOneMove,
-            overdrivesSession = s.overdrivesSession,
-            undosSession = s.undosSession,
-            highMergesSession = s.highMergesSession,
-        )
-        val multiplier = if (s.overdriveRemaining > 0) cfg.overdriveMultiplier else 1
+        val snapshot = if (policy.allowUndo) {
+            UndoSnapshot(
+                state = s.state,
+                pressure = s.pressure,
+                overdriveRemaining = s.overdriveRemaining,
+                rngDraws = rng.draws,
+                mergesTotal = s.mergesTotal,
+                maxMergesInOneMove = s.maxMergesInOneMove,
+                overdrivesSession = s.overdrivesSession,
+                undosSession = s.undosSession,
+                highMergesSession = s.highMergesSession,
+            )
+        } else {
+            null
+        }
+        val multiplier = if (policy.allowOverdrive && s.overdriveRemaining > 0) {
+            cfg.overdriveMultiplier
+        } else {
+            1
+        }
         val result = engine.applyMove(s.state, move, rng, multiplier)
         if (!result.moved) return
 
         GameMoveAnalytics.eventsFor(
             result = result,
             previousMaxLevel = s.state.maxLevel,
-            daily = dailyMode,
+            mode = runMode,
         ).forEach { event -> analytics.log(event) }
 
-        var pressure = s.pressure
-        var overdrive = s.overdriveRemaining
-        var overdrives = s.overdrivesSession
+        var pressure = if (policy.allowOverdrive) s.pressure else 0
+        var overdrive = if (policy.allowOverdrive) s.overdriveRemaining else 0
+        var overdrives = if (policy.allowOverdrive) s.overdrivesSession else 0
 
-        if (overdrive > 0) {
-            overdrive = (overdrive - result.merges.size).coerceAtLeast(0)
-        } else {
-            pressure += result.merges.sumOf { cfg.pressureGainForMerge(it.tile.level) }
-            if (pressure >= cfg.pressureMax) {
-                pressure = 0
-                overdrive = cfg.overdriveMerges
-                overdrives++
-                analytics.logEvent("overdrive_activated")
+        if (policy.allowOverdrive) {
+            if (overdrive > 0) {
+                overdrive = (overdrive - result.merges.size).coerceAtLeast(0)
+            } else {
+                pressure += result.merges.sumOf { cfg.pressureGainForMerge(it.tile.level) }
+                if (pressure >= cfg.pressureMax) {
+                    pressure = 0
+                    overdrive = cfg.overdriveMerges
+                    overdrives++
+                    analytics.logEvent("overdrive_activated")
+                }
             }
         }
 
@@ -261,7 +299,7 @@ class GameViewModel(
                 overdrivesSession = overdrives,
                 highMergesSession = it.highMergesSession + highMerges,
                 winCelebrated = it.winCelebrated || result.state.won,
-                canUndo = true,
+                canUndo = policy.allowUndo,
             )
         }
         undoSnapshot = snapshot
@@ -271,6 +309,7 @@ class GameViewModel(
     }
 
     fun undo() {
+        if (!policy.allowUndo) return
         val s = _ui.value
         val snap = undoSnapshot ?: return
         if (s.finished || s.removingMode || finishStarted) return
@@ -307,6 +346,7 @@ class GameViewModel(
     }
 
     fun toggleRemovingMode() {
+        if (!policy.allowWrench) return
         val s = _ui.value
         if (finishStarted || s.finished) return
         if (s.removingMode) {
@@ -318,6 +358,7 @@ class GameViewModel(
     }
 
     fun canRemoveTile(tile: Tile): Boolean {
+        if (!policy.allowWrench) return false
         val s = _ui.value
         return !finishStarted &&
             !s.finished &&
@@ -327,6 +368,7 @@ class GameViewModel(
     }
 
     fun removeTile(tile: Tile) {
+        if (!policy.allowWrench) return
         val s = _ui.value
         if (finishStarted || s.finished || !s.removingMode) return
         if (!canRemoveTile(tile)) return
@@ -352,7 +394,7 @@ class GameViewModel(
         val s = _ui.value
         if (finishStarted && !s.finished) return
         if (s.finished) {
-            writesScope.launch { repo.clearFinishedGame() }
+            if (policy.restoreFinishedResult) writesScope.launch { repo.clearFinishedGame() }
         } else {
             analytics.log(
                 AnalyticsEvents.gameRestarted(
@@ -360,7 +402,7 @@ class GameViewModel(
                     score = s.state.score,
                     maxTile = if (s.state.maxLevel > 0) 1 shl s.state.maxLevel else 0,
                     moves = s.state.moves,
-                    daily = dailyMode,
+                    mode = runMode,
                 ),
             )
         }
@@ -368,15 +410,18 @@ class GameViewModel(
     }
 
     /**
-     * Выход не является завершением партии и не выдаёт XP. Обычная партия сохраняется для продолжения,
-     * Daily-попытка просто закрывается. Если Game Over уже фиксируется, результат удалится после транзакции.
+     * Выход не является завершением партии и не выдаёт XP. Только NORMAL-партия сохраняется для
+     * продолжения; DAILY/WEEKLY закрываются без active-save. Если persisted finish уже фиксируется,
+     * результат удалится после транзакции только для режимов, которые таким результатом владеют.
      */
     fun exit() {
         if (_ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
         if (_ui.value.finished || finishStarted) {
             discardFinishedRecord = true
-            if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
-        } else if (!dailyMode) {
+            if (_ui.value.finished && policy.restoreFinishedResult) {
+                writesScope.launch { repo.clearFinishedGame() }
+            }
+        } else if (policy.persistActiveRun) {
             persistGame()
         }
     }
@@ -392,7 +437,11 @@ class GameViewModel(
         finishWriteInFlight = false
         finishPersistenceHadIoFailure = false
         rewardedOfferLoggedResultId = null
-        sessionSeed = if (dailyMode) daily?.seed else seedProvider()
+        sessionSeed = when (runMode) {
+            GameRunMode.NORMAL -> seedProvider()
+            GameRunMode.DAILY -> daily?.seed
+            GameRunMode.WEEKLY -> weekly?.seed
+        }
         runAnalyticsId = createRunAnalyticsId()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
@@ -407,7 +456,7 @@ class GameViewModel(
                 gameResultId = null,
                 rewardDoubled = false,
                 effects = null,
-                freeUndosLeft = cfg.freeUndosPerGame,
+                freeUndosLeft = if (policy.allowUndo) cfg.freeUndosPerGame else 0,
                 winBannerShown = false,
                 lastResult = null,
                 previousTiles = emptyList(),
@@ -424,14 +473,14 @@ class GameViewModel(
         analytics.log(
             AnalyticsEvents.gameStarted(
                 runId = currentRunAnalyticsId(),
-                daily = dailyMode,
+                mode = runMode,
                 dailyType = daily?.type?.name,
             ),
         )
         if (dailyMode) {
             daily?.let { analytics.logEvent("daily_started", mapOf("daily_type" to it.type.name)) }
         }
-        if (!dailyMode) persistGame()
+        persistGame()
     }
 
     private fun checkDailyGoal(state: GameState) {
@@ -466,9 +515,14 @@ class GameViewModel(
             it.copy(
                 canUndo = false,
                 removingMode = false,
-                finishPersistenceInProgress = true,
+                finishPersistenceInProgress = policy.grantProgressionOnFinish,
                 finishPersistenceFailed = false,
             )
+        }
+
+        if (!policy.grantProgressionOnFinish) {
+            finishCompetitiveGame(s)
+            return
         }
 
         val summary = GameSummary(
@@ -508,6 +562,33 @@ class GameViewModel(
         )
         pendingFinish = PendingFinish(record = record, summary = summary, day = today)
         persistPendingFinish()
+    }
+
+    private fun finishCompetitiveGame(s: GameUiState) {
+        pendingFinish = null
+        finishWriteInFlight = false
+        finishPersistenceHadIoFailure = false
+        _ui.update {
+            it.copy(
+                finished = true,
+                effects = null,
+                gameResultId = null,
+                rewardDoubled = false,
+                removingMode = false,
+                canUndo = false,
+                finishPersistenceInProgress = false,
+                finishPersistenceFailed = false,
+            )
+        }
+        analytics.log(
+            AnalyticsEvents.gameFinished(
+                runId = currentRunAnalyticsId(),
+                score = s.state.score,
+                maxTile = if (s.state.maxLevel > 0) 1 shl s.state.maxLevel else 0,
+                moves = s.state.moves,
+                mode = runMode,
+            ),
+        )
     }
 
     fun retryFinishPersistence() {
@@ -575,7 +656,7 @@ class GameViewModel(
                         score = pending.summary.score,
                         maxTile = 1 shl pending.summary.maxTileLevel,
                         moves = pending.summary.moves,
-                        daily = pending.summary.daily,
+                        mode = runMode,
                     ),
                 )
             } catch (_: IOException) {
@@ -637,7 +718,7 @@ class GameViewModel(
     }
 
     private fun createRunAnalyticsId(): String =
-        (if (dailyMode) "daily-" else "normal-") + UUID.randomUUID().toString()
+        "${runMode.wireName}-" + UUID.randomUUID().toString()
 
     private fun currentRunAnalyticsId(): String =
         runAnalyticsId ?: createRunAnalyticsId().also { runAnalyticsId = it }
@@ -649,7 +730,7 @@ class GameViewModel(
     }
 
     private fun persistGame() {
-        if (dailyMode || finishStarted) return
+        if (!policy.persistActiveRun || finishStarted) return
         val s = _ui.value
         val snapshot = SavedGame(
             state = s.state,
