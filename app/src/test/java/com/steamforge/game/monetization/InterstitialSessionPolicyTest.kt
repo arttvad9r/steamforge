@@ -7,6 +7,11 @@ import org.junit.Test
 class InterstitialSessionPolicyTest {
 
     @Test
+    fun `default ads config keeps advertising globally disabled`() {
+        assertFalse(AdsConfig().enabled)
+    }
+
+    @Test
     fun `cadence schedules first interstitial at minimum then configured interval`() {
         val policy = InterstitialSessionPolicy(
             AdsConfig(interstitialMinGames = 3, interstitialEveryGames = 5),
