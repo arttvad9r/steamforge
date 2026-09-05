@@ -18,6 +18,7 @@ import com.steamforge.game.progression.Reward
 import com.steamforge.game.progression.RewardSystem
 import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
+import com.steamforge.game.progression.continuingDailyRewardStreak
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -60,21 +61,6 @@ data class WorkshopUiState(
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
 )
-
-/**
- * A single missed calendar day is forgiven. Two or more missed days reset the streak.
- * Same-day state keeps the stored streak visible after the reward has already been claimed.
- */
-internal fun continuingDailyRewardStreak(
-    lastClaimDay: Long,
-    storedStreak: Int,
-    today: Long,
-): Int {
-    val safeStreak = storedStreak.coerceAtLeast(0)
-    if (safeStreak == 0) return 0
-    val daysSinceClaim = today - lastClaimDay
-    return if (daysSinceClaim in 0L..2L) safeStreak else 0
-}
 
 class WorkshopViewModel(
     private val repo: DataRepo,
