@@ -12,6 +12,7 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
+import com.steamforge.game.core.ReplayableRandom
 import com.steamforge.game.core.Tile
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.data.FinishedGameRecord
@@ -27,7 +28,6 @@ import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.applyGameFinished
 import java.io.IOException
 import java.util.UUID
-import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -679,34 +679,5 @@ class GameViewModel(
                 }
             }
         }
-    }
-}
-
-/**
- * Маленький детерминированный PRNG с сериализуемой позицией. Random.nextInt/nextDouble строятся поверх
- * nextBits, поэтому одного счётчика draws достаточно для точного продолжения последовательности.
- */
-private class ReplayableRandom(
-    private val seed: Long,
-    initialDraws: Long = 0L,
-) : Random() {
-    var draws: Long = initialDraws.coerceIn(0L, 1_000_000L)
-        private set
-
-    override fun nextBits(bitCount: Int): Int {
-        require(bitCount in 0..32)
-        if (bitCount == 0) return 0
-        val index = draws++
-        var z = seed + GOLDEN_GAMMA * (index + 1L)
-        z = (z xor (z ushr 30)) * MIX_1
-        z = (z xor (z ushr 27)) * MIX_2
-        z = z xor (z ushr 31)
-        return (z ushr (64 - bitCount)).toInt()
-    }
-
-    private companion object {
-        const val GOLDEN_GAMMA = -7046029254386353131L
-        const val MIX_1 = -4658895280553007687L
-        const val MIX_2 = -7723592293110705685L
     }
 }
