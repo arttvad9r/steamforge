@@ -1,5 +1,7 @@
 package com.steamforge.game.analytics
 
+import com.steamforge.game.GameRunMode
+
 /**
  * Typed product analytics catalog. Domain/UI code supplies only stable primitive values;
  * provider-specific serialization remains behind [Analytics].
@@ -26,17 +28,45 @@ object AnalyticsEvents {
     const val REWARDED_OFFER_SHOWN = "rewarded_offer_shown"
     const val REWARDED_COMPLETED = "rewarded_completed"
 
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
     fun gameStarted(
         runId: String,
         daily: Boolean,
+        dailyType: String? = null,
+    ) = gameStarted(
+        runId = runId,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
+        dailyType = dailyType,
+    )
+
+    fun gameStarted(
+        runId: String,
+        mode: GameRunMode,
         dailyType: String? = null,
     ) = AnalyticsEvent(
         GAME_STARTED,
         buildMap {
             put("run_id", runId.trim())
-            put("daily", daily)
-            dailyType?.trim()?.takeIf { it.isNotEmpty() }?.let { put("daily_type", it) }
+            putRunMode(mode)
+            if (mode == GameRunMode.DAILY) {
+                dailyType?.trim()?.takeIf { it.isNotEmpty() }?.let { put("daily_type", it) }
+            }
         },
+    )
+
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
+    fun gameFinished(
+        runId: String,
+        score: Int,
+        maxTile: Int,
+        moves: Int,
+        daily: Boolean,
+    ) = gameFinished(
+        runId = runId,
+        score = score,
+        maxTile = maxTile,
+        moves = moves,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
     )
 
     fun gameFinished(
@@ -44,16 +74,31 @@ object AnalyticsEvents {
         score: Int,
         maxTile: Int,
         moves: Int,
-        daily: Boolean,
+        mode: GameRunMode,
     ) = AnalyticsEvent(
         GAME_FINISHED,
-        mapOf(
-            "run_id" to runId.trim(),
-            "score" to score.coerceAtLeast(0),
-            "max_tile" to maxTile.coerceAtLeast(0),
-            "moves" to moves.coerceAtLeast(0),
-            "daily" to daily,
-        ),
+        buildMap {
+            put("run_id", runId.trim())
+            put("score", score.coerceAtLeast(0))
+            put("max_tile", maxTile.coerceAtLeast(0))
+            put("moves", moves.coerceAtLeast(0))
+            putRunMode(mode)
+        },
+    )
+
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
+    fun gameRestarted(
+        runId: String,
+        score: Int,
+        maxTile: Int,
+        moves: Int,
+        daily: Boolean,
+    ) = gameRestarted(
+        runId = runId,
+        score = score,
+        maxTile = maxTile,
+        moves = moves,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
     )
 
     fun gameRestarted(
@@ -61,16 +106,33 @@ object AnalyticsEvents {
         score: Int,
         maxTile: Int,
         moves: Int,
-        daily: Boolean,
+        mode: GameRunMode,
     ) = AnalyticsEvent(
         GAME_RESTARTED,
-        mapOf(
-            "run_id" to runId.trim(),
-            "score" to score.coerceAtLeast(0),
-            "max_tile" to maxTile.coerceAtLeast(0),
-            "moves" to moves.coerceAtLeast(0),
-            "daily" to daily,
-        ),
+        buildMap {
+            put("run_id", runId.trim())
+            put("score", score.coerceAtLeast(0))
+            put("max_tile", maxTile.coerceAtLeast(0))
+            put("moves", moves.coerceAtLeast(0))
+            putRunMode(mode)
+        },
+    )
+
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
+    fun merge(
+        tileLevel: Int,
+        tileValue: Int,
+        moveNumber: Int,
+        mergesInMove: Int,
+        scoreGained: Int,
+        daily: Boolean,
+    ) = merge(
+        tileLevel = tileLevel,
+        tileValue = tileValue,
+        moveNumber = moveNumber,
+        mergesInMove = mergesInMove,
+        scoreGained = scoreGained,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
     )
 
     fun merge(
@@ -79,32 +141,45 @@ object AnalyticsEvents {
         moveNumber: Int,
         mergesInMove: Int,
         scoreGained: Int,
-        daily: Boolean,
+        mode: GameRunMode,
     ) = AnalyticsEvent(
         MERGE,
-        mapOf(
-            "tile_level" to tileLevel.coerceAtLeast(0),
-            "tile_value" to tileValue.coerceAtLeast(0),
-            "move" to moveNumber.coerceAtLeast(0),
-            "merges_in_move" to mergesInMove.coerceAtLeast(0),
-            "score_gained" to scoreGained.coerceAtLeast(0),
-            "daily" to daily,
-        ),
+        buildMap {
+            put("tile_level", tileLevel.coerceAtLeast(0))
+            put("tile_value", tileValue.coerceAtLeast(0))
+            put("move", moveNumber.coerceAtLeast(0))
+            put("merges_in_move", mergesInMove.coerceAtLeast(0))
+            put("score_gained", scoreGained.coerceAtLeast(0))
+            putRunMode(mode)
+        },
+    )
+
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
+    fun highestTileUnlocked(
+        tileLevel: Int,
+        tileValue: Int,
+        moveNumber: Int,
+        daily: Boolean,
+    ) = highestTileUnlocked(
+        tileLevel = tileLevel,
+        tileValue = tileValue,
+        moveNumber = moveNumber,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
     )
 
     fun highestTileUnlocked(
         tileLevel: Int,
         tileValue: Int,
         moveNumber: Int,
-        daily: Boolean,
+        mode: GameRunMode,
     ) = AnalyticsEvent(
         HIGHEST_TILE_UNLOCKED,
-        mapOf(
-            "tile_level" to tileLevel.coerceAtLeast(0),
-            "tile_value" to tileValue.coerceAtLeast(0),
-            "move" to moveNumber.coerceAtLeast(0),
-            "daily" to daily,
-        ),
+        buildMap {
+            put("tile_level", tileLevel.coerceAtLeast(0))
+            put("tile_value", tileValue.coerceAtLeast(0))
+            put("move", moveNumber.coerceAtLeast(0))
+            putRunMode(mode)
+        },
     )
 
     fun contractCompleted(
@@ -217,6 +292,12 @@ object AnalyticsEvents {
             "daily" to daily,
         ),
     )
+
+    private fun MutableMap<String, Any?>.putRunMode(mode: GameRunMode) {
+        // Keep legacy boolean while dashboards migrate to the explicit three-state field.
+        put("daily", mode.isDaily)
+        put("run_mode", mode.wireName)
+    }
 
     private fun economyEvent(
         name: String,
