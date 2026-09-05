@@ -115,6 +115,30 @@ class RunFunnelAnalyticsTest {
     }
 
     @Test
+    fun `play again after completed run does not count as restart`() = runTest(dispatcher) {
+        val saved = finishingSavedGame(seed = 17L, analyticsRunId = "normal-completed")
+        val analytics = RecordingAnalytics()
+        val viewModel = GameViewModel(
+            repo = FakeDataRepo(initialGame = saved),
+            analytics = analytics,
+            seedProvider = { 41L },
+            savedGameProvider = { saved },
+        )
+        advanceUntilIdle()
+
+        viewModel.onMove(Move.LEFT)
+        advanceUntilIdle()
+        assertTrue(viewModel.ui.value.finished)
+        assertEquals(1, analytics.events.count { it.first == AnalyticsEvents.GAME_FINISHED })
+
+        viewModel.restart()
+        advanceUntilIdle()
+
+        assertEquals(0, analytics.events.count { it.first == AnalyticsEvents.GAME_RESTARTED })
+        assertEquals(1, analytics.events.count { it.first == AnalyticsEvents.GAME_STARTED })
+    }
+
+    @Test
     fun `daily run joins canonical funnel and preserves legacy start`() = runTest(dispatcher) {
         val challenge = DailyChallenge(
             epochDay = 12_345L,
