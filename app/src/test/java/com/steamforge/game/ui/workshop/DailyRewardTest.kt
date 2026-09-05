@@ -52,23 +52,56 @@ class DailyRewardTest {
     }
 
     @Test
-    fun `streak continues from yesterday and resets after gap`() = runTest(dispatcher) {
+    fun `streak survives one missed day and resets after two missed days`() = runTest(dispatcher) {
         val day = 1000L
-        val continuingRepo = FakeDataRepo(
+        val yesterdayRepo = FakeDataRepo(
             initialProgress = PlayerProgress(dailyRewardDay = day - 1, dailyRewardStreak = 3),
         )
-        val continuing = WorkshopViewModel(continuingRepo, today = { day })
-        backgroundScope.subscribe(continuing.ui)
+        val yesterday = WorkshopViewModel(yesterdayRepo, today = { day })
+        backgroundScope.subscribe(yesterday.ui)
         advanceUntilIdle()
-        assertEquals(4, continuing.ui.value.dailyRewardDay)
+        assertEquals(3, yesterday.ui.value.dailyRewardStreak)
+        assertEquals(4, yesterday.ui.value.dailyRewardDay)
 
-        val gapRepo = FakeDataRepo(
+        val oneMissedDayRepo = FakeDataRepo(
             initialProgress = PlayerProgress(dailyRewardDay = day - 2, dailyRewardStreak = 5),
         )
-        val gap = WorkshopViewModel(gapRepo, today = { day })
-        backgroundScope.subscribe(gap.ui)
+        val oneMissedDay = WorkshopViewModel(oneMissedDayRepo, today = { day })
+        backgroundScope.subscribe(oneMissedDay.ui)
         advanceUntilIdle()
-        assertEquals(1, gap.ui.value.dailyRewardDay)
+        assertEquals(5, oneMissedDay.ui.value.dailyRewardStreak)
+        assertEquals(6, oneMissedDay.ui.value.dailyRewardDay)
+
+        val twoMissedDaysRepo = FakeDataRepo(
+            initialProgress = PlayerProgress(dailyRewardDay = day - 3, dailyRewardStreak = 5),
+        )
+        val twoMissedDays = WorkshopViewModel(twoMissedDaysRepo, today = { day })
+        backgroundScope.subscribe(twoMissedDays.ui)
+        advanceUntilIdle()
+        assertEquals(0, twoMissedDays.ui.value.dailyRewardStreak)
+        assertEquals(1, twoMissedDays.ui.value.dailyRewardDay)
+    }
+
+    @Test
+    fun `claim after one missed day continues persisted streak`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(dailyRewardDay = day - 2, dailyRewardStreak = 5),
+        )
+        val vm = WorkshopViewModel(repo, today = { day })
+        backgroundScope.subscribe(vm.ui)
+        advanceUntilIdle()
+        val expectedReward = vm.ui.value.dailyRewardGems
+
+        vm.claimDailyReward()
+        advanceUntilIdle()
+
+        assertEquals(day, repo.currentProgress.dailyRewardDay)
+        assertEquals(6, repo.currentProgress.dailyRewardStreak)
+        assertEquals(6, repo.currentProgress.stats.highestDailyStreak)
+        assertEquals(expectedReward, repo.currentProgress.gems)
+        assertFalse(vm.ui.value.dailyRewardAvailable)
+        assertEquals(6, vm.ui.value.dailyRewardStreak)
     }
 
     @Test
