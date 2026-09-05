@@ -54,11 +54,11 @@ class PermanentDailyStreakTest {
     }
 
     @Test
-    fun `gap resets current streak but preserves legacy historical lower bound`() = runTest(dispatcher) {
+    fun `long gap resets current streak but preserves legacy historical lower bound`() = runTest(dispatcher) {
         val day = 3_000L
         val repo = FakeDataRepo(
             initialProgress = PlayerProgress(
-                dailyRewardDay = day - 2,
+                dailyRewardDay = day - 3,
                 dailyRewardStreak = 7,
                 stats = PlayerStats(highestDailyStreak = 0),
             ),

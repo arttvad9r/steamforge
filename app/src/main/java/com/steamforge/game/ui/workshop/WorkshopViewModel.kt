@@ -60,6 +60,21 @@ data class WorkshopUiState(
     val hapticsEnabled: Boolean = true,
 )
 
+/**
+ * A single missed calendar day is forgiven. Two or more missed days reset the streak.
+ * Same-day state keeps the stored streak visible after the reward has already been claimed.
+ */
+internal fun continuingDailyRewardStreak(
+    lastClaimDay: Long,
+    storedStreak: Int,
+    today: Long,
+): Int {
+    val safeStreak = storedStreak.coerceAtLeast(0)
+    if (safeStreak == 0) return 0
+    val daysSinceClaim = today - lastClaimDay
+    return if (daysSinceClaim in 0L..2L) safeStreak else 0
+}
+
 class WorkshopViewModel(
     private val repo: DataRepo,
     private val cfg: ProgressionConfig = ProgressionConfig(),
@@ -75,7 +90,11 @@ class WorkshopViewModel(
         val workshopCfg = remoteSnapshot.config.toProgressionConfig(cfg)
         val todayDay = today()
         val canClaim = p.dailyRewardDay != todayDay
-        val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
+        val continuingStreak = continuingDailyRewardStreak(
+            lastClaimDay = p.dailyRewardDay,
+            storedStreak = p.dailyRewardStreak,
+            today = todayDay,
+        )
         val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
         val nextDay = (continuingStreak % cycle) + 1
         val li = p.levelInfo(cfg)
@@ -167,7 +186,11 @@ class WorkshopViewModel(
             repo.updateProgress { p ->
                 val todayDay = today()
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
-                val continuingStreak = if (p.dailyRewardDay == todayDay - 1) p.dailyRewardStreak else 0
+                val continuingStreak = continuingDailyRewardStreak(
+                    lastClaimDay = p.dailyRewardDay,
+                    storedStreak = p.dailyRewardStreak,
+                    today = todayDay,
+                )
                 val nextStreak = continuingStreak + 1
                 val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
                 val rewardDay = ((nextStreak - 1) % cycle) + 1
