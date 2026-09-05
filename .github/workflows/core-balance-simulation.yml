@@ -57,21 +57,34 @@ jobs:
           --tests com.steamforge.game.core.GameBalanceSimulationTest
           --stacktrace --no-daemon
 
-      - name: Publish baseline summary
+      - name: Publish balance summaries
         shell: bash
         run: |
           set -euo pipefail
-          REPORT="$(find app/build -path '*/steamforge-balance/core-baseline.json' -type f -print -quit)"
-          test -n "$REPORT"
-          echo "Balance report: $REPORT"
-          cat "$REPORT"
+          BASELINE="$(find app/build -path '*/steamforge-balance/core-baseline.json' -type f -print -quit)"
+          SENSITIVITY="$(find app/build -path '*/steamforge-balance/spawn-sensitivity.json' -type f -print -quit)"
+          test -n "$BASELINE"
+          test -n "$SENSITIVITY"
+          echo "Baseline report: $BASELINE"
+          cat "$BASELINE"
+          echo "Spawn sensitivity report: $SENSITIVITY"
+          cat "$SENSITIVITY"
           mkdir -p balance-report
-          cp "$REPORT" balance-report/core-baseline.json
+          cp "$BASELINE" balance-report/core-baseline.json
+          cp "$SENSITIVITY" balance-report/spawn-sensitivity.json
 
-      - name: Upload core balance report
+      - name: Upload core balance baseline
         uses: actions/upload-artifact@v4
         with:
           name: steamforge-core-balance-baseline
           path: balance-report/core-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload spawn sensitivity report
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamforge-spawn-sensitivity
+          path: balance-report/spawn-sensitivity.json
           if-no-files-found: error
           retention-days: 30
