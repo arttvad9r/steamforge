@@ -2,6 +2,11 @@ package com.steamforge.game.ui.workshop
 
 import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.analytics.AnalyticsEvents
+import com.steamforge.game.config.RemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigRefreshResult
+import com.steamforge.game.config.RemoteConfigSnapshot
+import com.steamforge.game.config.RemoteConfigSource
+import com.steamforge.game.config.RemoteGameConfig
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.ProgressionConfig
@@ -9,6 +14,8 @@ import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -29,6 +36,18 @@ class WorkshopAnalyticsTest {
         override fun logEvent(name: String, params: Map<String, Any?>) {
             events += name to params
         }
+    }
+
+    private class FixedRemoteConfigProvider(config: RemoteGameConfig) : RemoteConfigProvider {
+        override val snapshot: StateFlow<RemoteConfigSnapshot> = MutableStateFlow(
+            RemoteConfigSnapshot(
+                config = config.sanitized(),
+                source = RemoteConfigSource.REMOTE,
+                revision = "test",
+            ),
+        )
+
+        override suspend fun refresh(): RemoteConfigRefreshResult = RemoteConfigRefreshResult.UPDATED
     }
 
     @Before
@@ -64,6 +83,41 @@ class WorkshopAnalyticsTest {
         assertEquals("workshop_parts", economyParams["resource_type"])
         assertEquals("workshop_upgrade", economyParams["source"])
         assertEquals(cost, economyParams["amount"])
+        assertEquals(remaining, economyParams["balance_after"])
+    }
+
+    @Test
+    fun `runtime remote config cost is used by persisted upgrade and analytics`() = runTest(dispatcher) {
+        val remoteCost = 7
+        val remaining = 11
+        val provider = FixedRemoteConfigProvider(
+            RemoteGameConfig(workshopUpgradeCosts = listOf(remoteCost, 15, 30, 60)),
+        )
+        val repo = FakeDataRepo(
+            initialProgress = PlayerProgress(workshopParts = remoteCost + remaining),
+        )
+        val analytics = RecordingAnalytics()
+        val vm = WorkshopViewModel(
+            repo = repo,
+            remoteConfigProvider = provider,
+            analytics = analytics,
+        )
+
+        vm.upgradeMechanism(WorkshopMechanism.CORE)
+        advanceUntilIdle()
+
+        assertEquals(1, repo.currentProgress.workshopCoreStage)
+        assertEquals(remaining, repo.currentProgress.workshopParts)
+
+        val upgradeParams = analytics.events
+            .single { it.first == AnalyticsEvents.WORKSHOP_UPGRADE }
+            .second
+        assertEquals(remoteCost, upgradeParams["parts_spent"])
+
+        val economyParams = analytics.events
+            .single { it.first == AnalyticsEvents.RESOURCE_SPENT }
+            .second
+        assertEquals(remoteCost, economyParams["amount"])
         assertEquals(remaining, economyParams["balance_after"])
     }
 
