@@ -2,6 +2,7 @@ package com.steamforge.game.ui.workshop
 
 import com.steamforge.game.data.FakeDataRepo
 import com.steamforge.game.progression.PlayerProgress
+import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,16 +40,37 @@ class DailyRewardTest {
         backgroundScope.subscribe(vm.ui)
         advanceUntilIdle()
         assertTrue(vm.ui.value.dailyRewardAvailable)
-        val reward = vm.ui.value.dailyRewardGems
+        val gemsReward = vm.ui.value.dailyRewardGems
+        val partsReward = vm.ui.value.dailyRewardWorkshopParts
 
         vm.claimDailyReward()
         advanceUntilIdle()
-        assertEquals(reward, repo.currentProgress.gems)
+        assertEquals(gemsReward, repo.currentProgress.gems)
+        assertEquals(partsReward, repo.currentProgress.workshopParts)
         assertFalse(vm.ui.value.dailyRewardAvailable)
 
         vm.claimDailyReward()
         advanceUntilIdle()
-        assertEquals(reward, repo.currentProgress.gems)
+        assertEquals(gemsReward, repo.currentProgress.gems)
+        assertEquals(partsReward, repo.currentProgress.workshopParts)
+    }
+
+    @Test
+    fun `daily workshop bonus uses progression config`() = runTest(dispatcher) {
+        val day = 1000L
+        val repo = FakeDataRepo()
+        val vm = WorkshopViewModel(
+            repo = repo,
+            cfg = ProgressionConfig(dailyRewardWorkshopParts = 7),
+            today = { day },
+        )
+        backgroundScope.subscribe(vm.ui)
+        advanceUntilIdle()
+
+        assertEquals(7, vm.ui.value.dailyRewardWorkshopParts)
+        vm.claimDailyReward()
+        advanceUntilIdle()
+        assertEquals(7, repo.currentProgress.workshopParts)
     }
 
     @Test
@@ -91,7 +113,8 @@ class DailyRewardTest {
         val vm = WorkshopViewModel(repo, today = { day })
         backgroundScope.subscribe(vm.ui)
         advanceUntilIdle()
-        val expectedReward = vm.ui.value.dailyRewardGems
+        val expectedGems = vm.ui.value.dailyRewardGems
+        val expectedParts = vm.ui.value.dailyRewardWorkshopParts
 
         vm.claimDailyReward()
         advanceUntilIdle()
@@ -99,7 +122,8 @@ class DailyRewardTest {
         assertEquals(day, repo.currentProgress.dailyRewardDay)
         assertEquals(6, repo.currentProgress.dailyRewardStreak)
         assertEquals(6, repo.currentProgress.stats.highestDailyStreak)
-        assertEquals(expectedReward, repo.currentProgress.gems)
+        assertEquals(expectedGems, repo.currentProgress.gems)
+        assertEquals(expectedParts, repo.currentProgress.workshopParts)
         assertFalse(vm.ui.value.dailyRewardAvailable)
         assertEquals(6, vm.ui.value.dailyRewardStreak)
     }
@@ -114,6 +138,7 @@ class DailyRewardTest {
         first.claimDailyReward()
         advanceUntilIdle()
         val gemsAfterFirst = repo.currentProgress.gems
+        val partsAfterFirst = repo.currentProgress.workshopParts
 
         val second = WorkshopViewModel(repo, today = { day })
         backgroundScope.subscribe(second.ui)
@@ -122,6 +147,7 @@ class DailyRewardTest {
         second.claimDailyReward()
         advanceUntilIdle()
         assertEquals(gemsAfterFirst, repo.currentProgress.gems)
+        assertEquals(partsAfterFirst, repo.currentProgress.workshopParts)
     }
 
     @Test

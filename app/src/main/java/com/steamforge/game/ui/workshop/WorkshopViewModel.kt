@@ -54,6 +54,7 @@ data class WorkshopUiState(
     val dailyRewardStreak: Int = 0,
     val dailyRewardDay: Int = 1,
     val dailyRewardGems: Int = 0,
+    val dailyRewardWorkshopParts: Int = 0,
     val goldGaugeCosmetic: Boolean = false,
     val animationsEnabled: Boolean = true,
     val soundEnabled: Boolean = true,
@@ -136,6 +137,7 @@ class WorkshopViewModel(
             dailyRewardStreak = continuingStreak,
             dailyRewardDay = nextDay,
             dailyRewardGems = cfg.dailyRewardGems(nextDay),
+            dailyRewardWorkshopParts = cfg.dailyRewardWorkshopParts.coerceAtLeast(0),
             goldGaugeCosmetic = "gold_gauge" in p.unlockedCosmetics,
             animationsEnabled = p.animationsEnabled,
             soundEnabled = p.soundEnabled,
@@ -183,6 +185,7 @@ class WorkshopViewModel(
 
     fun claimDailyReward() {
         viewModelScope.launch {
+            var workshopPartsEvent: AnalyticsEvent? = null
             repo.updateProgress { p ->
                 val todayDay = today()
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
@@ -196,9 +199,19 @@ class WorkshopViewModel(
                 val rewardDay = ((nextStreak - 1) % cycle) + 1
                 val rewards = buildList<Reward> {
                     add(Reward.Gems(cfg.dailyRewardGems(rewardDay)))
+                    val workshopParts = cfg.dailyRewardWorkshopParts.coerceAtLeast(0)
+                    if (workshopParts > 0) add(Reward.WorkshopParts(workshopParts))
                     if (rewardDay == cycle) add(Reward.CosmeticUnlock("gold_gauge"))
                 }
-                val (rewarded, _) = RewardSystem.apply(p, rewards)
+                val (rewarded, receipt) = RewardSystem.apply(p, rewards)
+                if (receipt.workshopParts > 0) {
+                    workshopPartsEvent = AnalyticsEvents.resourceEarned(
+                        resourceType = "workshop_parts",
+                        source = "daily_reward",
+                        amount = receipt.workshopParts,
+                        balanceAfter = rewarded.workshopParts,
+                    )
+                }
                 rewarded.copy(
                     dailyRewardDay = todayDay,
                     dailyRewardStreak = nextStreak,
@@ -211,6 +224,7 @@ class WorkshopViewModel(
                     ),
                 )
             }
+            workshopPartsEvent?.let { analytics.log(it) }
         }
     }
 }

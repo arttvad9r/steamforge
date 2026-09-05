@@ -69,6 +69,7 @@ data class ProgressionConfig(
     val workshopPartsPerMaxTileLevel: Int = 1,
     val workshopPartsWinBonus: Int = 4,
     val workshopCoreUpgradeCosts: List<Int> = listOf(20, 35, 55, 80),
+    val dailyRewardWorkshopParts: Int = 4,
 ) {
     fun pressureGainForMerge(mergedLevel: Int): Int = pressureBaseGain + pressureGainPerLevel * (mergedLevel - 1)
     fun levelUpGems(newLevel: Int): Int = levelUpGemsBase + newLevel * levelUpGemsPerLevel
