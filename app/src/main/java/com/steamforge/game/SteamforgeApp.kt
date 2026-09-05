@@ -50,8 +50,8 @@ class AppContainer(context: Context) {
         metrica?.setSendingEnabled(granted)
         analytics.setDelegate(if (granted) metrica else null)
 
-        // Advertising stays compiled for later, but the current product build keeps it fully inactive.
-        // Do not initialize the SDK or forward consent while the AdsManager master switch is off.
+        // Legacy ad integration is frozen by docs/ADR_0001_NO_ADS.md. The master switch stays off;
+        // do not initialize, load or expose ad surfaces unless a later accepted ADR supersedes it.
         if (ads.enabled) {
             if (!adsInitialized) {
                 adsInitialized = true
