@@ -6,12 +6,11 @@ import org.junit.Test
 class FirstRunOnboardingTest {
 
     @Test
-    fun `fresh normal run asks for first swipe`() {
+    fun `fresh first game asks for first swipe`() {
         assertEquals(
             FirstRunOnboardingPhase.SWIPE,
             firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 0,
+                isFirstGame = true,
                 moves = 0,
                 merges = 0,
                 finished = false,
@@ -25,8 +24,7 @@ class FirstRunOnboardingTest {
         assertEquals(
             FirstRunOnboardingPhase.MERGE,
             firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 0,
+                isFirstGame = true,
                 moves = 1,
                 merges = 0,
                 finished = false,
@@ -40,8 +38,7 @@ class FirstRunOnboardingTest {
         assertEquals(
             FirstRunOnboardingPhase.NONE,
             firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 0,
+                isFirstGame = true,
                 moves = 2,
                 merges = 1,
                 finished = false,
@@ -51,23 +48,11 @@ class FirstRunOnboardingTest {
     }
 
     @Test
-    fun `daily and established players never receive first run hints`() {
+    fun `established player never receives first run hints`() {
         assertEquals(
             FirstRunOnboardingPhase.NONE,
             firstRunOnboardingPhase(
-                isDaily = true,
-                bestScore = 0,
-                moves = 0,
-                merges = 0,
-                finished = false,
-                removingMode = false,
-            ),
-        )
-        assertEquals(
-            FirstRunOnboardingPhase.NONE,
-            firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 128,
+                isFirstGame = false,
                 moves = 0,
                 merges = 0,
                 finished = false,
@@ -81,8 +66,7 @@ class FirstRunOnboardingTest {
         assertEquals(
             FirstRunOnboardingPhase.NONE,
             firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 0,
+                isFirstGame = true,
                 moves = 1,
                 merges = 0,
                 finished = true,
@@ -92,8 +76,7 @@ class FirstRunOnboardingTest {
         assertEquals(
             FirstRunOnboardingPhase.NONE,
             firstRunOnboardingPhase(
-                isDaily = false,
-                bestScore = 0,
+                isFirstGame = true,
                 moves = 1,
                 merges = 0,
                 finished = false,

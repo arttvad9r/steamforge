@@ -38,14 +38,13 @@ internal enum class FirstRunOnboardingPhase {
 }
 
 internal fun firstRunOnboardingPhase(
-    isDaily: Boolean,
-    bestScore: Int,
+    isFirstGame: Boolean,
     moves: Int,
     merges: Int,
     finished: Boolean,
     removingMode: Boolean,
 ): FirstRunOnboardingPhase {
-    if (isDaily || bestScore > 0 || finished || removingMode) return FirstRunOnboardingPhase.NONE
+    if (!isFirstGame || finished || removingMode) return FirstRunOnboardingPhase.NONE
     if (moves <= 0) return FirstRunOnboardingPhase.SWIPE
     if (merges <= 0) return FirstRunOnboardingPhase.MERGE
     return FirstRunOnboardingPhase.NONE
@@ -56,14 +55,14 @@ fun PersistenceGuardedGameScreen(
     vm: GameViewModel,
     sfx: SfxPlayer,
     ads: AdsManager,
+    isFirstGame: Boolean,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val terminalWritePending = ui.finishPersistenceInProgress || ui.finishPersistenceFailed
     val onboardingPhase = firstRunOnboardingPhase(
-        isDaily = ui.daily != null,
-        bestScore = ui.best,
+        isFirstGame = isFirstGame,
         moves = ui.state.moves,
         merges = ui.mergesTotal,
         finished = ui.finished,

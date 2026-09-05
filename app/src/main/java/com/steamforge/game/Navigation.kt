@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -135,10 +136,17 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
                 }
+                val firstGameFlow = remember(container.repo, key.daily) {
+                    container.repo.progress.map { progress ->
+                        !key.daily && progress.stats.gamesPlayed == 0
+                    }
+                }
+                val isFirstGame by firstGameFlow.collectAsStateWithLifecycle(initialValue = false)
                 PersistenceGuardedGameScreen(
                     vm = vm,
                     sfx = container.sfx,
                     ads = container.ads,
+                    isFirstGame = isFirstGame,
                     onExit = { back() },
                     modifier = Modifier.navigationBarsPadding(),
                 )
