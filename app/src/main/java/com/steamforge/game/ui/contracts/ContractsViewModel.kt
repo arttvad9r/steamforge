@@ -7,6 +7,8 @@ import com.steamforge.game.analytics.AnalyticsEvent
 import com.steamforge.game.analytics.AnalyticsEvents
 import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.analytics.log
+import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.DataRepo
 import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.progression.ContractDef
@@ -14,9 +16,10 @@ import com.steamforge.game.progression.ContractReward
 import com.steamforge.game.progression.ContractType
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.LocalDay
+import com.steamforge.game.progression.scaledWorkshopParts
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -98,12 +101,17 @@ private fun firstContractTypePriority(type: ContractType): Int = when (type) {
 
 class ContractsViewModel(
     private val repo: DataRepo,
+    private val remoteConfigProvider: RemoteConfigProvider = LocalDefaultRemoteConfigProvider(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
     private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
 
-    val ui: StateFlow<ContractsUiState> = repo.progress.map { progress ->
+    val ui: StateFlow<ContractsUiState> = combine(
+        repo.progress,
+        remoteConfigProvider.snapshot,
+    ) { progress, remoteSnapshot ->
         val day = today()
+        val rewardMultiplier = remoteSnapshot.config.sanitized().contractRewardMultiplier
         val ledger = DailyContracts.normalized(progress.contracts, day)
         val completedCollection = BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
         val scheduledWithBlueprint = DailyContracts.forEpochDay(day, blueprintAvailable = true)
@@ -119,8 +127,9 @@ class ContractsViewModel(
         )
         val items = prioritizeFirstContract(
             items = DailyContracts.forEpochDay(day, blueprintAvailable).map { def ->
+                val effectiveDef = def.copy(reward = def.reward.scaledWorkshopParts(rewardMultiplier))
                 ContractItemUi(
-                    def = def,
+                    def = effectiveDef,
                     progress = DailyContracts.progress(def, ledger),
                     claimed = def.id in ledger.claimedIds,
                 )
@@ -138,6 +147,9 @@ class ContractsViewModel(
     fun claim(contractId: String) {
         viewModelScope.launch {
             val day = today()
+            val rewardMultiplier = remoteConfigProvider.snapshot.value.config
+                .sanitized()
+                .contractRewardMultiplier
             var completedEvent: AnalyticsEvent? = null
             var economyEvent: AnalyticsEvent? = null
             var blueprintEvent: AnalyticsEvent? = null
@@ -153,11 +165,17 @@ class ContractsViewModel(
                     return@updateProgress progress
                 }
 
+                val effectiveReward = contract.reward.scaledWorkshopParts(rewardMultiplier)
                 val beforePieces = progress.blueprintPieces
-                val updated = DailyContracts.claim(progress, day, contractId)
+                val updated = DailyContracts.claim(
+                    progress = progress,
+                    day = day,
+                    contractId = contractId,
+                    workshopPartsMultiplier = rewardMultiplier,
+                )
                 if (updated == progress) return@updateProgress progress
 
-                val (rewardType, rewardAmount) = when (val reward = contract.reward) {
+                val (rewardType, rewardAmount) = when (val reward = effectiveReward) {
                     is ContractReward.WorkshopParts -> "workshop_parts" to reward.amount
                     is ContractReward.BlueprintPiece -> "blueprint_piece" to 1
                 }
@@ -169,7 +187,7 @@ class ContractsViewModel(
                     rewardAmount = rewardAmount,
                 )
 
-                if (contract.reward is ContractReward.WorkshopParts) {
+                if (effectiveReward is ContractReward.WorkshopParts) {
                     val earnedParts = (
                         updated.workshopParts - progress.workshopParts.coerceAtLeast(0)
                     ).coerceAtLeast(0)

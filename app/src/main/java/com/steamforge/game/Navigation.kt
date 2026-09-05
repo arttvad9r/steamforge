@@ -125,7 +125,11 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             }
             entry<Contracts> {
                 val vm: ContractsViewModel = viewModel {
-                    ContractsViewModel(container.repo, analytics = container.analytics)
+                    ContractsViewModel(
+                        repo = container.repo,
+                        remoteConfigProvider = container.remoteConfig,
+                        analytics = container.analytics,
+                    )
                 }
                 ContractsScreen(vm = vm, onBack = { back() })
             }
