@@ -349,8 +349,21 @@ class GameViewModel(
     }
 
     fun restart() {
-        if (finishStarted && !_ui.value.finished) return
-        if (_ui.value.finished) writesScope.launch { repo.clearFinishedGame() }
+        val s = _ui.value
+        if (finishStarted && !s.finished) return
+        if (s.finished) {
+            writesScope.launch { repo.clearFinishedGame() }
+        } else {
+            analytics.log(
+                AnalyticsEvents.gameRestarted(
+                    runId = currentRunAnalyticsId(),
+                    score = s.state.score,
+                    maxTile = if (s.state.maxLevel > 0) 1 shl s.state.maxLevel else 0,
+                    moves = s.state.moves,
+                    daily = dailyMode,
+                ),
+            )
+        }
         newGameInternal()
     }
 

@@ -84,6 +84,37 @@ class RunFunnelAnalyticsTest {
     }
 
     @Test
+    fun `restarting active restored run records its state and starts a distinct replacement`() = runTest(dispatcher) {
+        val previousRunId = "normal-restored-restart"
+        val saved = finishingSavedGame(seed = 17L, analyticsRunId = previousRunId)
+        val analytics = RecordingAnalytics()
+        val repo = FakeDataRepo(initialGame = saved)
+        val viewModel = GameViewModel(
+            repo = repo,
+            analytics = analytics,
+            seedProvider = { 41L },
+            savedGameProvider = { saved },
+        )
+        advanceUntilIdle()
+        assertEquals(0, analytics.events.count { it.first == AnalyticsEvents.GAME_STARTED })
+
+        viewModel.restart()
+        advanceUntilIdle()
+
+        val restarted = analytics.events.single { it.first == AnalyticsEvents.GAME_RESTARTED }
+        assertEquals(previousRunId, restarted.second["run_id"])
+        assertEquals(128, restarted.second["score"])
+        assertEquals(1024, restarted.second["max_tile"])
+        assertEquals(20, restarted.second["moves"])
+        assertEquals(false, restarted.second["daily"])
+
+        val replacement = analytics.events.single { it.first == AnalyticsEvents.GAME_STARTED }
+        val replacementRunId = replacement.second["run_id"] as String
+        assertNotEquals(previousRunId, replacementRunId)
+        assertEquals(replacementRunId, repo.currentGame?.analyticsRunId)
+    }
+
+    @Test
     fun `daily run joins canonical funnel and preserves legacy start`() = runTest(dispatcher) {
         val challenge = DailyChallenge(
             epochDay = 12_345L,
