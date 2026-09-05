@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -38,16 +39,21 @@ class WorkshopAnalyticsTest {
         }
     }
 
-    private class FixedRemoteConfigProvider(config: RemoteGameConfig) : RemoteConfigProvider {
-        override val snapshot: StateFlow<RemoteConfigSnapshot> = MutableStateFlow(
-            RemoteConfigSnapshot(
-                config = config.sanitized(),
-                source = RemoteConfigSource.REMOTE,
-                revision = "test",
-            ),
-        )
+    private class MutableRemoteConfigProvider(config: RemoteGameConfig) : RemoteConfigProvider {
+        private val state = MutableStateFlow(snapshotFor(config, "test-1"))
+        override val snapshot: StateFlow<RemoteConfigSnapshot> = state
+
+        fun update(config: RemoteGameConfig) {
+            state.value = snapshotFor(config, "test-2")
+        }
 
         override suspend fun refresh(): RemoteConfigRefreshResult = RemoteConfigRefreshResult.UPDATED
+
+        private fun snapshotFor(config: RemoteGameConfig, revision: String) = RemoteConfigSnapshot(
+            config = config.sanitized(),
+            source = RemoteConfigSource.REMOTE,
+            revision = revision,
+        )
     }
 
     @Before
@@ -90,7 +96,7 @@ class WorkshopAnalyticsTest {
     fun `runtime remote config cost is used by persisted upgrade and analytics`() = runTest(dispatcher) {
         val remoteCost = 7
         val remaining = 11
-        val provider = FixedRemoteConfigProvider(
+        val provider = MutableRemoteConfigProvider(
             RemoteGameConfig(workshopUpgradeCosts = listOf(remoteCost, 15, 30, 60)),
         )
         val repo = FakeDataRepo(
@@ -119,6 +125,30 @@ class WorkshopAnalyticsTest {
             .second
         assertEquals(remoteCost, economyParams["amount"])
         assertEquals(remaining, economyParams["balance_after"])
+    }
+
+    @Test
+    fun `workshop ui reacts to remote config snapshot updates`() = runTest(dispatcher) {
+        val provider = MutableRemoteConfigProvider(
+            RemoteGameConfig(workshopUpgradeCosts = listOf(7, 15, 30, 60)),
+        )
+        val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = 100))
+        val vm = WorkshopViewModel(repo = repo, remoteConfigProvider = provider)
+        backgroundScope.launch { vm.ui.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(
+            7,
+            vm.ui.value.mechanisms.first { it.mechanism == WorkshopMechanism.CORE }.nextCost,
+        )
+
+        provider.update(RemoteGameConfig(workshopUpgradeCosts = listOf(9, 18, 36, 72)))
+        advanceUntilIdle()
+
+        assertEquals(
+            9,
+            vm.ui.value.mechanisms.first { it.mechanism == WorkshopMechanism.CORE }.nextCost,
+        )
     }
 
     @Test
