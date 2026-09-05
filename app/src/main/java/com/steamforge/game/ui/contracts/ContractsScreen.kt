@@ -69,7 +69,11 @@ fun ContractsScreen(
             ContractsHeader(workshopParts = ui.workshopParts, onBack = onBack)
             Spacer(Modifier.height(14.dp))
 
-            TodaySummary(completed = ui.completed, total = ui.items.size.coerceAtLeast(1))
+            TodaySummary(
+                completed = ui.completed,
+                total = ui.items.size.coerceAtLeast(1),
+                firstContractOnboarding = ui.firstContractOnboarding,
+            )
             Spacer(Modifier.height(12.dp))
 
             ui.items.forEachIndexed { index, item ->
@@ -112,7 +116,11 @@ private fun ContractsHeader(workshopParts: Int, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TodaySummary(completed: Int, total: Int) {
+private fun TodaySummary(
+    completed: Int,
+    total: Int,
+    firstContractOnboarding: Boolean,
+) {
     val shape = RoundedCornerShape(13.dp)
     val fraction = completed.toFloat() / total.coerceAtLeast(1)
     Column(
@@ -130,7 +138,11 @@ private fun TodaySummary(completed: Int, total: Int) {
             Column(Modifier.weight(1f)) {
                 Text("СЕГОДНЯ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
                 Text(
-                    if (completed >= total) "Все контракты выполнены" else "Выполняются в обычных партиях",
+                    when {
+                        firstContractOnboarding -> "Начните с выделенного задания — прогресс идёт в обычной игре"
+                        completed >= total -> "Все контракты выполнены"
+                        else -> "Выполняются в обычных партиях"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                 )
@@ -155,22 +167,35 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
         else -> BrassBright
     }
     val shape = RoundedCornerShape(13.dp)
+    val borderAlpha = when {
+        item.complete && !item.claimed -> 0.34f
+        item.recommended -> 0.30f
+        else -> 0.16f
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Panel.copy(alpha = if (item.complete && !item.claimed) 0.66f else 0.48f))
-            .border(
-                1.dp,
-                accent.copy(alpha = if (item.complete && !item.claimed) 0.34f else 0.16f),
-                shape,
-            )
+            .background(Panel.copy(alpha = if (item.complete && !item.claimed || item.recommended) 0.62f else 0.48f))
+            .border(1.dp, accent.copy(alpha = borderAlpha), shape)
             .padding(horizontal = 11.dp, vertical = 10.dp)
             .semantics {
-                contentDescription = "${item.def.title}: ${item.progress} из ${item.def.target}. ${rewardDescription(item.def.reward)}"
+                contentDescription = buildString {
+                    if (item.recommended) append("Рекомендуемый первый контракт. ")
+                    append("${item.def.title}: ${item.progress} из ${item.def.target}. ${rewardDescription(item.def.reward)}")
+                }
             },
     ) {
+        if (item.recommended) {
+            Text(
+                "ПЕРВЫЙ ШАГ",
+                style = MaterialTheme.typography.labelSmall,
+                color = BrassBright,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(5.dp))
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             ContractBadge(icon = contractIcon(item), accent = accent)
             Spacer(Modifier.width(10.dp))
