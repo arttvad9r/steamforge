@@ -6,6 +6,8 @@ import android.content.pm.ApplicationInfo
 import com.steamforge.game.analytics.AppMetricaAnalytics
 import com.steamforge.game.analytics.MutableAnalytics
 import com.steamforge.game.analytics.NoopAnalytics
+import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
+import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
@@ -27,12 +29,16 @@ class AppContainer(context: Context) {
 
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
     val ads = AdsManager(analytics, isDebug = isDebug)
+    val remoteConfig: RemoteConfigProvider = LocalDefaultRemoteConfigProvider()
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false
     private var appOpenLogged = false
 
     init {
+        appScope.launch {
+            remoteConfig.refresh()
+        }
         appScope.launch {
             repo.progress
                 .map { it.soundEnabled }
