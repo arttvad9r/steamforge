@@ -37,7 +37,8 @@ class AppContainer(context: Context) {
 
     init {
         appScope.launch {
-            remoteConfig.refresh()
+            // A future network-backed provider must never make startup depend on connectivity.
+            runCatching { remoteConfig.refresh() }
         }
         appScope.launch {
             repo.progress
