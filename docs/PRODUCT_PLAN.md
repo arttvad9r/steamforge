@@ -1,6 +1,8 @@
 # Steamforge — Product & Development Plan
 
-> **Status:** canonical product roadmap, updated 01.09.2026 against the repository state.
+> **Status:** canonical product roadmap, updated 05.09.2026 against the repository state.
+>
+> **Product decision:** Steamforge is a **no-ads product**. In-game advertising and advertising development are frozen. Do not add, restore or expand rewarded/interstitial/banner/native ads, ad-driven rewards, ad-specific monetization analytics, ad SDKs or a Remove Ads purchase unless a later accepted ADR explicitly supersedes [`ADR_0001_NO_ADS.md`](ADR_0001_NO_ADS.md).
 >
 > The roadmap describes the target product. Already shipped V1 systems are not removed merely because a cleaner future architecture places them later in the sequence. Every new layer must preserve or improve the 2048 core.
 
@@ -25,14 +27,14 @@ Primary loop:
 
 The meta exists to create new reasons to play the core, not to replace it.
 
-## 2. Current repository state — 01.09.2026
+## 2. Current repository state — 05.09.2026
 
-Already implemented in V1:
+Already implemented in V1 / current master:
 
 - pure Kotlin 4×4 `GameEngine`;
 - replayable deterministic RNG for normal runs;
 - autosave after meaningful state changes and process-death restore;
-- save format `v4` after consolidation, with backward reading of `v3/v2/v1`;
+- backward-compatible save migration and stable run analytics IDs;
 - preservation of session statistics across process death;
 - swipe and keyboard gameplay input;
 - movement/merge animations, SFX and haptics;
@@ -43,10 +45,13 @@ Already implemented in V1:
 - Daily Challenge / daily reward flow;
 - gems/economy used by current V1 mechanics;
 - AppMetrica integration behind privacy/consent handling;
-- Yandex rewarded/interstitial ads with local idempotency safeguards;
+- legacy Yandex rewarded/interstitial infrastructure present from V1 but product use is disabled/frozen by ADR 0001 and must not be extended;
 - release signing/preflight tooling;
 - Android CI, UI emulator smoke and RuStore store-asset generation;
-- Android 17 / 16 KiB hardening workflow.
+- Android 17 / 16 KiB hardening workflow;
+- first-run onboarding with progressive disclosure;
+- data-driven Contracts and initial Blueprint Collection;
+- deterministic core balance simulation baseline for measured difficulty/spawn tuning.
 
 This means Steamforge is **not a blank prototype**. The next steps are consolidation and evolution of existing systems into a clearer long-term architecture.
 
@@ -55,15 +60,13 @@ This means Steamforge is **not a blank prototype**. The next steps are consolida
 The long-term product still lacks:
 
 - a single universal `RewardSystem`;
-- data-driven Contracts replacing/expanding the current Daily Challenge;
-- Blueprint Collection / Album;
-- the richer visual Workshop restoration loop with multiple machines/zones;
+- richer Workshop restoration with multiple machines/zones;
 - Remote Config abstraction;
 - deterministic Weekly Challenge shared across players;
 - backend-validated leaderboard;
 - reusable LiveOps `EventSystem`;
 - reusable `RewardTrack`;
-- cosmetic shop / Remove Ads product;
+- optional non-ad cosmetic/store monetization, only if later justified;
 - seasonal collections and, only if justified, Season Pass;
 - optional social/friend layer.
 
@@ -71,7 +74,7 @@ The long-term product still lacks:
 
 ### Core first
 
-If Workshop, Daily, ads and achievements disappear, the 2048 game should still feel good.
+If Workshop, Daily and achievements disappear, the 2048 game should still feel good.
 
 ### Clean gameplay
 
@@ -95,6 +98,10 @@ Do not add a new currency without a clear source, sink and player purpose. Exist
 
 One good configurable event framework is preferable to several unrelated minigames.
 
+### No advertising
+
+Advertising is not a dormant roadmap item waiting to be resumed. It is explicitly out of scope under ADR 0001. Existing legacy ad code must not be used as justification to restart ad product work.
+
 ## 5. Technical architecture target
 
 ```text
@@ -112,13 +119,12 @@ Persistent Player Progress
 Platform services remain separate:
 
 - analytics;
-- ads;
-- billing;
+- billing, only if non-ad purchases are later implemented;
 - remote config;
 - cloud save;
 - leaderboard/backend.
 
-Gameplay logic must not depend directly on a store, ad network or analytics SDK.
+Gameplay logic must not depend directly on a store or analytics SDK. Advertising SDKs are not part of the target architecture while ADR 0001 is active.
 
 ## 6. Sequential implementation plan
 
@@ -244,14 +250,15 @@ Pieces come from milestones/contracts/events. Completing the set unlocks/restore
 
 Keep/extend the existing analytics abstraction with stable product events:
 
-- run start/end;
+- run start/end/restart;
 - milestone/new highest tile;
 - contract progress/completion;
 - Workshop upgrade;
 - blueprint obtained/set completed;
 - event participation;
-- ad offer/start/complete;
 - purchase start/complete when billing exists.
+
+Do not add advertising events while ADR 0001 is active.
 
 Core metrics:
 
@@ -262,8 +269,7 @@ Core metrics:
 - time to Workshop milestones;
 - contract participation/completion;
 - collection progression;
-- rewarded opt-in;
-- payer conversion when applicable.
+- payer conversion only if non-ad purchases are later implemented.
 
 ### Phase 8 — Remote Config
 
@@ -274,7 +280,7 @@ Make configurable without a client build:
 - reward multipliers;
 - feature flags;
 - event schedule/milestones;
-- offer enable/disable.
+- non-ad store offer enable/disable only if such offers later exist.
 
 Local defaults remain sufficient for offline start/gameplay.
 
@@ -317,16 +323,16 @@ First event should reuse normal gameplay rather than becoming a separate minigam
 
 **Critical gate:** the second event should mostly be new data/assets, not a new architecture.
 
-### Phase 12 — Monetization evolution
+### Phase 12 — Optional monetization without advertising
 
-Current V1 ads already exist. Future monetization should move toward low-friction placements:
+Advertising is explicitly out of scope. Do not re-enable Yandex ads, add another ad SDK, build rewarded/interstitial placements, create ad-driven rewards or add a Remove Ads product.
 
-- optional post-run reward multiplier;
-- optional Blueprint/Workshop reward;
-- Remove Ads;
+If retention and product data later justify monetization, only non-ad paths may be explored under the current decision, for example:
+
 - tile cosmetics;
 - Workshop themes;
-- small cosmetic/starter bundle.
+- small cosmetic/starter bundles;
+- other direct-purchase cosmetic content that does not gate the 2048 core.
 
 Do not add energy/lives to block the core.
 
@@ -350,8 +356,13 @@ Prefer light asynchronous social:
 
 Do not start with guild wars or real-time PvP.
 
-## 7. Explicitly out of scope until evidence supports it
+## 7. Explicitly out of scope until a later decision supports it
 
+- all in-game advertising: rewarded, interstitial, banner and native;
+- ad-driven rewards and reward multipliers;
+- ad-specific monetization analytics;
+- Remove Ads;
+- new ad SDK integrations or migrations;
 - energy/lives gating;
 - gacha/character rarity;
 - many new currencies;
@@ -360,8 +371,9 @@ Do not start with guild wars or real-time PvP.
 - subscriptions without continuous value;
 - several parallel passes;
 - large narrative campaign;
-- unrelated minigames;
-- forced ads interrupting moves.
+- unrelated minigames.
+
+The advertising items above are additionally governed by ADR 0001 and may not be resumed merely because other out-of-scope items become justified.
 
 ## 8. Quality gates
 
@@ -388,11 +400,11 @@ Do not start with guild wars or real-time PvP.
 - one reusable event framework;
 - second event does not require architectural rewrite.
 
-### Monetization gate
+### Optional monetization gate
 
+- advertising remains disabled and frozen under ADR 0001;
 - free core remains complete;
-- rewarded placements are voluntary/contextual;
-- purchases restore correctly;
+- direct purchases, if ever implemented, restore correctly;
 - additional currency only introduced for a proven need.
 
 ## 9. Final product formula
@@ -412,7 +424,7 @@ WEEKLY CHALLENGES
 +
 ONE REUSABLE LIVEOPS FRAMEWORK
 +
-LIGHT MONETIZATION
+OPTIONAL NON-AD MONETIZATION
 +
 DATA-DRIVEN ITERATION
 ```
