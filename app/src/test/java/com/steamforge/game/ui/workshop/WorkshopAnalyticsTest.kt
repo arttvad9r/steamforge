@@ -152,6 +152,32 @@ class WorkshopAnalyticsTest {
     }
 
     @Test
+    fun `daily reward emits workshop parts economy event once`() = runTest(dispatcher) {
+        val day = 1000L
+        val initialParts = 9
+        val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = initialParts))
+        val analytics = RecordingAnalytics()
+        val vm = WorkshopViewModel(repo = repo, today = { day }, analytics = analytics)
+        backgroundScope.launch { vm.ui.collect {} }
+        advanceUntilIdle()
+        val expectedParts = vm.ui.value.dailyRewardWorkshopParts
+
+        vm.claimDailyReward()
+        advanceUntilIdle()
+        vm.claimDailyReward()
+        advanceUntilIdle()
+
+        assertEquals(initialParts + expectedParts, repo.currentProgress.workshopParts)
+        val events = analytics.events.filter { it.first == AnalyticsEvents.RESOURCE_EARNED }
+        assertEquals(1, events.size)
+        val params = events.single().second
+        assertEquals("workshop_parts", params["resource_type"])
+        assertEquals("daily_reward", params["source"])
+        assertEquals(expectedParts, params["amount"])
+        assertEquals(initialParts + expectedParts, params["balance_after"])
+    }
+
+    @Test
     fun `rejected upgrade does not emit workshop or economy event`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialProgress = PlayerProgress(workshopParts = 0))
         val analytics = RecordingAnalytics()

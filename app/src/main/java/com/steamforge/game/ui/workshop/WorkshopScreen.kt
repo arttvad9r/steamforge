@@ -154,7 +154,7 @@ fun WorkshopScreen(
                 badge = "◆",
                 title = "Ежедневная награда",
                 subtitle = if (ui.dailyRewardAvailable) {
-                    "День ${ui.dailyRewardDay} · +${ui.dailyRewardGems} гемов"
+                    "День ${ui.dailyRewardDay} · +${ui.dailyRewardGems} гемов · +${ui.dailyRewardWorkshopParts} детали"
                 } else {
                     "Награда сегодня уже получена"
                 },
