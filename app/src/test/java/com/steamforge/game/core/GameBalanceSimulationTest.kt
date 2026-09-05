@@ -12,10 +12,7 @@ class GameBalanceSimulationTest {
     @Test
     fun `core balance baseline is deterministic and exported`() {
         val rules = GameRules()
-        val engine = GameEngine(rules)
-        val runs = (0 until SAMPLE_COUNT).map { seed ->
-            simulateRun(engine = engine, seed = seed.toLong())
-        }
+        val runs = simulateRuns(rules)
 
         assertEquals(SAMPLE_COUNT, runs.size)
         assertTrue(runs.all { it.moves in 1..MAX_ACCEPTED_MOVES })
@@ -31,6 +28,40 @@ class GameBalanceSimulationTest {
         output.writeText(report)
         println("Steamforge core balance baseline: ${output.absolutePath}")
         println(report)
+    }
+
+    @Test
+    fun `spawn probability sensitivity is exported without changing production rules`() {
+        val baselineProbability = GameRules().spawnLowProbability
+        val scenarios = SPAWN_LOW_PROBABILITIES.map { probability ->
+            SpawnScenario(
+                spawnLowProbability = probability,
+                runs = simulateRuns(GameRules(spawnLowProbability = probability)),
+            )
+        }
+        val baseline = scenarios.single { it.spawnLowProbability == baselineProbability }
+
+        assertEquals(SPAWN_LOW_PROBABILITIES.size, scenarios.size)
+        assertTrue(scenarios.all { it.runs.size == SAMPLE_COUNT })
+        assertTrue(scenarios.all { scenario -> scenario.runs.all { it.moves in 1..MAX_ACCEPTED_MOVES } })
+
+        val report = buildSensitivityReport(
+            baselineProbability = baselineProbability,
+            baselineRuns = baseline.runs,
+            scenarios = scenarios,
+        )
+        val output = File("build/reports/steamforge-balance/spawn-sensitivity.json")
+        output.parentFile?.mkdirs()
+        output.writeText(report)
+        println("Steamforge spawn sensitivity report: ${output.absolutePath}")
+        println(report)
+    }
+
+    private fun simulateRuns(rules: GameRules): List<RunMetrics> {
+        val engine = GameEngine(rules)
+        return (0 until SAMPLE_COUNT).map { seed ->
+            simulateRun(engine = engine, seed = seed.toLong())
+        }
     }
 
     private fun simulateRun(engine: GameEngine, seed: Long): RunMetrics {
@@ -74,10 +105,7 @@ class GameBalanceSimulationTest {
     private fun buildReport(rules: GameRules, runs: List<RunMetrics>): String {
         val moves = runs.map { it.moves }.sorted()
         val scores = runs.map { it.score }.sorted()
-        val maxTileCounts = runs
-            .groupingBy { it.maxLevel }
-            .eachCount()
-            .toSortedMap()
+        val maxTileCounts = maxTileCounts(runs)
         val wonCount = runs.count { it.won }
 
         return buildString {
@@ -95,10 +123,7 @@ class GameBalanceSimulationTest {
             appendLine("  \"wonCount\": $wonCount,")
             appendLine("  \"winRate\": ${format(wonCount.toDouble() / runs.size)},")
             appendLine("  \"maxTileLevelCounts\": {")
-            maxTileCounts.entries.forEachIndexed { index, entry ->
-                val suffix = if (index == maxTileCounts.size - 1) "" else ","
-                appendLine("    \"${entry.key}\": ${entry.value}$suffix")
-            }
+            appendMaxTileCounts(maxTileCounts)
             appendLine("  },")
             appendLine("  \"runs\": [")
             runs.forEachIndexed { index, run ->
@@ -111,6 +136,76 @@ class GameBalanceSimulationTest {
             appendLine("  ]")
             appendLine("}")
         }
+    }
+
+    private fun buildSensitivityReport(
+        baselineProbability: Double,
+        baselineRuns: List<RunMetrics>,
+        scenarios: List<SpawnScenario>,
+    ): String = buildString {
+        appendLine("{")
+        appendLine("  \"schemaVersion\": 1,")
+        appendLine("  \"policy\": \"corner-v1-core-only\",")
+        appendLine("  \"sampleCountPerScenario\": $SAMPLE_COUNT,")
+        appendLine("  \"baselineSpawnLowProbability\": ${format(baselineProbability)},")
+        appendLine("  \"scenarios\": [")
+        scenarios.forEachIndexed { scenarioIndex, scenario ->
+            val runs = scenario.runs
+            val moves = runs.map { it.moves }.sorted()
+            val scores = runs.map { it.score }.sorted()
+            val counts = maxTileCounts(runs)
+            val suffix = if (scenarioIndex == scenarios.lastIndex) "" else ","
+            appendLine("    {")
+            appendLine("      \"spawnLowProbability\": ${format(scenario.spawnLowProbability)},")
+            appendLine("      \"moves\": ${distributionJson(moves)},")
+            appendLine("      \"score\": ${distributionJson(scores)},")
+            appendLine("      \"maxTileLevelMean\": ${format(runs.map { it.maxLevel }.average())},")
+            appendLine("      \"atLeast512Rate\": ${format(levelRate(runs, 9))},")
+            appendLine("      \"atLeast1024Rate\": ${format(levelRate(runs, 10))},")
+            appendLine("      \"winRate\": ${format(runs.count { it.won }.toDouble() / runs.size)},")
+            appendLine(
+                "      \"movesMeanDeltaVsBaseline\": ${format(meanDelta(runs, baselineRuns) { it.moves })},",
+            )
+            appendLine(
+                "      \"scoreMeanDeltaVsBaseline\": ${format(meanDelta(runs, baselineRuns) { it.score })},",
+            )
+            appendLine(
+                "      \"maxTileLevelMeanDeltaVsBaseline\": ${format(meanDelta(runs, baselineRuns) { it.maxLevel })},",
+            )
+            appendLine("      \"maxTileLevelCounts\": {")
+            appendMaxTileCounts(counts, indent = "        ")
+            appendLine("      }")
+            appendLine("    }$suffix")
+        }
+        appendLine("  ]")
+        appendLine("}")
+    }
+
+    private fun StringBuilder.appendMaxTileCounts(
+        counts: Map<Int, Int>,
+        indent: String = "    ",
+    ) {
+        counts.entries.forEachIndexed { index, entry ->
+            val suffix = if (index == counts.size - 1) "" else ","
+            appendLine("$indent\"${entry.key}\": ${entry.value}$suffix")
+        }
+    }
+
+    private fun maxTileCounts(runs: List<RunMetrics>): Map<Int, Int> =
+        runs.groupingBy { it.maxLevel }.eachCount().toSortedMap()
+
+    private fun levelRate(runs: List<RunMetrics>, minimumLevel: Int): Double =
+        runs.count { it.maxLevel >= minimumLevel }.toDouble() / runs.size
+
+    private fun meanDelta(
+        runs: List<RunMetrics>,
+        baselineRuns: List<RunMetrics>,
+        value: (RunMetrics) -> Int,
+    ): Double {
+        require(runs.size == baselineRuns.size)
+        return runs.indices.map { index ->
+            value(runs[index]) - value(baselineRuns[index])
+        }.average()
     }
 
     private fun distributionJson(values: List<Int>): String =
@@ -133,6 +228,11 @@ class GameBalanceSimulationTest {
         val won: Boolean,
     )
 
+    private data class SpawnScenario(
+        val spawnLowProbability: Double,
+        val runs: List<RunMetrics>,
+    )
+
     /** Mirrors the replayable RNG used by GameViewModel so seed samples match production draws. */
     private class SimulationRandom(private val seed: Long) : Random() {
         private var draws = 0L
@@ -153,6 +253,8 @@ class GameBalanceSimulationTest {
         const val SAMPLE_COUNT = 256
         const val MAX_ACCEPTED_MOVES = 10_000
         const val DETERMINISM_SEED = 42L
+
+        val SPAWN_LOW_PROBABILITIES = listOf(0.80, 0.85, 0.90, 0.95)
 
         val MOVE_ORDERS = listOf(
             listOf(Move.DOWN, Move.LEFT, Move.RIGHT, Move.UP),
