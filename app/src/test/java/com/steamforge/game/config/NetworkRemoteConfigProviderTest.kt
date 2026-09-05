@@ -1,10 +1,12 @@
 package com.steamforge.game.config
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class NetworkRemoteConfigProviderTest {
@@ -25,6 +27,21 @@ class NetworkRemoteConfigProviderTest {
         val fetcher = HttpsRemoteConfigFetcher("http://example.com/config.json")
 
         assertNull(fetcher.fetch())
+    }
+
+    @Test
+    fun `refresh propagates coroutine cancellation from fetcher`() = runTest {
+        val provider = CachingRemoteConfigProvider(
+            cache = MemoryCache(),
+            fetcher = RemoteConfigFetcher { throw CancellationException("cancelled") },
+        )
+
+        try {
+            provider.refresh()
+            fail("CancellationException must propagate")
+        } catch (cancelled: CancellationException) {
+            assertEquals("cancelled", cancelled.message)
+        }
     }
 
     @Test
