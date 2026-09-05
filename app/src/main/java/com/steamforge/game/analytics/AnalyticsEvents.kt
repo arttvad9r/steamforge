@@ -14,6 +14,7 @@ fun Analytics.log(event: AnalyticsEvent) = logEvent(event.name, event.params)
 object AnalyticsEvents {
     const val GAME_STARTED = "game_started"
     const val GAME_FINISHED = "game_finished"
+    const val GAME_RESTARTED = "game_restarted"
     const val MERGE = "merge"
     const val HIGHEST_TILE_UNLOCKED = "highest_tile_unlocked"
     const val CONTRACT_COMPLETED = "contract_completed"
@@ -46,6 +47,23 @@ object AnalyticsEvents {
         daily: Boolean,
     ) = AnalyticsEvent(
         GAME_FINISHED,
+        mapOf(
+            "run_id" to runId.trim(),
+            "score" to score.coerceAtLeast(0),
+            "max_tile" to maxTile.coerceAtLeast(0),
+            "moves" to moves.coerceAtLeast(0),
+            "daily" to daily,
+        ),
+    )
+
+    fun gameRestarted(
+        runId: String,
+        score: Int,
+        maxTile: Int,
+        moves: Int,
+        daily: Boolean,
+    ) = AnalyticsEvent(
+        GAME_RESTARTED,
         mapOf(
             "run_id" to runId.trim(),
             "score" to score.coerceAtLeast(0),

@@ -20,6 +20,13 @@ class AnalyticsEventsTest {
             moves = -2,
             daily = true,
         )
+        val restarted = AnalyticsEvents.gameRestarted(
+            runId = " run-normal ",
+            score = -20,
+            maxTile = 512,
+            moves = -3,
+            daily = false,
+        )
 
         assertEquals("game_started", normalStart.name)
         assertEquals("run-normal", normalStart.params["run_id"])
@@ -37,6 +44,13 @@ class AnalyticsEventsTest {
         assertEquals(2048, finished.params["max_tile"])
         assertEquals(0, finished.params["moves"])
         assertEquals(true, finished.params["daily"])
+
+        assertEquals("game_restarted", restarted.name)
+        assertEquals("run-normal", restarted.params["run_id"])
+        assertEquals(0, restarted.params["score"])
+        assertEquals(512, restarted.params["max_tile"])
+        assertEquals(0, restarted.params["moves"])
+        assertEquals(false, restarted.params["daily"])
     }
 
     @Test
