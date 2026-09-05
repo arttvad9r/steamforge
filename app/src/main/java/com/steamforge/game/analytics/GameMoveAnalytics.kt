@@ -1,5 +1,6 @@
 package com.steamforge.game.analytics
 
+import com.steamforge.game.GameRunMode
 import com.steamforge.game.core.MoveResult
 
 /**
@@ -7,10 +8,21 @@ import com.steamforge.game.core.MoveResult
  * The game engine stays free of analytics dependencies; this adapter only observes immutable results.
  */
 object GameMoveAnalytics {
+    /** Backward-compatible overload for current NORMAL/DAILY callers. */
     fun eventsFor(
         result: MoveResult,
         previousMaxLevel: Int,
         daily: Boolean,
+    ): List<AnalyticsEvent> = eventsFor(
+        result = result,
+        previousMaxLevel = previousMaxLevel,
+        mode = if (daily) GameRunMode.DAILY else GameRunMode.NORMAL,
+    )
+
+    fun eventsFor(
+        result: MoveResult,
+        previousMaxLevel: Int,
+        mode: GameRunMode,
     ): List<AnalyticsEvent> {
         if (!result.moved || result.merges.isEmpty()) return emptyList()
 
@@ -23,7 +35,7 @@ object GameMoveAnalytics {
                 moveNumber = moveNumber,
                 mergesInMove = mergeCount,
                 scoreGained = result.scoreGained,
-                daily = daily,
+                mode = mode,
             )
         }
         val unlockedEvents = result.merges
@@ -37,7 +49,7 @@ object GameMoveAnalytics {
                     tileLevel = level,
                     tileValue = tileValue(level),
                     moveNumber = moveNumber,
-                    daily = daily,
+                    mode = mode,
                 )
             }
             .toList()
