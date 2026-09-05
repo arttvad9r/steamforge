@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,6 +87,8 @@ class HttpsRemoteConfigFetcher(
 
                 if (connection.responseCode !in 200..299) return@withContext null
                 connection.inputStream.use(::readUtf8Limited)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
                 null
             } finally {
@@ -121,18 +124,38 @@ class CachingRemoteConfigProvider(
             _snapshot.value = snapshotOf(cached, RemoteConfigSource.CACHE)
         }
 
-        val remotePayload = runCatching { fetcher.fetch() }.getOrNull()
+        val remotePayload = try {
+            fetcher.fetch()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
         val remoteConfig = decodeValidated(remotePayload)
             ?: return RemoteConfigRefreshResult.FAILED_USING_FALLBACK
 
         val encoded = remoteConfigJson.encodeToString(remoteConfig)
-        runCatching { cache.write(encoded) }
+        try {
+            cache.write(encoded)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Remote snapshot can still be used for this process; cache remains last-known-good.
+        }
         _snapshot.value = snapshotOf(remoteConfig, RemoteConfigSource.REMOTE)
         return RemoteConfigRefreshResult.UPDATED
     }
 
-    private suspend fun readValidatedCache(): RemoteGameConfig? =
-        decodeValidated(runCatching { cache.read() }.getOrNull())
+    private suspend fun readValidatedCache(): RemoteGameConfig? {
+        val payload = try {
+            cache.read()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        return decodeValidated(payload)
+    }
 
     private fun decodeValidated(payload: String?): RemoteGameConfig? {
         if (payload.isNullOrBlank() || payload.toByteArray(Charsets.UTF_8).size > MAX_REMOTE_CONFIG_BYTES) {
