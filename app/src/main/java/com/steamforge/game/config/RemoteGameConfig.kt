@@ -4,8 +4,9 @@ import com.steamforge.game.progression.ProgressionConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
 
-private const val REMOTE_CONFIG_SCHEMA_VERSION = 1
+internal const val REMOTE_CONFIG_SCHEMA_VERSION = 1
 private val DEFAULT_WORKSHOP_UPGRADE_COSTS = listOf(20, 35, 55, 80)
 
 /**
@@ -15,6 +16,7 @@ private val DEFAULT_WORKSHOP_UPGRADE_COSTS = listOf(20, 35, 55, 80)
  * excluded. Changing those values remotely would require explicit per-run snapshot/version support
  * to preserve deterministic save/replay semantics.
  */
+@Serializable
 data class RemoteGameConfig(
     val schemaVersion: Int = REMOTE_CONFIG_SCHEMA_VERSION,
     val workshopUpgradeCosts: List<Int> = DEFAULT_WORKSHOP_UPGRADE_COSTS,
@@ -51,6 +53,7 @@ data class RemoteGameConfig(
     }
 }
 
+@Serializable
 data class RemoteFeatureFlags(
     val weeklyChallengeEnabled: Boolean = false,
     val liveOpsEnabled: Boolean = false,
