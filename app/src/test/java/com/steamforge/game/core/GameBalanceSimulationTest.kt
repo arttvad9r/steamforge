@@ -27,7 +27,7 @@ class GameBalanceSimulationTest {
 
         val report = buildReport(rules = rules, runs = runs)
         val output = File("build/reports/steamforge-balance/core-baseline.json")
-        output.parentFile.mkdirs()
+        output.parentFile?.mkdirs()
         output.writeText(report)
         println("Steamforge core balance baseline: ${output.absolutePath}")
         println(report)
