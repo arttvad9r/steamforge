@@ -96,6 +96,7 @@ class GameViewModel(
     private var finishWriteInFlight = false
     private var finishPersistenceHadIoFailure = false
     private var rewardedOfferLoggedResultId: String? = null
+    private var runAnalyticsId: String? = null
 
     private val _ui = MutableStateFlow(GameUiState(freeUndosLeft = cfg.freeUndosPerGame, daily = daily))
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -129,6 +130,7 @@ class GameViewModel(
                 val restored = runCatching { savedGameProvider() }.getOrNull()
                 if (!dailyMode && restored != null) {
                     sessionSeed = restored.seed ?: seedProvider()
+                    runAnalyticsId = restored.analyticsRunId ?: legacyNormalRunAnalyticsId(sessionSeed)
                     rng = ReplayableRandom(sessionSeed ?: 0L, restored.rngDraws)
                     _ui.update {
                         it.copy(
@@ -178,6 +180,7 @@ class GameViewModel(
     private fun restoreFinished(record: FinishedGameRecord) {
         sessionSeed = null
         val restoredState = GameSaveCodec.decode(record.state)
+        runAnalyticsId = restoredState?.analyticsRunId
         _ui.update {
             it.copy(
                 finished = true,
@@ -377,6 +380,7 @@ class GameViewModel(
         finishPersistenceHadIoFailure = false
         rewardedOfferLoggedResultId = null
         sessionSeed = if (dailyMode) daily?.seed else seedProvider()
+        runAnalyticsId = createRunAnalyticsId()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
         val state = engine.newGame(rng = rng)
@@ -404,10 +408,16 @@ class GameViewModel(
                 finishPersistenceFailed = false,
             )
         }
-        analytics.logEvent(
-            if (dailyMode) "daily_started" else "game_started",
-            daily?.let { mapOf("daily_type" to it.type.name) } ?: emptyMap(),
+        analytics.log(
+            AnalyticsEvents.gameStarted(
+                runId = currentRunAnalyticsId(),
+                daily = dailyMode,
+                dailyType = daily?.type?.name,
+            ),
         )
+        if (dailyMode) {
+            daily?.let { analytics.logEvent("daily_started", mapOf("daily_type" to it.type.name)) }
+        }
         if (!dailyMode) persistGame()
     }
 
@@ -479,6 +489,7 @@ class GameViewModel(
                     overdrivesSession = s.overdrivesSession,
                     undosSession = s.undosSession,
                     highMergesSession = s.highMergesSession,
+                    analyticsRunId = currentRunAnalyticsId(),
                 ),
             ),
         )
@@ -545,13 +556,13 @@ class GameViewModel(
                 if (recovered) analytics.logEvent("game_finish_save_recovered")
                 ads?.onGameFinished()
                 logRewardedOfferIfVisible()
-                analytics.logEvent(
-                    "game_finished",
-                    mapOf(
-                        "score" to pending.summary.score,
-                        "max_tile" to (1 shl pending.summary.maxTileLevel),
-                        "moves" to pending.summary.moves,
-                        "daily" to pending.summary.daily,
+                analytics.log(
+                    AnalyticsEvents.gameFinished(
+                        runId = currentRunAnalyticsId(),
+                        score = pending.summary.score,
+                        maxTile = 1 shl pending.summary.maxTileLevel,
+                        moves = pending.summary.moves,
+                        daily = pending.summary.daily,
                     ),
                 )
             } catch (_: IOException) {
@@ -612,6 +623,18 @@ class GameViewModel(
         }
     }
 
+    private fun createRunAnalyticsId(): String =
+        (if (dailyMode) "daily-" else "normal-") + UUID.randomUUID().toString()
+
+    private fun currentRunAnalyticsId(): String =
+        runAnalyticsId ?: createRunAnalyticsId().also { runAnalyticsId = it }
+
+    private fun legacyNormalRunAnalyticsId(seed: Long?): String {
+        val stableSource = seed?.toString() ?: UUID.randomUUID().toString()
+        val stableUuid = UUID.nameUUIDFromBytes(stableSource.toByteArray(Charsets.UTF_8))
+        return "normal-$stableUuid"
+    }
+
     private fun persistGame() {
         if (dailyMode || finishStarted) return
         val s = _ui.value
@@ -627,6 +650,7 @@ class GameViewModel(
             overdrivesSession = s.overdrivesSession,
             undosSession = s.undosSession,
             highMergesSession = s.highMergesSession,
+            analyticsRunId = currentRunAnalyticsId(),
         )
         writesScope.launch {
             try {
