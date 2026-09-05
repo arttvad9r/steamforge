@@ -78,6 +78,7 @@ fun HomeScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val compactHeader = LocalConfiguration.current.screenWidthDp < 390
+    val visibility = ui.featureVisibility
 
     SteamBackdrop(modifier) {
         Column(
@@ -96,12 +97,14 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
-                BrassRoundButton(
-                    symbol = "▣",
-                    description = "Коллекция",
-                    onClick = onAchievements,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                )
+                if (visibility.showCollection) {
+                    BrassRoundButton(
+                        symbol = "▣",
+                        description = "Коллекция",
+                        onClick = onAchievements,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "STEAMFORGE",
@@ -123,15 +126,19 @@ fun HomeScreen(
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }
-            Spacer(Modifier.height(8.dp))
 
-            HomeStatusRail(
-                bestScore = ui.bestScore,
-                workshopLevel = ui.workshopLevel,
-                gems = ui.gems,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
+            if (visibility.showStatusRail) {
+                Spacer(Modifier.height(8.dp))
+                HomeStatusRail(
+                    bestScore = ui.bestScore,
+                    workshopLevel = ui.workshopLevel,
+                    gems = ui.gems,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(4.dp))
+            } else {
+                Spacer(Modifier.height(6.dp))
+            }
 
             HomeCoreScene()
             Text(
@@ -143,7 +150,11 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                "Объединяйте детали, развивайте мастерскую и доберитесь до 2048.",
+                if (visibility.showWorkshop) {
+                    "Объединяйте детали, развивайте мастерскую и доберитесь до 2048."
+                } else {
+                    "Объединяйте одинаковые детали и доберитесь до 2048."
+                },
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextMuted,
@@ -158,34 +169,40 @@ fun HomeScreen(
                 style = SteamButtonStyle.Teal,
                 icon = "▶",
             )
-            Spacer(Modifier.height(10.dp))
 
-            HomeEntryCard(
-                icon = if (ui.dailyDone) "✓" else "2048",
-                title = "Испытание дня",
-                subtitle = if (ui.dailyDone) "Выполнено" else "Новая задача на сегодня",
-                onClick = onDaily,
-                modifier = Modifier.fillMaxWidth(),
-                accent = if (ui.dailyDone) TealGlow else BrassBright,
-            )
-            Spacer(Modifier.height(7.dp))
-            HomeEntryCard(
-                icon = "⚒",
-                title = "Мастерская",
-                subtitle = "Ядро · LV ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}",
-                onClick = onWorkshop,
-                modifier = Modifier.fillMaxWidth(),
-                accent = TealGlow,
-            )
-            Spacer(Modifier.height(7.dp))
-            HomeEntryCard(
-                icon = "≡",
-                title = "Контракты",
-                subtitle = "3 задания сегодня · награды за игру",
-                onClick = onContracts,
-                modifier = Modifier.fillMaxWidth(),
-                accent = TextWarm,
-            )
+            if (visibility.showWorkshop) {
+                Spacer(Modifier.height(10.dp))
+                HomeEntryCard(
+                    icon = "⚒",
+                    title = "Мастерская",
+                    subtitle = "Ядро · LV ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}",
+                    onClick = onWorkshop,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = TealGlow,
+                )
+            }
+            if (visibility.showContracts) {
+                Spacer(Modifier.height(7.dp))
+                HomeEntryCard(
+                    icon = "≡",
+                    title = "Контракты",
+                    subtitle = "3 задания сегодня · награды за игру",
+                    onClick = onContracts,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = TextWarm,
+                )
+            }
+            if (visibility.showDaily) {
+                Spacer(Modifier.height(7.dp))
+                HomeEntryCard(
+                    icon = if (ui.dailyDone) "✓" else "2048",
+                    title = "Испытание дня",
+                    subtitle = if (ui.dailyDone) "Выполнено" else "Новая задача на сегодня",
+                    onClick = onDaily,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = if (ui.dailyDone) TealGlow else BrassBright,
+                )
+            }
             Spacer(Modifier.height(18.dp))
         }
     }

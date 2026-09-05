@@ -52,6 +52,17 @@ wait_for_text() {
   return 1
 }
 
+assert_text_absent() {
+  local needle="$1"
+  local label="$2"
+  dump_ui "$label"
+  if grep -Fqi "$needle" /tmp/accessibility-window.xml; then
+    echo "Unexpected first-session text found: $needle" >&2
+    cat /tmp/accessibility-window.xml >&2 || true
+    return 1
+  fi
+}
+
 capture() {
   local label="$1"
   adb exec-out screencap -p > "$ARTIFACT_DIR/${label}.png"
@@ -319,7 +330,7 @@ if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/accessibility-window.xml; then
 fi
 wait_for_text 'MECHANICAL 2048' '01-home'
 
-# Home: critical controls must remain reachable, unclipped and at least 48dp at 1.3x font scale.
+# Fresh Home: only the core CTA and settings are expected before meaningful gameplay progress.
 assert_control 'Настройки' '02-home-settings'
 if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/accessibility-window.xml; then
   play_label='ПРОДОЛЖИТЬ'
@@ -327,21 +338,19 @@ else
   play_label='ИГРАТЬ'
 fi
 assert_control "$play_label" '03-home-play'
-scroll_until_control 'Мастерская' '04-home-workshop'
-scroll_until_control 'Контракты' '05-home-contracts'
-capture '06-home-large-font'
+assert_text_absent 'Мастерская' '04-home-no-workshop'
+assert_text_absent 'Контракты' '05-home-no-contracts'
+assert_text_absent 'Испытание дня' '06-home-no-daily'
+assert_text_absent 'Коллекция' '07-home-no-collection'
+capture '08-home-large-font'
 
-# Return to the top before using the primary CTA.
-adb shell input swipe 540 420 540 2100 360
-sleep 1
-scroll_until_control "$play_label" '07-home-play-return'
-tap_control "$play_label" '08-enter-game'
-wait_for_game '09-game'
+tap_control "$play_label" '09-enter-game'
+wait_for_game '10-game'
 
 # Game: semantic tool buttons keep real >=48dp targets and the board remains inside the display.
-assert_control 'ОТМЕНА' '10-game-undo'
-assert_control 'КЛЮЧ' '11-game-wrench'
-assert_game_tile_inside_display '12-game'
-capture '13-game-large-font'
+assert_control 'ОТМЕНА' '11-game-undo'
+assert_control 'КЛЮЧ' '12-game-wrench'
+assert_game_tile_inside_display '13-game'
+capture '14-game-large-font'
 
-echo 'Accessibility UI OK: Home/Game remain reachable at font scale 1.3; critical controls are >=48dp and inside the display.'
+echo 'Accessibility UI OK: first-session Home/Game remain reachable at font scale 1.3; critical controls are >=48dp and inside the display.'

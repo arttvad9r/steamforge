@@ -10,6 +10,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
+data class HomeFeatureVisibility(
+    val showStatusRail: Boolean = false,
+    val showWorkshop: Boolean = false,
+    val showContracts: Boolean = false,
+    val showDaily: Boolean = false,
+    val showCollection: Boolean = false,
+)
+
+internal fun homeFeatureVisibility(
+    gamesPlayed: Int,
+    activeRunMerges: Int,
+    hasBlueprintPieces: Boolean,
+): HomeFeatureVisibility {
+    val completedRun = gamesPlayed > 0
+    val meaningfulProgress = completedRun || activeRunMerges > 0 || hasBlueprintPieces
+    return HomeFeatureVisibility(
+        showStatusRail = meaningfulProgress,
+        showWorkshop = meaningfulProgress,
+        showContracts = completedRun,
+        showDaily = completedRun,
+        showCollection = completedRun || hasBlueprintPieces,
+    )
+}
+
 data class HomeUiState(
     val loaded: Boolean = false,
     val gems: Int = 0,
@@ -19,6 +43,7 @@ data class HomeUiState(
     val dailyDone: Boolean = false,
     val dailyRewardStreak: Int = 0,
     val hasSavedRun: Boolean = false,
+    val featureVisibility: HomeFeatureVisibility = HomeFeatureVisibility(),
 )
 
 class HomeViewModel(
@@ -42,6 +67,11 @@ class HomeViewModel(
                 0
             },
             hasSavedRun = savedGame != null,
+            featureVisibility = homeFeatureVisibility(
+                gamesPlayed = progress.stats.gamesPlayed,
+                activeRunMerges = savedGame?.mergesTotal ?: 0,
+                hasBlueprintPieces = progress.blueprintPieces.isNotEmpty(),
+            ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 }
