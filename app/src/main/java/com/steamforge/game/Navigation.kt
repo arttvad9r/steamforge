@@ -108,7 +108,11 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
             }
             entry<Workshop> {
                 val vm: WorkshopViewModel = viewModel {
-                    WorkshopViewModel(container.repo, analytics = container.analytics)
+                    WorkshopViewModel(
+                        repo = container.repo,
+                        remoteConfigProvider = container.remoteConfig,
+                        analytics = container.analytics,
+                    )
                 }
                 WorkshopScreen(
                     vm = vm,
