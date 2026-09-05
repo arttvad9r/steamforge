@@ -20,6 +20,7 @@ enum class WeeklyReplayValidationStatus {
     PROTOCOL_MISMATCH,
     CHALLENGE_MISMATCH,
     SEED_MISMATCH,
+    UNSUPPORTED_RULES,
     TOO_MANY_MOVES,
     INVALID_MOVE_SEQUENCE,
     SCORE_MISMATCH,
@@ -48,7 +49,7 @@ object WeeklyRunReplay {
     const val MAX_INPUT_MOVES = 5_000
 
     fun replay(challenge: WeeklyChallenge, moves: List<Move>): GameState {
-        require(challenge.rules.type == WeeklyRuleType.STANDARD_SCORE_ATTACK)
+        require(supports(challenge)) { "weekly rules are not supported by replay protocol v$PROTOCOL_VERSION" }
         val rng = ReplayableRandom(challenge.seed)
         val engine = GameEngine()
         var state = engine.newGame(rng = rng)
@@ -85,6 +86,9 @@ object WeeklyRunReplay {
         if (submission.seed != challenge.seed) {
             return WeeklyReplayValidation(WeeklyReplayValidationStatus.SEED_MISMATCH)
         }
+        if (!supports(challenge)) {
+            return WeeklyReplayValidation(WeeklyReplayValidationStatus.UNSUPPORTED_RULES)
+        }
         if (submission.moveSequence.length > MAX_INPUT_MOVES) {
             return WeeklyReplayValidation(WeeklyReplayValidationStatus.TOO_MANY_MOVES)
         }
@@ -100,6 +104,12 @@ object WeeklyRunReplay {
         }
         return WeeklyReplayValidation(WeeklyReplayValidationStatus.VALID, state)
     }
+
+    internal fun supports(challenge: WeeklyChallenge): Boolean =
+        challenge.rules.type == WeeklyRuleType.STANDARD_SCORE_ATTACK &&
+            !challenge.rules.allowUndo &&
+            !challenge.rules.allowWrench &&
+            !challenge.rules.allowOverdrive
 
     internal fun encodeMoves(moves: List<Move>): String = buildString(moves.size) {
         moves.forEach { move ->

@@ -10,6 +10,11 @@ data class WeeklyRules(
     val allowUndo: Boolean = false,
     /** Account-owned wrench resources must not affect competitive runs. */
     val allowWrench: Boolean = false,
+    /**
+     * V1 competitive replay stays on the pure GameEngine score path. Pressure/Overdrive multipliers
+     * are therefore disabled until they are explicitly represented in the replay protocol.
+     */
+    val allowOverdrive: Boolean = false,
 )
 
 data class WeeklyChallenge(

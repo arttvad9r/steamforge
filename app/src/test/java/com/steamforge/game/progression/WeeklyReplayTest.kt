@@ -42,6 +42,7 @@ class WeeklyReplayTest {
         val submission = WeeklyRunReplay.submission(challenge, moves)
         val validation = WeeklyRunReplay.validate(challenge, submission)
 
+        assertTrue(WeeklyRunReplay.supports(challenge))
         assertTrue(validation.valid)
         assertEquals(80, submission.moveSequence.length)
         assertEquals(WeeklyReplayValidationStatus.VALID, validation.status)
@@ -75,6 +76,24 @@ class WeeklyReplayTest {
             WeeklyReplayValidationStatus.SEED_MISMATCH,
             WeeklyRunReplay.validate(challenge, wrongSeed).status,
         )
+    }
+
+    @Test
+    fun `unsupported competitive rules fail closed before replay`() {
+        val valid = WeeklyRunReplay.submission(challenge, moves)
+        val unsupported = listOf(
+            challenge.copy(rules = challenge.rules.copy(allowUndo = true)),
+            challenge.copy(rules = challenge.rules.copy(allowWrench = true)),
+            challenge.copy(rules = challenge.rules.copy(allowOverdrive = true)),
+        )
+
+        unsupported.forEach { candidate ->
+            assertFalse(WeeklyRunReplay.supports(candidate))
+            assertEquals(
+                WeeklyReplayValidationStatus.UNSUPPORTED_RULES,
+                WeeklyRunReplay.validate(candidate, valid).status,
+            )
+        }
     }
 
     @Test

@@ -22,6 +22,7 @@ class WeeklyChallengeTest {
         assertEquals(WeeklyRuleType.STANDARD_SCORE_ATTACK, expected.rules.type)
         assertFalse(expected.rules.allowUndo)
         assertFalse(expected.rules.allowWrench)
+        assertFalse(expected.rules.allowOverdrive)
     }
 
     @Test
