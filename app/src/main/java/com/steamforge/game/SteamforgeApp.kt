@@ -2,7 +2,6 @@ package com.steamforge.game
 
 import android.app.Application
 import android.content.Context
-import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.config.CachingRemoteConfigProvider
 import com.steamforge.game.config.HttpsRemoteConfigFetcher
 import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
@@ -29,8 +28,7 @@ class AppContainer(context: Context) {
     val repo = SteamforgeRepository(appContext)
     val sfx = SfxPlayer(appContext)
 
-    // Compatibility sinks only: no SDK, network, persistence or debug telemetry is attached.
-    val analytics = NoopAnalytics()
+    // Advertising compatibility remains temporarily isolated until gameplay call sites are removed.
     val ads = AdsManager()
     val remoteConfig: RemoteConfigProvider = createRemoteConfigProvider(appContext)
     val weeklyRankingProvider: WeeklyRankingProvider = UnavailableWeeklyRankingProvider
