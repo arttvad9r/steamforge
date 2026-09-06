@@ -1,10 +1,16 @@
 # Steamforge
 
-Steamforge — Android-игра на основе механики 2048 в premium industrial-steampunk стилистике с прогрессией мастерской, контрактами, коллекциями и Daily/Weekly foundation.
+Steamforge — Android-игра на основе механики 2048 в premium stylized industrial-steampunk стилистике с прогрессией мастерской, контрактами, коллекциями и Daily/Weekly foundation.
 
-**Продуктовый baseline:** без рекламы, без рекламных SDK, без AppMetrica и без пользовательской телеметрии. Игра не показывает consent/analytics/ad UI и не требует рекламных или аналитических credentials.
+**Текущий приоритет:** довести саму игру, game feel и визуальную систему до целевого качества. Работа по публикации в магазины, signing/upload, store listing, store assets и moderation сейчас не ведётся и не входит в активный roadmap.
 
-Текущая продуктовая цель и визуальный стандарт зафиксированы в `docs/PRODUCT_PLAN.md` и `docs/VISUAL_BIBLE.md`.
+**Продуктовый baseline:** без рекламы, без рекламных SDK, без AppMetrica и без пользовательской телеметрии. В интерфейсе нет consent/analytics/ad UI.
+
+Главные источники направления:
+
+- `docs/PRODUCT_PLAN.md` — порядок разработки;
+- `docs/VISUAL_BIBLE.md` — утверждённое визуальное направление;
+- `docs/DEVELOPMENT_STATUS.md` — текущее техническое состояние.
 
 ## Ядро
 
@@ -13,10 +19,9 @@ Steamforge — Android-игра на основе механики 2048 в premi
 - Replayable PRNG: seed + позиция RNG сохраняются для normal run и используются deterministic Weekly replay.
 - Steam Pressure / Overdrive, Undo и Wrench находятся выше чистого движка.
 - Normal run сохраняется в DataStore после значимых изменений и восстанавливается после process death.
-- Текущий save codec — **v6**, без analytics/correlation identifier; старые `v5/v4/v3/v2/v1` читаются для совместимости, причём legacy v5 analytics ID игнорируется.
+- Текущий save codec — **v6**, без analytics/correlation identifier; старые `v5/v4/v3/v2/v1` читаются совместимо.
 - Terminal result persistence идемпотентна и имеет retry/recovery path.
 - Daily reward/contract claims защищены от повторной выдачи.
-- Weekly replay authority вынесена в pure JVM-модули для повторной серверной валидации.
 
 ## Модули
 
@@ -28,10 +33,10 @@ Steamforge — Android-игра на основе механики 2048 в premi
   общий pure Kotlin GameEngine + ReplayableRandom + Weekly replay primitives
 
 :weekly-protocol
-  стабильный Weekly ranking domain/wire protocol
+  Weekly ranking domain/wire protocol
 
 :weekly-server-core
-  server-side replay/submission validation and ranking service boundary
+  server-side replay/submission validation
 
 :weekly-server-postgres
   accepted ranking population persistence
@@ -40,7 +45,7 @@ Steamforge — Android-игра на основе механики 2048 в premi
   bounded authenticated HTTP transport
 
 :macrobenchmark
-  release-like gameplay benchmark harness
+  gameplay benchmark harness
 ```
 
 `weekly-core` исторически содержит общий `GameEngine`; это имя не означает, что normal gameplay зависит от сетевого Weekly backend.
@@ -55,11 +60,12 @@ Steamforge не содержит:
 - advertising identifiers;
 - consent-диалога для рекламы/аналитики;
 - analytics/ad switches в Settings;
-- ad unit IDs или analytics API keys в release configuration;
-- runtime analytics package, ad manager или rewarded-ad repository API;
+- runtime analytics package;
+- ad manager;
+- rewarded-ad repository API;
 - новых analytics correlation identifiers в сохранениях.
 
-Сетевые разрешения остаются нужны для опционального Remote Config и будущего Weekly backend; это не рекламный/аналитический трафик.
+Сетевые разрешения используются только для явно выделенных product services, например опционального Remote Config и возможного будущего Weekly backend; это не рекламный/аналитический трафик.
 
 ## Android stack
 
@@ -70,7 +76,7 @@ Steamforge не содержит:
 - Jetpack Compose + Material 3/custom Steamforge UI
 - Navigation 3
 - Preferences DataStore
-- R8/resource shrinking для release
+- R8/resource shrinking в minified build
 - Macrobenchmark
 
 ## Конфигурация
@@ -81,71 +87,85 @@ Steamforge не содержит:
 |---|---|---|
 | `steamforge.remoteConfigUrl` | опциональный HTTPS Remote Config | нет; без него используются compiled defaults |
 
-Release signing credentials находятся только вне git. См. `docs/RELEASE_SIGNING.md`.
-
-## Команды
+## Основные команды разработки
 
 ```bash
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
+./gradlew lintRelease
 ./gradlew assembleDebug
 ./gradlew assembleRelease
-./gradlew bundleRelease
 bash tools/check-android-16kb.sh
-bash tools/check-release-inventory.sh
-bash tools/build-rustore-release.sh
+bash tools/check-no-tracking.sh
 ```
 
-`check-release-inventory.sh` запускается после `assembleRelease bundleRelease`: он проверяет merged manifest/permissions/DEX packages финального APK, AAB-derived universal APK и resolved `releaseRuntimeClasspath` на запрещённые advertising/analytics SDK и advertising identifier permissions.
+`assembleRelease` здесь используется как minified/R8 quality check, а не как шаг подготовки публикации.
 
 ## CI / runtime checks
 
 Основные workflows:
 
-- **Android CI** — unit tests, lint, debug/release APK, AAB, module tests и final APK/AAB dependency/manifest inventory;
-- **UI Emulator Smoke** — production UI;
-- **Android 17 16 KB Smoke** — API 37 / 16 KiB runtime environment;
+- **Android CI** — unit/module tests, lint, debug/minified build, Macrobenchmark compilation и 16 KiB check;
+- **UI Emulator Smoke** — фактический UI;
+- **Android 17 / 16 KB Smoke** — API 37 / 16 KiB runtime environment;
 - **Active Run Lifecycle Smoke** — recreation/background/process-death/offline recovery;
 - **Adaptive Gameplay Window Smoke** — portrait/expanded/landscape;
 - **Accessibility UI Smoke** — large text/touch geometry;
 - **High Tier Tile Smoke** — tile readability/input;
-- **Frame Timing Diagnostic Smoke** — release-like rendering diagnostic;
-- **RuStore Store Assets** — store screenshots/assets.
-
-Physical-device performance, thermal and TalkBack checks остаются отдельным production gate.
-
-## Release
-
-Release key не хранится в репозитории. Первый RuStore APK создаётся через:
-
-```bash
-bash tools/build-rustore-release.sh
-```
-
-Preflight больше не требует AppMetrica key, Privacy Policy URL или ad unit IDs. Он проверяет source cleanliness, package confirmation, signing inputs, tests/lint, release APK/AAB build, final dependency/manifest inventory, 16 KiB compatibility, APK signature и SHA-256. Inventory report сохраняется рядом с финальным APK в `dist/`.
-
-## Документация
-
-- `docs/PRODUCT_PLAN.md` — product/development roadmap.
-- `docs/VISUAL_BIBLE.md` — approved primary art direction.
-- `docs/ADR_0001_NO_ADS.md` — обязательное no-ads решение.
-- `docs/ADR_0005_NO_USER_TELEMETRY.md` — обязательное no-user-telemetry решение.
-- `docs/GAME_LOGIC_AUDIT_2026.md` — game-state consistency audit.
-- `docs/BRANCH_AUDIT_2026-09-01.md` — historical branch consolidation decisions.
-- `docs/ANDROID_2026_CHECKLIST.md` — Android/platform release checklist.
-- `docs/RELEASE_STATUS.md` — фактический release baseline.
-- `docs/RELEASE_SIGNING.md` — signing/release key process.
-- `docs/RUSTORE_LISTING.md` — store listing/assets.
+- **Frame Timing Diagnostic Smoke** — rendering diagnostic;
+- **Core Balance Simulation** — deterministic balance simulation.
 
 ## Visual direction
 
-> **premium stylized industrial steampunk 2048 with clean gameplay, painterly atmospheric backgrounds, brass/steel materials, muted teal accents and restrained ornament.**
+> **premium stylized industrial steampunk 2048 with clean gameplay, painterly atmospheric backgrounds, brass/steel materials, muted teal/patina accents and restrained ornament.**
 
-Gameplay/utility screens должны оставаться чище showcase/meta surfaces. Concept screens — art-direction references, а не pixel-perfect production specs.
+Ключевые правила:
 
-## Известные ограничения
+- gameplay — самый чистый экран;
+- board и tiles доминируют над HUD/decor;
+- крупные читаемые числа и плитки;
+- глубина через свет, материал, bevel и тени, а не через визуальный шум;
+- слегка стилизованные формы, но не chibi/mobile-cartoon;
+- не уходить в photoreal;
+- никакого generic fantasy-steampunk вроде дирижаблей/летающих островов;
+- Workshop/Blueprints могут быть богаче gameplay по окружению и деталям.
 
-- Weekly backend foundation существует, но production identity/deployment/client endpoint ещё не завершены; Weekly остаётся скрыт из обычной навигации.
-- Remote Config опционален и всегда имеет offline-safe compiled fallback.
-- Physical-device performance/thermal/TalkBack acceptance должен быть выполнен перед production release.
-- Общий orchestration layer (`GameViewModel`, repository) требует дальнейшей поэтапной декомпозиции перед крупным LiveOps expansion; `GameEngine` переписывать не требуется.
+Последние gameplay passes #156–158 уже двигают production UI в эту сторону, но визуальный уровень всей игры ещё считается незавершённым.
+
+## Текущий порядок работы
+
+1. core game feel и input/merge feedback;
+2. gameplay visual до уровня Visual Bible;
+3. общий visual system для Home/Workshop/Blueprints/Contracts/Profile/Settings;
+4. Workshop presentation v2 с видимым восстановлением;
+5. только затем — архитектурная разгрузка, reward layer и расширение meta;
+6. Weekly/LiveOps/social/другие дальние системы — позже.
+
+## Документация
+
+- `docs/PRODUCT_PLAN.md` — активный product/development roadmap.
+- `docs/VISUAL_BIBLE.md` — основной art-direction standard.
+- `docs/DEVELOPMENT_STATUS.md` — фактический development baseline.
+- `docs/ADR_0001_NO_ADS.md` — no-ads решение.
+- `docs/ADR_0005_NO_USER_TELEMETRY.md` — no-user-telemetry решение.
+- `docs/GAME_LOGIC_AUDIT_2026.md` — game-state consistency audit.
+- `docs/ANDROID_2026_CHECKLIST.md` — технический Android checklist разработки.
+- `docs/GAMEPLAY_VISUAL_POLISH_V1.md` — gameplay visual notes.
+
+## Известные технические направления
+
+- `GameViewModel`/repository требуют поэтапной декомпозиции, но не раньше, чем это реально помогает текущей работе над gameplay/visual.
+- `weekly-core` исторически владеет общим `GameEngine`; semantic module split можно сделать позже.
+- Preferences DataStore подходит текущему состоянию, но storage boundary нужно пересмотреть до существенного роста history/reward/event data.
+- Weekly backend foundation существует, но его дальнейшее расширение сейчас не приоритет.
+
+## Не делаем сейчас
+
+- публикацию в любой app store;
+- store listing / screenshots / moderation tooling;
+- signing/upload pipeline;
+- publication/release-candidate checklist;
+- рекламу;
+- пользовательскую аналитику;
+- premature LiveOps/Season Pass/social infrastructure;
+- архитектурные переписывания без прямой пользы для текущего gameplay/visual.
