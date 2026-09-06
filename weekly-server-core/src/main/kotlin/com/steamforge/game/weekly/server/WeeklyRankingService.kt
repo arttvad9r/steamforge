@@ -24,32 +24,40 @@ data class WeeklyAuthenticatedPrincipal(
     }
 }
 
+/** Persistence outcome for the first-accepted-attempt policy defined by ADR 0004. */
+sealed interface WeeklyPopulationRecordResult {
+    data class Ranked(val ranking: WeeklyRankingSnapshot) : WeeklyPopulationRecordResult
+
+    data object Duplicate : WeeklyPopulationRecordResult
+}
+
 /**
  * Persistence/population boundary for competitive Weekly ranking.
  *
- * Implementations must derive the returned snapshot only from server-accepted runs. The population
- * represented by percentile/rank must be deduplicated by authenticated participant for a challenge;
- * repeated requests from one authenticated subject must not inflate participantCount. The concrete
- * attempt policy (for example best accepted attempt vs another documented policy) belongs to the
- * deployment and is intentionally not selected here.
+ * Implementations must derive ranking only from server-accepted runs and deduplicate the population by
+ * authenticated participant for a challenge. ADR 0004 defines V1 as first accepted attempt wins:
+ * a successful first insert returns [WeeklyPopulationRecordResult.Ranked], while a later accepted run
+ * for the same principal/challenge returns [WeeklyPopulationRecordResult.Duplicate] without changing
+ * the accepted population.
  *
- * The returned challengeId and score must describe [run] exactly. Storage adapters should perform any
- * write plus population measurement atomically enough that rank/participantCount describe one coherent
+ * The ranked snapshot must describe [run] exactly. Storage adapters should perform the successful first
+ * insert plus population measurement atomically enough that rank/participantCount describe one coherent
  * accepted-population snapshot.
  */
 interface WeeklyRankingPopulationStore {
     suspend fun recordAndRank(
         principal: WeeklyAuthenticatedPrincipal,
         run: AcceptedWeeklyRun,
-    ): WeeklyRankingSnapshot
+    ): WeeklyPopulationRecordResult
 }
 
 /**
  * Server-side application service between authenticated transport and ranking persistence.
  *
  * Replay validation remains the security boundary for the score itself. Authentication supplies the
- * participant identity used by the population store. Persistence failures are reported as UNAVAILABLE;
- * malformed/forged submissions are REJECTED. Structured-concurrency cancellation always propagates.
+ * participant identity used by the population store. Duplicate accepted attempts are REJECTED under
+ * ADR 0004. Persistence failures are UNAVAILABLE; malformed/forged submissions are REJECTED.
+ * Structured-concurrency cancellation always propagates.
  */
 class WeeklyRankingService(
     private val validator: WeeklySubmissionValidator,
@@ -69,12 +77,17 @@ class WeeklyRankingService(
         principal: WeeklyAuthenticatedPrincipal,
         run: AcceptedWeeklyRun,
     ): WeeklyRankingResult {
-        val ranking = try {
+        val populationResult = try {
             populationStore.recordAndRank(principal, run)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             return WeeklyRankingResult.unavailable()
+        }
+
+        val ranking = when (populationResult) {
+            WeeklyPopulationRecordResult.Duplicate -> return WeeklyRankingResult.rejected()
+            is WeeklyPopulationRecordResult.Ranked -> populationResult.ranking
         }
 
         // A storage/adapter bug must never let ranking data for another run cross the trust boundary.
