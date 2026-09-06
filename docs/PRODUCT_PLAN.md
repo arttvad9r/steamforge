@@ -1,6 +1,6 @@
 # Steamforge — Product & Development Plan
 
-> **Status:** canonical product roadmap, updated 05.09.2026 against the repository state.
+> **Status:** canonical product roadmap, updated 06.09.2026 against the repository state.
 >
 > **Product decision:** Steamforge is a **no-ads product**. In-game advertising and advertising development are frozen. Do not add, restore or expand rewarded/interstitial/banner/native ads, ad-driven rewards, ad-specific monetization analytics, ad SDKs or a Remove Ads purchase unless a later accepted ADR explicitly supersedes [`ADR_0001_NO_ADS.md`](ADR_0001_NO_ADS.md).
 >
@@ -27,7 +27,7 @@ Primary loop:
 
 The meta exists to create new reasons to play the core, not to replace it.
 
-## 2. Current repository state — 05.09.2026
+## 2. Current repository state — 06.09.2026
 
 Already implemented in V1 / current master:
 
@@ -46,12 +46,15 @@ Already implemented in V1 / current master:
 - gems/economy used by current V1 mechanics;
 - AppMetrica integration behind privacy/consent handling;
 - legacy Yandex rewarded/interstitial infrastructure present from V1 but product use is disabled/frozen by ADR 0001 and must not be extended;
+- Remote Config abstraction with local defaults, persistent cache and bounded HTTPS refresh path;
 - release signing/preflight tooling;
 - Android CI, UI emulator smoke and RuStore store-asset generation;
 - Android 17 / 16 KiB hardening workflow;
 - first-run onboarding with progressive disclosure;
 - data-driven Contracts and initial Blueprint Collection;
-- deterministic core balance simulation baseline for measured difficulty/spawn tuning.
+- deterministic core balance simulation baseline for measured difficulty/spawn tuning;
+- deterministic Weekly Challenge definition/run policy with shared challenge ID, seed, rules and schedule;
+- terminal Weekly replay recording/validation, backend-neutral ranking contract/wire/runtime, and a pure JVM `:weekly-core` module suitable for reuse by future server validation.
 
 This means Steamforge is **not a blank prototype**. The next steps are consolidation and evolution of existing systems into a clearer long-term architecture.
 
@@ -61,9 +64,7 @@ The long-term product still lacks:
 
 - a single universal `RewardSystem`;
 - richer Workshop restoration with multiple machines/zones;
-- Remote Config abstraction;
-- deterministic Weekly Challenge shared across players;
-- backend-validated leaderboard;
+- production Weekly identity/ranking service with server-validated accepted population, leaderboard and real percentile/rank distribution;
 - reusable LiveOps `EventSystem`;
 - reusable `RewardTrack`;
 - optional non-ad cosmetic/store monetization, only if later justified;
@@ -284,6 +285,8 @@ Make configurable without a client build:
 
 Local defaults remain sufficient for offline start/gameplay.
 
+**Repository status (06.09.2026):** the provider abstraction, compiled local defaults, persistent cache and bounded HTTPS refresh path are implemented. Product systems still need to migrate their intended tunables into this shared path as they evolve.
+
 ### Phase 9 — Return loop
 
 Use a soft return structure:
@@ -307,6 +310,8 @@ start/end
 ```
 
 Players receive equivalent deterministic spawn conditions. If a public leaderboard becomes important, send replay/move data or another verifiable representation so the backend can validate scores.
+
+**Repository status (06.09.2026):** deterministic challenge generation, run policy, terminal replay recording/validation, backend-neutral ranking contract/wire/runtime and reusable pure-JVM replay authority are implemented. Production identity/backend deployment, server-accepted ranking population and real percentile/rank distribution remain pending. Weekly stays hidden from normal player navigation until that service path is ready.
 
 ### Phase 11 — LiveOps framework v1
 
