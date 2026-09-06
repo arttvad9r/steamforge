@@ -1,10 +1,8 @@
 # Steamforge — Product & Development Plan
 
-> **Status:** canonical product roadmap, updated 06.09.2026 against the repository state.
+> **Status:** canonical product roadmap, updated 06.09.2026 against the tracking-free repository state.
 >
-> **Product decision:** Steamforge is a **no-ads product**. In-game advertising and advertising development are frozen. Do not add, restore or expand rewarded/interstitial/banner/native ads, ad-driven rewards, ad-specific monetization analytics, ad SDKs or a Remove Ads purchase unless a later accepted ADR explicitly supersedes [`ADR_0001_NO_ADS.md`](ADR_0001_NO_ADS.md).
->
-> The roadmap describes the target product. Already shipped V1 systems are not removed merely because a cleaner future architecture places them later in the sequence. Every new layer must preserve or improve the 2048 core.
+> **Product decisions:** Steamforge is a **no-ads product** (`ADR_0001_NO_ADS.md`) and a **no-user-telemetry client** (`ADR_0005_NO_USER_TELEMETRY.md`). Do not add/restore advertising, advertising SDKs, AppMetrica, behavioral analytics SDKs, analytics consent UI or tracking credentials unless a later accepted ADR explicitly supersedes the relevant decision.
 
 ## 1. Target product
 
@@ -25,61 +23,58 @@ Primary loop:
 → back to the same core
 ```
 
-The meta exists to create new reasons to play the core, not to replace it.
+The meta exists to create reasons to play the core, not to replace it.
 
 ## 2. Current repository state — 06.09.2026
 
-Already implemented in V1 / current master:
+Already implemented/current:
 
 - pure Kotlin 4×4 `GameEngine`;
-- replayable deterministic RNG for normal runs;
-- autosave after meaningful state changes and process-death restore;
-- backward-compatible save migration and stable run analytics IDs;
-- preservation of session statistics across process death;
-- swipe and keyboard gameplay input;
-- movement/merge animations, SFX and haptics;
+- replayable deterministic RNG;
+- autosave/process-death restore and backward-readable save format;
+- session statistics/state preservation across recreation;
+- swipe + keyboard gameplay input;
+- movement/merge feedback, SFX and haptics;
 - Steam Pressure / Overdrive;
-- Undo and Wrench mechanics;
+- Undo and Wrench;
 - Workshop progression;
 - achievements;
-- Daily Challenge / daily reward flow;
-- gems/economy used by current V1 mechanics;
-- AppMetrica integration behind privacy/consent handling;
-- legacy Yandex rewarded/interstitial infrastructure present from V1 but product use is disabled/frozen by ADR 0001 and must not be extended;
-- Remote Config abstraction with local defaults, persistent cache and bounded HTTPS refresh path;
+- Daily Challenge / daily reward;
+- Contracts and initial Blueprint Collection;
+- Workshop Parts economy/return-loop slices already merged into current master;
+- offline-first Remote Config with compiled defaults, persistent cache and bounded HTTPS refresh;
+- deterministic Weekly challenge/run/replay/ranking client foundations;
+- pure JVM replay/ranking protocol/server modules;
+- PostgreSQL accepted-population implementation and bounded Ktor ranking transport;
 - release signing/preflight tooling;
-- Android CI, UI emulator smoke and RuStore store-asset generation;
-- Android 17 / 16 KiB hardening workflow;
-- first-run onboarding with progressive disclosure;
-- data-driven Contracts and initial Blueprint Collection;
-- deterministic core balance simulation baseline for measured difficulty/spawn tuning;
-- deterministic Weekly Challenge definition/run policy with shared challenge ID, seed, rules and schedule;
-- terminal Weekly replay recording/validation, backend-neutral ranking contract/wire/runtime, and a pure JVM `:weekly-core` module suitable for reuse by future server validation.
+- Android CI/emulator/lifecycle/accessibility/adaptive/16 KiB/performance diagnostics;
+- gameplay visual pass aligned with the approved Visual Bible (#156–158);
+- no advertising SDK/runtime;
+- no AppMetrica/user analytics SDK/runtime;
+- no analytics/ad consent or Settings surface.
 
-This means Steamforge is **not a blank prototype**. The next steps are consolidation and evolution of existing systems into a clearer long-term architecture.
+Weekly is not exposed in normal player navigation until production identity/backend/deployment/client endpoint are complete.
 
-## 3. Systems not yet implemented in the target architecture
+## 3. Systems still missing from target architecture
 
-The long-term product still lacks:
-
-- a single universal `RewardSystem`;
+- one universal reward application layer;
 - richer Workshop restoration with multiple machines/zones;
-- production Weekly identity/ranking service with server-validated accepted population, leaderboard and real percentile/rank distribution;
-- reusable LiveOps `EventSystem`;
-- reusable `RewardTrack`;
-- optional non-ad cosmetic/store monetization, only if later justified;
-- seasonal collections and, only if justified, Season Pass;
-- optional social/friend layer.
+- production Weekly identity/session/deployment/client ranking service;
+- reusable LiveOps `EventSystem` if later justified;
+- reusable `RewardTrack` if later justified;
+- optional non-ad cosmetic/store monetization only after a separate decision;
+- seasonal collections / Season Pass only after strong product justification;
+- optional lightweight social layer.
 
 ## 4. Product principles
 
 ### Core first
 
-If Workshop, Daily and achievements disappear, the 2048 game should still feel good.
+If Workshop, Daily and collections disappear, the 2048 game should still feel good.
 
 ### Clean gameplay
 
-Gameplay screen prioritizes:
+Gameplay prioritizes:
 
 1. board;
 2. tiles/numbers;
@@ -87,64 +82,73 @@ Gameplay screen prioritizes:
 4. one current goal;
 5. secondary controls.
 
+### Premium through material, not clutter
+
+Use light, bevel, material response and restrained animation. Decorative steampunk elements must not compete with the puzzle.
+
 ### Permanent trace
 
-A useful session should leave visible long-term progress, preferably in the Workshop/Blueprint systems rather than only increasing an abstract counter.
+A useful session should leave visible long-term progress where possible, preferably in Workshop/Blueprint systems rather than only abstract counters.
 
 ### Few currencies
 
-Do not add a new currency without a clear source, sink and player purpose. Existing V1 gems stay because they are already part of live mechanics, but future systems should not automatically create more currencies.
+Do not add currency without a clear source, sink and player purpose.
 
-### One reusable framework before many events
+### Offline-safe core
 
-One good configurable event framework is preferable to several unrelated minigames.
+Normal gameplay/startup must remain usable without network access. Remote services must have bounded protocols and local-safe fallbacks where appropriate.
 
 ### No advertising
 
-Advertising is not a dormant roadmap item waiting to be resumed. It is explicitly out of scope under ADR 0001. Existing legacy ad code must not be used as justification to restart ad product work.
+Advertising is prohibited by ADR 0001. Historical disabled ad code/assets/PRs are not backlog items.
+
+### No user telemetry by default
+
+The shipped client does not collect/send behavioral analytics. Internal typed events may exist temporarily as no-op architecture seams, but they are not a data-collection product feature.
+
+If a future product decision genuinely requires telemetry, it needs a new ADR defining exact data, purpose, retention, identifiers and legal/store implications before implementation.
 
 ## 5. Technical architecture target
 
 ```text
 Game Core
   ↓ typed state/events
-Feedback / Quests / Events / Analytics
+Game Session / Feedback / Goals
   ↓
-Rewards
+Reward Application
   ↓
 Workshop / Economy / Collections
   ↓
 Persistent Player Progress
 ```
 
-Platform services remain separate:
+Platform services stay separate:
 
-- analytics;
-- billing, only if non-ad purchases are later implemented;
-- remote config;
-- cloud save;
-- leaderboard/backend.
+- optional Remote Config;
+- optional billing for future non-ad purchases;
+- optional cloud save;
+- Weekly ranking/backend.
 
-Gameplay logic must not depend directly on a store or analytics SDK. Advertising SDKs are not part of the target architecture while ADR 0001 is active.
+Gameplay logic must not depend directly on store/network SDKs. Advertising and behavioral analytics SDKs are not part of the target architecture under current ADRs.
 
 ## 6. Sequential implementation plan
 
-### Phase 0 — Stabilize the existing V1 baseline
+### Phase 0 — Consolidate V1
 
-- consolidate active useful branches;
-- keep master green;
-- finish Android 17 / 16 KiB smoke reliability;
-- ensure release docs match actual code;
-- keep process-death/save regression tests green;
-- do not add unrelated product scope during release hardening.
+- keep `master` green;
+- ensure release docs match code;
+- keep Android 17 / 16 KiB and lifecycle gates green;
+- physically remove advertising/user-telemetry SDK/runtime/configuration;
+- protect tracking-free invariants in CI;
+- finish physical-device release acceptance.
 
-**Done when:** unit/lint/build CI is green, emulator/runtime failures are triaged, and `master` is the single source of truth.
+**Done when:** CI is green on current master, final APK inventory is tracking-free, and physical-device release gates are recorded.
 
 ### Phase 1 — Core quality gate
 
-Keep improving only measured weaknesses in:
+Improve only measured weaknesses in:
 
-- move responsiveness;
+- input responsiveness;
 - animation sequencing;
 - tile readability;
 - merge feedback hierarchy;
@@ -152,237 +156,206 @@ Keep improving only measured weaknesses in:
 - game-over/restart flow;
 - save/restore reliability.
 
-Do not add a new engine layer just for architecture fashion.
+Do not add a new engine layer for architecture fashion.
 
-**Done when:** core remains pleasant across long repeated sessions and has no known state-consistency defects.
+### Phase 2 — Visual Bible application
 
-### Phase 2 — Apply the approved Visual Bible
+Current gameplay pass is substantially implemented. Continue incrementally:
 
-Implement the accepted art direction incrementally:
+1. board-first gameplay hierarchy;
+2. restrained HUD/frame;
+3. readable material tile progression;
+4. shared typography/colors/components;
+5. Workshop/Blueprint polish only after gameplay remains clear.
 
-1. gameplay-clean pass first;
-2. lighter board frame and HUD;
-3. simpler/readable tile set;
-4. consistent typography/colors/components;
-5. Workshop/Blueprint meta screens after gameplay is proven.
+Generated concepts are references, not pixel-perfect specs. Historical Shop/Remove Ads/video elements must not return.
 
-Generated concept screens are references, not exact implementation specs.
+### Phase 3 — Session orchestration cleanup
 
-**Done when:** a real-device gameplay screenshot is readable immediately and still conveys premium industrial steampunk.
+Before large new meta systems, reduce `GameViewModel` responsibility without a big-bang rewrite.
 
-### Phase 3 — Universal Reward layer
+Target boundaries:
 
-Create one reward path for gameplay/meta systems.
+```text
+GameSessionController
+├─ GameEngine
+├─ RunPersistence
+├─ Progression/Reward events
+└─ CompetitiveRunRecorder
 
-Target reward types initially:
+GameViewModel
+└─ UI state + intents
+```
 
-- current soft/economy resources;
+Keep manual DI unless actual complexity justifies a DI framework.
+
+### Phase 4 — Universal Reward layer
+
+Create one authoritative reward application path for current/future systems.
+
+Initial reward types:
+
+- current soft resources;
 - Workshop Parts;
 - Blueprint Pieces;
 - Cosmetic Unlocks.
-
-Flow:
 
 ```text
 source
 → RewardSystem
 → validate/apply
 → persist
-→ RewardPresentation
+→ presentation
 ```
 
-**Done when:** contracts/events/collections do not mutate economy independently.
+### Phase 5 — Workshop meta v2
 
-### Phase 4 — Workshop meta v2
+Evolve Workshop from mostly numeric progression toward visible restoration:
 
-Evolve the existing Workshop from numeric progression toward visible restoration.
-
-Initial scope:
-
-- one workshop zone;
+- one zone first;
 - 3–5 machines;
-- several visible restoration stages per machine;
-- one clear resource cost path;
-- machine completion gives a real unlock/reward.
+- several visible restoration stages;
+- one clear cost path;
+- machine completion gives a meaningful unlock/reward.
 
-**Done when:** after a run the player can see a permanent physical change in the world.
+### Phase 6 — Contracts evolution
 
-### Phase 5 — Contracts
+Keep contracts data-driven and fed by gameplay events. Avoid adding contract-specific branches inside `GameEngine`.
 
-Create data-driven quest definitions that consume gameplay events.
+Target definitions include:
 
-Initial types:
-
-- make/reach tile;
+- reach tile;
 - merge count;
-- score / total score;
-- combo count;
+- score / cumulative score;
+- combo/multi-merge;
 - runs played;
 - moves survived.
 
-Initial player-facing scope:
+### Phase 7 — Blueprint Collections
 
-- 3 Daily Contracts;
-- 1 Weekly Contract.
+Build on the existing Steam Engine collection so completion visibly affects Workshop/world presentation.
 
-The current Daily Challenge can be migrated/absorbed rather than duplicated.
+### Phase 8 — Storage boundary review
 
-**Done when:** a new contract can be added through data/config rather than new gameplay code.
+Preferences DataStore remains acceptable for V1, but before event/history/reward ledgers grow substantially, choose the smallest appropriate standard solution:
 
-### Phase 6 — Blueprint Collection
+- Proto DataStore for one typed profile/state model; or
+- Room when relational records/history/querying/migrations become real requirements.
 
-First collection example:
+Do not invent a custom database abstraction without need.
 
-```text
-Steam Engine
-- Boiler
-- Piston
-- Valve
-- Flywheel
-- Regulator
-- Pressure Gauge
-```
+### Phase 9 — Remote Config
 
-Pieces come from milestones/contracts/events. Completing the set unlocks/restores a Workshop machine or meaningful cosmetic.
+Current provider/cache/bounded HTTPS foundation exists.
 
-**Done when:** collection completion visibly affects the game world.
-
-### Phase 7 — Analytics cleanup around the new loops
-
-Keep/extend the existing analytics abstraction with stable product events:
-
-- run start/end/restart;
-- milestone/new highest tile;
-- contract progress/completion;
-- Workshop upgrade;
-- blueprint obtained/set completed;
-- event participation;
-- purchase start/complete when billing exists.
-
-Do not add advertising events while ADR 0001 is active.
-
-Core metrics:
-
-- sessions/user;
-- run duration;
-- restart rate;
-- D1/D3/D7/D30;
-- time to Workshop milestones;
-- contract participation/completion;
-- collection progression;
-- payer conversion only if non-ad purchases are later implemented.
-
-### Phase 8 — Remote Config
-
-Make configurable without a client build:
+Configurable meta values may include:
 
 - contract definitions/rewards;
 - Workshop costs;
 - reward multipliers;
 - feature flags;
 - event schedule/milestones;
-- non-ad store offer enable/disable only if such offers later exist.
+- future non-ad store offer enablement.
 
-Local defaults remain sufficient for offline start/gameplay.
+Do not remotely mutate core board/spawn/RNG/save semantics that would break deterministic replay.
 
-**Repository status (06.09.2026):** the provider abstraction, compiled local defaults, persistent cache and bounded HTTPS refresh path are implemented. Product systems still need to migrate their intended tunables into this shared path as they evolve.
+Remote Config must not become a behavioral telemetry channel.
 
-### Phase 9 — Return loop
+### Phase 10 — Return loop
 
-Use a soft return structure:
+Use forgiving, modest return mechanics:
 
 - Daily Contracts;
-- modest daily Workshop bonus;
+- small Workshop bonus;
 - forgiving short streak;
-- simple comeback presentation after absence.
+- comeback presentation after absence.
 
 Avoid punitive long streak loss.
 
-### Phase 10 — Weekly deterministic challenge
+### Phase 11 — Weekly production completion
 
-Use a shared challenge definition:
+Already implemented foundation:
 
-```text
-challengeId
-seed
-rules
-start/end
-```
+- shared challenge definition;
+- deterministic seed/rules;
+- terminal replay validation;
+- ranking wire/domain/runtime;
+- server replay validation;
+- PostgreSQL accepted population;
+- Ktor transport.
 
-Players receive equivalent deterministic spawn conditions. If a public leaderboard becomes important, send replay/move data or another verifiable representation so the backend can validate scores.
+Remaining before player exposure:
 
-**Repository status (06.09.2026):** deterministic challenge generation, run policy, terminal replay recording/validation, backend-neutral ranking contract/wire/runtime and reusable pure-JVM replay authority are implemented. Production identity/backend deployment, server-accepted ranking population and real percentile/rank distribution remain pending. Weekly stays hidden from normal player navigation until that service path is ready.
+- production identity/auth flow;
+- signed session integration on current master;
+- deployment/secrets;
+- Android client provider/endpoint;
+- rate/abuse controls;
+- operational observability that is server-service oriented rather than client behavioral analytics;
+- privacy/store disclosure update for the actual backend data flow.
 
-### Phase 11 — LiveOps framework v1
+### Phase 12 — LiveOps framework only if content cadence exists
 
-One event definition should configure:
+One reusable event definition should configure schedule, scoring, milestones, rewards, theme and optional collection.
 
-- schedule;
-- scoring rule;
-- milestones;
-- rewards;
-- theme;
-- optional collection.
+The second event should mostly be data/assets, not a new architecture.
 
-First event should reuse normal gameplay rather than becoming a separate minigame.
+### Phase 13 — Optional non-ad monetization
 
-**Critical gate:** the second event should mostly be new data/assets, not a new architecture.
+Advertising remains prohibited.
 
-### Phase 12 — Optional monetization without advertising
-
-Advertising is explicitly out of scope. Do not re-enable Yandex ads, add another ad SDK, build rewarded/interstitial placements, create ad-driven rewards or add a Remove Ads product.
-
-If retention and product data later justify monetization, only non-ad paths may be explored under the current decision, for example:
+If later justified by product/business needs, explore only non-ad direct purchases such as:
 
 - tile cosmetics;
 - Workshop themes;
-- small cosmetic/starter bundles;
-- other direct-purchase cosmetic content that does not gate the 2048 core.
+- small cosmetic bundles.
 
-Do not add energy/lives to block the core.
+Do not add energy/lives to gate the core.
 
-### Phase 13 — Reward Track / Season Pass only after retention proof
+### Phase 14 — Reward Track / Season Pass only after justification
 
-Create reusable `RewardTrack` first. Consider Season Pass only after:
+Do not build a Season Pass simply because old branches contain one. First prove:
 
-- D7/D30 are measured and stable enough;
-- events work;
-- content production cadence exists;
-- economy is understood.
+- stable content cadence;
+- understandable economy;
+- healthy player return behavior through non-invasive evidence/feedback;
+- reusable event/reward infrastructure.
 
-### Phase 14 — Social only if justified
+Any reintroduction of client telemetry for quantitative retention metrics requires explicitly superseding ADR 0005 first.
 
-Prefer light asynchronous social:
+### Phase 15 — Social only if justified
+
+Prefer lightweight asynchronous social:
 
 - friend leaderboard;
-- weekly percentile;
+- weekly rank/percentile;
 - score sharing;
 - partner challenge.
 
-Do not start with guild wars or real-time PvP.
+Avoid real-time PvP/guild-war scope initially.
 
-## 7. Explicitly out of scope until a later decision supports it
+## 7. Explicitly out of scope
 
-- all in-game advertising: rewarded, interstitial, banner and native;
-- ad-driven rewards and reward multipliers;
-- ad-specific monetization analytics;
+Under current decisions:
+
+- rewarded/interstitial/banner/native advertising;
+- advertising SDKs;
+- ad-driven rewards;
 - Remove Ads;
-- new ad SDK integrations or migrations;
+- AppMetrica/user behavioral analytics SDKs;
+- analytics consent/settings UI;
 - energy/lives gating;
-- gacha/character rarity;
+- gacha rarity economy;
 - many new currencies;
-- guild/clan wars;
 - real-time PvP;
+- guild wars;
 - subscriptions without continuous value;
-- several parallel passes;
-- large narrative campaign;
+- multiple parallel passes;
 - unrelated minigames.
-
-The advertising items above are additionally governed by ADR 0001 and may not be resumed merely because other out-of-scope items become justified.
 
 ## 8. Quality gates
 
-### Core gate
+### Core
 
 - deterministic rules tested;
 - save/restore correct;
@@ -391,26 +364,28 @@ The advertising items above are additionally governed by ADR 0001 and may not be
 - stable animation;
 - no known state duplication/loss.
 
-### Meta gate
+### Privacy/runtime
+
+- no advertising SDK/config/UI;
+- no AppMetrica/user analytics SDK/config/UI;
+- CI guard green;
+- final APK/AAB inventory checked;
+- network services explicit and bounded.
+
+### Meta
 
 - one reward path;
 - Workshop progress understandable;
-- Contracts use gameplay events;
-- economy sources/sinks observable;
-- analytics already running.
+- Contracts consume gameplay events rather than fork core rules;
+- economy sources/sinks remain inspectable through local/domain logic even without behavioral analytics.
 
-### Retention gate
+### Release
 
-- Daily/Weekly loops measured;
-- one reusable event framework;
-- second event does not require architectural rewrite.
-
-### Optional monetization gate
-
-- advertising remains disabled and frozen under ADR 0001;
-- free core remains complete;
-- direct purchases, if ever implemented, restore correctly;
-- additional currency only introduced for a proven need.
+- canonical CI green;
+- Android 17 / 16 KiB green;
+- physical-device lifecycle/performance/thermal/TalkBack checks complete;
+- signing/key backups verified;
+- privacy/store text matches actual production network/data behavior.
 
 ## 9. Final product formula
 
@@ -427,17 +402,18 @@ BLUEPRINT COLLECTIONS
 +
 WEEKLY CHALLENGES
 +
-ONE REUSABLE LIVEOPS FRAMEWORK
+OPTIONAL REUSABLE LIVEOPS
 +
-OPTIONAL NON-AD MONETIZATION
+OPTIONAL NON-AD COSMETICS
 +
-DATA-DRIVEN ITERATION
+PRIVACY-MINIMAL CLIENT
 ```
 
-The rule for every new feature:
+Rule for every new feature:
 
 1. What player/product problem does it solve?
 2. How does it send the player back to the core?
-3. How will we measure it?
-4. Can the same problem be solved more simply?
-5. Are we willing to remove it if the data says it does not work?
+3. Can it be implemented with a proven/simple standard approach?
+4. Does it preserve offline/replay/reliability invariants?
+5. Does it add new data collection or network behavior, and if so is that explicitly justified/documented?
+6. Are we willing to remove it if it does not improve the product?

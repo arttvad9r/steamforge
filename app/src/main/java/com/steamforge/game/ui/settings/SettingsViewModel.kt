@@ -14,8 +14,6 @@ data class SettingsUiState(
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
-    /** null = пользователь ещё не решал (решение запрашивается на главном экране). */
-    val analyticsConsent: Boolean? = null,
 )
 
 class SettingsViewModel(
@@ -23,13 +21,12 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     val ui: StateFlow<SettingsUiState> = repo.progress.map { p ->
-        SettingsUiState(p.soundEnabled, p.hapticsEnabled, p.animationsEnabled, p.analyticsConsent)
+        SettingsUiState(p.soundEnabled, p.hapticsEnabled, p.animationsEnabled)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsUiState())
 
     fun setSound(enabled: Boolean) = update { it.copy(soundEnabled = enabled) }
     fun setHaptics(enabled: Boolean) = update { it.copy(hapticsEnabled = enabled) }
     fun setAnimations(enabled: Boolean) = update { it.copy(animationsEnabled = enabled) }
-    fun setAnalyticsConsent(granted: Boolean) = update { it.copy(analyticsConsent = granted) }
 
     fun resetProgress() {
         viewModelScope.launch { repo.resetGameProgress() }

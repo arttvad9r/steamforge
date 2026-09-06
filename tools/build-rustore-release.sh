@@ -24,11 +24,6 @@ read_prop() {
   return 1
 }
 
-looks_placeholder() {
-  local value="${1,,}"
-  [[ "$value" == *demo* || "$value" == *placeholder* || "$value" == *changeme* || "$value" == *change_me* || "$value" == *your_* || "$value" == *example* ]]
-}
-
 read_declared_metadata() {
   python3 - <<'PY'
 import re
@@ -60,17 +55,14 @@ if [[ -n "$DIRTY_STATE" ]]; then
 fi
 SOURCE_SHA="$(git rev-parse HEAD)"
 
-# Production credentials must remain outside the repository. The project-level
-# gradle.properties is tracked, so only ~/.gradle/gradle.properties may contain them.
-sensitive_project_props=(
-  steamforge.appmetricaApiKey
-  steamforge.privacyPolicyUrl
-  steamforge.rewardedAdUnitId
-  steamforge.interstitialAdUnitId
-)
-for key in "${sensitive_project_props[@]}"; do
+# Tracking/advertising credentials are intentionally not part of Steamforge.
+for key in \
+  steamforge.appmetricaApiKey \
+  steamforge.privacyPolicyUrl \
+  steamforge.rewardedAdUnitId \
+  steamforge.interstitialAdUnitId; do
   if grep -Eq "^[[:space:]]*${key}[[:space:]]*=" "$ROOT_DIR/gradle.properties"; then
-    fail "Production property $key must not be stored in tracked gradle.properties; move it to ~/.gradle/gradle.properties"
+    fail "Obsolete tracking/advertising property $key must not be stored in tracked gradle.properties"
   fi
 done
 
@@ -81,7 +73,6 @@ printf 'Source commit: %s\n' "$SOURCE_SHA"
 DIST_DIR="$ROOT_DIR/dist"
 DIST_APK="$DIST_DIR/Steamforge-${VERSION_NAME}-vc${VERSION_CODE}-rustore.apk"
 mkdir -p "$DIST_DIR"
-# Never leave a stale same-version file looking like the result of a failed preflight.
 rm -f "$DIST_APK" "$DIST_APK.sha256" "$DIST_APK.metadata.txt"
 
 CONFIRMED_APP_ID="$(read_prop steamforge.confirmApplicationId || true)"
@@ -111,44 +102,6 @@ case "$KEYSTORE_PATH" in
     fi
     ;;
 esac
-
-required_gradle_props=(
-  steamforge.appmetricaApiKey
-  steamforge.privacyPolicyUrl
-  steamforge.rewardedAdUnitId
-  steamforge.interstitialAdUnitId
-)
-
-for key in "${required_gradle_props[@]}"; do
-  value="$(read_prop "$key" || true)"
-  [[ -n "$value" ]] || fail "Gradle property $key is missing (recommended location: ~/.gradle/gradle.properties)"
-  if looks_placeholder "$value"; then
-    fail "Gradle property $key still looks like a demo/placeholder value"
-  fi
-done
-
-APPMETRICA_KEY="$(read_prop steamforge.appmetricaApiKey)"
-REWARDED_ID="$(read_prop steamforge.rewardedAdUnitId)"
-INTERSTITIAL_ID="$(read_prop steamforge.interstitialAdUnitId)"
-PRIVACY_URL="$(read_prop steamforge.privacyPolicyUrl)"
-
-[[ ${#APPMETRICA_KEY} -ge 20 ]] || fail 'steamforge.appmetricaApiKey looks too short for a production key'
-[[ "$REWARDED_ID" != demo-* ]] || fail 'rewarded ad unit must not use a Yandex demo ID'
-[[ "$INTERSTITIAL_ID" != demo-* ]] || fail 'interstitial ad unit must not use a Yandex demo ID'
-[[ "$PRIVACY_URL" == https://* ]] || fail 'steamforge.privacyPolicyUrl must be an HTTPS URL'
-
-command -v curl >/dev/null 2>&1 || fail 'curl is required to validate the published Privacy Policy'
-PRIVACY_TMP="$(mktemp)"
-trap 'rm -f "$PRIVACY_TMP"' EXIT
-printf 'Checking published Privacy Policy...\n'
-curl --fail --location --silent --show-error --max-time 20 \
-  --user-agent 'SteamforgeReleasePreflight/1.0' \
-  "$PRIVACY_URL" \
-  --output "$PRIVACY_TMP"
-[[ "$(wc -c < "$PRIVACY_TMP")" -ge 200 ]] || fail 'Privacy Policy response is unexpectedly small'
-if grep -Eqi '\[OWNER_INPUT\]|PLACEHOLDER|CHANGE_ME|будет добавлен|TODO' "$PRIVACY_TMP"; then
-  fail 'Published Privacy Policy still contains a placeholder marker'
-fi
 
 printf 'Production inputs: OK\n'
 printf 'Running tests, lint and signed release build...\n'

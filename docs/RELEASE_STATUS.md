@@ -1,203 +1,184 @@
 # Steamforge 1.0 — release status
 
-**Актуализировано:** 05.09.2026.
+**Актуализировано:** 06.09.2026.
 
-Этот файл фиксирует фактическое состояние первого релиза в `master`. Product roadmap и поздние feature-ветки находятся отдельно; наличие старого PR не означает, что функция входит в V1 baseline.
+Этот файл фиксирует фактический V1 baseline после gameplay visual pass #156–158 и cleanup #159.
 
-> **Advertising decision:** Steamforge является no-ads продуктом. Реклама и её разработка заморожены согласно `docs/ADR_0001_NO_ADS.md`. Старый Yandex Ads код не является release requirement или будущей задачей и не должен возвращаться в работу без отдельного ADR, явно отменяющего ADR 0001.
+## Product/privacy baseline
 
-## Consolidated baseline
+Steamforge является:
 
-`master` является основной V1-линией. В него уже перенесены и зафиксированы отдельными понятными merge/squash-коммитами:
+- **no-ads product** по `ADR_0001_NO_ADS.md`;
+- **no-user-telemetry product** по `ADR_0005_NO_USER_TELEMETRY.md`.
 
-- production Compose baseline и release hardening;
-- Android CI для обычных и stacked pull requests;
-- Android 17 / API 37 + 16 KiB runtime smoke;
-- release AAB build и structural validation;
-- `GameSaveCodec` v5 с backward read старых форматов;
-- deterministic replayable RNG и сохранение session counters;
-- stable analytics `run_id` для normal/daily run funnel и process-death correlation;
-- low-storage active-run autosave recovery;
-- terminal Game Over persistence recovery с retry того же result ID и идемпотентным `applyGameFinish`;
-- process recreation smoke через production UI и `am force-stop`;
-- Activity recreation, Home/background-resume и screen-off/wake lifecycle gates;
-- offline active-run lifecycle gate: production app стартует без outbound connectivity, восстанавливает durable run, принимает новый ход и сохраняет его через повторный offline process recreation;
-- high-tier tile contrast regression и production `BoardView` capture;
-- swipe/touchSlop instrumentation: sub-slop drag не делает ход, один жест отправляет не более одного move;
-- semantic gameplay haptics и реальный Undo SFX только после успешной отмены;
-- tiered merge feedback: low/mid/high SFX, restrained combo pitch и tier-dependent merge pop без изменения animation durations;
-- release-like AndroidX Macrobenchmark harness для production `BoardView` + `GameEngine`;
-- hosted API 36 frame-timing execution diagnostic; его числа являются диагностикой, а не performance SLA;
-- adaptive production `GameScreen`: portrait baseline + compact-landscape layout с board слева и HUD/Undo/Wrench справа;
-- отдельный adaptive-window smoke для 16:9 portrait, ~19.5:9 portrait и 16:9 landscape;
-- large-font Accessibility UI Smoke: production Home/Game при font scale 1.3, critical touch targets не меньше 48dp и runtime bounds внутри display;
-- curated V1 visual clean pass: спокойные Workshop/Achievements/Settings surfaces и выборочно адаптированный gameplay chrome без отката поздних contrast/input/feedback/adaptive fixes;
-- Home как Navigation3 root с одним Play/Continue CTA и progressive disclosure новых meta-систем для первого пользователя;
-- first-run gameplay onboarding: hint первого swipe → merge → дальнейшая свободная игра;
-- ежедневные Contracts: детерминированный набор из трёх контрактов, high-water прогресс поверх autosave, атомарные идемпотентные gem claims и сфокусированный первый onboarding Contract;
-- Blueprint Collection с первой коллекцией Steam Engine;
-- детерминированный core-balance simulation baseline для измеримого difficulty/spawn tuning;
-- typed `game_restarted` telemetry для явного restart незавершённого run без загрязнения Play Again после Game Over.
+Production Android client не должен содержать рекламный SDK, AppMetrica/другой user analytics SDK, ad unit IDs, analytics API keys, advertising/analytics consent UI или соответствующий Settings surface.
 
-Полный branch decision log: `docs/BRANCH_AUDIT_2026-09-01.md`.
+Внутренние typed event call sites временно допускаются только за strict no-op implementation: без SDK, сети, хранения и Logcat event stream.
 
-## Технически готово / существует
+## Current technical baseline
 
-- Pure Kotlin 4×4 `GameEngine` покрыт unit tests.
-- Normal run использует replayable deterministic RNG; seed/position сохраняются.
-- Active run сохраняется в DataStore и восстанавливается после process death.
-- Transient/low-storage `IOException` обычной autosave не уничтожает текущую in-memory партию; следующая успешная autosave догоняет durable state.
-- Terminal finish хранит один pending result; retry использует тот же result ID и не должен повторно начислять progression/reward.
-- Ambiguous terminal I/O после фактического commit восстанавливает persisted finish effects вместо повторного начисления.
-- Save codec v5 сохраняет board/meta/RNG + session statistics + analytics run ID и читает старые форматы.
-- Home является production root; незавершённая normal run возвращается через `ПРОДОЛЖИТЬ`.
-- Contracts имеют отдельный экран и persistent daily ledger; progress записывается внутри существующих save/finish транзакций без второго DataStore write на каждый swipe.
-- Daily reward защищён по `epochDay`.
-- Android CI проверяет unit tests, `lintDebug`, `lintRelease`, debug/release APK, Macrobenchmark compile, 16 KiB APK, `bundleRelease` и структуру release AAB.
-- Release AAB gate требует один непустой `.aab`, валидный ZIP, base manifest/resources и DEX payload.
-- UI Emulator Smoke существует для основных production экранов.
-- Active Run Lifecycle Smoke покрывает Activity recreation, background/resume, process recreation, screen-off/wake и offline process recreation с локальным autosave.
-- High Tier Tile Smoke покрывает contrast/render и production swipe detector.
-- Frame Timing Diagnostic Smoke исполняет release-like dense-merge workload на hosted emulator; physical-device `FrameTimingMetric` остаётся обязательным для performance acceptance.
-- Adaptive Gameplay Window Smoke проверяет production gameplay bounds на трёх window shapes.
-- Accessibility UI Smoke запускает production app на API 36 при font scale 1.3, проходит Privacy → Home → Game и проверяет runtime touch geometry критичных controls, включая Undo/Wrench, а также board tile bounds.
-- Yandex Mobile Ads automatic initialization отключён в manifest; существующая legacy integration не является активной продуктовой функцией и не должна расширяться по ADR 0001.
-- Release signing/preflight tooling существует.
-- `targetSdk = 36`, `compileSdk = 36`, `minSdk = 24`, JDK 17.
-- Package ID: `com.steamforge.game`.
+В `master` / текущей release line уже находятся:
 
-## Active-run lifecycle status
+- pure Kotlin 4×4 `GameEngine`;
+- deterministic replayable RNG;
+- normal active-run autosave и process-death restore;
+- backward-readable save codec и сохранение session counters / stable run identity;
+- terminal result persistence с retry/idempotency/recovery;
+- Steam Pressure / Overdrive;
+- Undo и Wrench;
+- Workshop progression;
+- achievements;
+- Daily Challenge / daily reward;
+- Contracts и initial Blueprint Collection;
+- forgiving return-loop pieces / Workshop Parts economy slices, внесённые в current master;
+- offline-first Remote Config abstraction с compiled defaults, cache и bounded HTTPS refresh;
+- deterministic Weekly challenge/run/replay/ranking foundations;
+- pure JVM Weekly modules для client/server replay authority;
+- server-side Weekly validation, PostgreSQL accepted population и bounded Ktor ranking transport;
+- Weekly по-прежнему скрыт из обычной player navigation, пока production identity/session/deployment/client endpoint не завершены;
+- Compose/Canvas gameplay с board-first visual hierarchy;
+- gameplay premium material pass, reduced chrome и expanded portrait/tablet board scaling;
+- Navigation 3;
+- DataStore persistence;
+- Macrobenchmark harness;
+- release signing/preflight tooling;
+- RuStore store-assets pipeline.
 
-Lifecycle/recovery больше не является отдельным незавершённым стеком: соответствующие V1 gates перенесены в `master`.
+## Android baseline
 
-Baseline проверяет:
+- `compileSdk = 36`
+- `targetSdk = 36`
+- `minSdk = 24`
+- JDK/Kotlin toolchain 17
+- AGP 9.0.1
+- Kotlin 2.3.20
+- Compose + Material 3/custom Steamforge design system
 
-1. `ActivityScenario.recreate()` с сохранением production Game route/state;
-2. Home/background → launcher resume без потери active run;
-3. `am force-stop` → launcher relaunch → Home `ПРОДОЛЖИТЬ` → восстановление durable run;
-4. screen-off/wake через UI Automator;
-5. low-storage autosave failure/recovery;
-6. terminal finish retry/idempotency при I/O failure;
-7. network-off startup (`airplane_mode_on=1`, outbound ping недоступен) → offline `ПРОДОЛЖИТЬ` → реальный swipe/autosave → повторный offline process recreation с точным восстановлением нового durable board state.
+## Advertising / analytics removal status
 
-Rewarded/interstitial lifecycle больше не является release gate: advertising product work заморожен ADR 0001.
+Cleanup #159 removes from production configuration/runtime:
 
-При изменениях persistence/navigation/game UI эти workflows должны снова проходить на новом `master` head.
+- Yandex Mobile Ads dependency;
+- AppMetrica dependency/implementation;
+- Yandex Ads manifest auto-init metadata;
+- AppMetrica/ad BuildConfig credentials;
+- startup analytics/ad consent dialog;
+- Settings analytics/advertising controls;
+- interstitial session policy;
+- real advertising runtime code;
+- consent/session AppMetrica wiring from `MainActivity`/`AppContainer`;
+- release requirements for AppMetrica/ad credentials.
 
-## Gameplay quality status
+CI includes `tools/check-no-tracking.sh`, which fails if prohibited SDK/config references return to production sources.
 
-В `master` уже находятся минимальные Gate A улучшения, не меняющие правила 2048:
+`INTERNET` remains intentional for optional Remote Config and future explicit Weekly backend functionality. Эти services не должны использоваться как behavioral analytics channel.
 
-- semantic `CONFIRM/REJECT` haptic feedback;
-- Undo SFX только для фактически выполненного Undo;
-- merge SFX tiers 2–16 / 32–128 / 256+;
-- restrained multi-merge pitch escalation;
-- merge-pop hierarchy с неизменными slide/merge/spawn durations;
-- 1024 contrast fix и regression test;
-- touchSlop / one-command-per-gesture instrumentation;
-- adaptive landscape gameplay layout;
-- compact gameplay chrome с board-first hierarchy, единым спокойным HUD, restrained board frame и premium glow только на high tiers.
+## Reliability / lifecycle status
 
-## Accessibility status
+Automated baseline covers:
 
-Автоматизированный accessibility baseline теперь включает:
+1. Activity recreation;
+2. Home/background/resume;
+3. process force-stop/relaunch and durable run restoration;
+4. screen-off/wake;
+5. offline startup/continue/move/autosave/recreation;
+6. low-storage autosave failure/recovery;
+7. terminal finish retry/idempotency;
+8. touchSlop / one-command-per-gesture;
+9. high-tier tile readability;
+10. expanded/portrait/compact-landscape gameplay geometry.
 
-- production Home/Game launch при font scale 1.3;
-- проверку критичных Home controls и gameplay Undo/Wrench как реальных clickable targets не меньше 48dp;
-- проверку, что эти runtime bounds остаются внутри display;
-- проверку, что semantic gameplay tile остаётся видимым внутри display;
-- сохранение screenshots, UI XML и geometry diagnostics как CI artifact.
+## CI gates
 
-Этот gate не заменяет ручной TalkBack smoke и real-device проверку дополнительных размеров/системных inset-вариантов перед production release.
+Canonical workflows include:
 
-## Performance status
+- Android CI;
+- UI Emulator Smoke;
+- Android 17 / 16 KB Smoke;
+- Active Run Lifecycle Smoke;
+- High Tier Tile Smoke;
+- Adaptive Gameplay Window Smoke;
+- Accessibility UI Smoke;
+- Frame Timing Diagnostic Smoke;
+- RuStore Store Assets.
 
-Macrobenchmark harness находится в `master` и использует production `BoardView` + `GameEngine` на детерминированной dense-merge fixture.
-
-Разделение доказательств:
-
-- hosted emulator — проверяет, что benchmark build устанавливается, запускается и исполняет workload;
-- physical Android 12+ device — нужен для реального `FrameTimingMetric` performance acceptance.
-
-Hosted-emulator frame numbers не являются release SLA.
-
-Physical command:
-
-```bash
-./gradlew :macrobenchmark:connectedBenchmarkAndroidTest
-```
+Tracking-free UI smoke additionally требует прямой Home startup и отсутствие AppMetrica/analytics-ad/consent/rewarded-video copy на проверяемых production surfaces.
 
 ## Visual status
 
 Source of truth: `docs/VISUAL_BIBLE.md`.
 
-Принятое направление:
+Current direction:
 
 > premium stylized industrial steampunk + painterly atmosphere + clean puzzle readability + restrained ornament.
 
-Generated screens остаются art-direction references, а не pixel-perfect production layouts.
+Последние gameplay passes:
 
-Curated visual clean pass из исторического PR #9 теперь интегрирован в V1 baseline выборочно:
+- #156 — premium tile/material system и calmer workshop/UI palette;
+- #157 — reduced gameplay chrome/onboarding clutter;
+- #158 — expanded portrait/tablet gameplay column/board scale.
 
-- Workshop, Achievements, Settings, typography и shared Steam UI уже соответствуют одобренному clean-pass направлению;
-- gameplay chrome перенесён отдельным PR #66 поверх актуального reliability/accessibility baseline;
-- palette не откатывалась к старому состоянию PR #9: более поздние high-tier contrast/accessibility fixes сохранены;
-- исторический PR #9 закрыт как superseded и не должен raw-merge'иться поверх текущего `master`.
+Generated concept screens остаются art-direction references. Исторические Shop/Remove Ads/rewarded-video элементы не являются product spec и не должны возвращаться в production UI.
 
-## Android 17 / 16 KiB status
+## Weekly status
 
-Отдельный runtime smoke проверяет API 37 / Android 17 в 16 KiB environment.
+Уже реализовано:
 
-Важно:
+- deterministic challenge definition;
+- shared replayable RNG;
+- terminal replay recording/validation;
+- shared wire protocol;
+- server-side canonical replay validation;
+- accepted-population store in PostgreSQL;
+- bounded authenticated Ktor ranking route.
 
-- failure загрузки hosted emulator — infrastructure failure, пока app не был реально установлен/запущен;
-- app compatibility подтверждается только успешным boot + verified API/page size + install/launch.
+Ещё не production-ready:
 
-Project-specific checklist: `docs/ANDROID_2026_CHECKLIST.md`.
+- production identity/provider exchange;
+- signed application session integration на актуальном master;
+- deployment/secrets/runtime configuration;
+- client ranking endpoint/provider;
+- rate/abuse/operations/observability;
+- privacy update до фактического Weekly player exposure.
 
-## До production build нужны данные владельца
+До закрытия этих пунктов Weekly остаётся скрыт.
 
-Обязательные значения вне git:
+## Remaining production blockers
 
-- `steamforge.appmetricaApiKey`;
-- публичный HTTPS Privacy Policy URL (`steamforge.privacyPolicyUrl`);
-- owner/legal name для Privacy Policy;
-- support/privacy e-mail;
-- release keystore + passwords;
-- минимум две независимые backup-копии release key.
+Перед первым store release необходимы:
 
-Ad unit IDs не являются production requirements и не должны запрашиваться/добавляться, пока ADR 0001 активен.
+1. зелёный canonical CI на финальном `master`;
+2. проверка final APK/AAB dependency/manifest inventory на отсутствие ad/analytics SDK;
+3. physical-device smoke normal/save/process-death/offline/settings/reset;
+4. manual TalkBack/large-text/safe-area spot-check;
+5. physical-device Macrobenchmark/frame-timing acceptance;
+6. 30–60 minute thermal/battery session после final visual/VFX state;
+7. production signing key + минимум две независимые backup-копии;
+8. заполненная/опубликованная privacy/store disclosure по фактической production network configuration;
+9. final signed APK из `tools/build-rustore-release.sh`, проверенный SHA-256 и загрузка именно этого artifact.
 
-Секреты и keystore в git не коммитятся.
+## Owner data required outside git
 
-## Production gate — RuStore V1
+- final owner/legal name для store/privacy page;
+- support/privacy contact e-mail;
+- release keystore/passwords;
+- backup copies of signing key;
+- package ID confirmation;
+- при включении Remote Config — production HTTPS endpoint и server-log/privacy details.
 
-1. Получить зелёный canonical CI на актуальном `master`: Android CI, UI smoke, Android 17/16 KiB, lifecycle, high-tier/input, adaptive-window, accessibility UI и применимые performance diagnostics.
-2. Выполнить physical-device Macrobenchmark и сохранить реальные frame-timing результаты.
-3. Опубликовать Privacy Policy по постоянному HTTPS URL.
-4. Подключить production keystore и проверить backups.
-5. Добавить локально production AppMetrica key и Privacy Policy URL. Не добавлять ad unit IDs.
-6. Запустить `bash tools/build-rustore-release.sh`.
-7. Использовать только `dist/Steamforge-<version>-vc<code>-rustore.apk` и его `.sha256`.
-8. Установить именно этот APK и пройти real-device smoke: consent, normal run, autosave/recovery, lifecycle/process-death restore, Game Over persistence/retry, Restart, Daily, Contracts, Workshop/Collection access, reset progress, offline, Privacy Policy, TalkBack/large text spot-check.
-9. Проверить AppMetrica до/после consent и убедиться, что рекламные поверхности не появляются и рекламная инициализация не является частью release flow.
-10. Повторно сверить SHA-256 и загрузить проверенный APK + утверждённые store assets.
-11. Для первого релиза использовать ручную публикацию после модерации.
+Не требуются:
 
-## Не входят в текущий V1 baseline
+- AppMetrica key;
+- rewarded/interstitial ad IDs;
+- advertising consent configuration.
 
-Следующие старые stacked PR/идеи существуют в истории, но пока не считаются частью consolidated V1 `master`:
+## Architecture follow-up after V1 consolidation
 
-- Weekly Challenge;
-- forgiving streak extension;
-- generic LiveOps framework;
-- Remote Config;
-- seasonal/event presentation;
-- tile milestone reveals;
-- paid cosmetics / non-ad store work;
-- Reward Track / Season Pass readiness;
-- rotating events и retention funnel extensions.
+Не является причиной переписывать core перед релизом, но до крупного LiveOps expansion рекомендуется:
 
-`Remove Ads`, rewarded/interstitial placements и другая реклама не являются «неперенесёнными» feature-ветками: они исключены продуктовым решением ADR 0001.
+- разгрузить `GameViewModel` от persistence/progression/competitive orchestration;
+- переименовать/выделить общий `GameEngine` ownership из исторического `:weekly-core` в semantic game/simulation core module;
+- определить storage boundary (Proto DataStore/Room) до роста event/reward/history state;
+- очистить оставшиеся inert legacy field/call-site names после безопасной декомпозиции.
 
-Их перенос должен быть отдельными читаемыми commits/PR поверх текущего `master`, а не raw merge старого cumulative integration branch.
+`GameEngine` и текущую reliability foundation радикально переписывать не требуется.

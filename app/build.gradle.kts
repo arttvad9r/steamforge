@@ -62,23 +62,14 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "APPMETRICA_API_KEY", prop("steamforge.appmetricaApiKey", ""))
-        buildConfigField("String", "PRIVACY_POLICY_URL", prop("steamforge.privacyPolicyUrl", ""))
         buildConfigField("String", "REMOTE_CONFIG_URL", prop("steamforge.remoteConfigUrl", ""))
     }
 
     buildTypes {
-        debug {
-            // AdsManager намеренно игнорирует production IDs в debug и всегда использует demo units.
-            buildConfigField("String", "REWARDED_AD_UNIT_ID", "\"\"")
-            buildConfigField("String", "INTERSTITIAL_AD_UNIT_ID", "\"\"")
-        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "REWARDED_AD_UNIT_ID", prop("steamforge.rewardedAdUnitId", ""))
-            buildConfigField("String", "INTERSTITIAL_AD_UNIT_ID", prop("steamforge.interstitialAdUnitId", ""))
 
             val storeFilePath = keystoreProps.getProperty("storeFile")
             if (storeFilePath != null) {
@@ -139,8 +130,6 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.serialization.json)
-  implementation(libs.appmetrica.analytics)
-  implementation(libs.yandex.mobileads)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
