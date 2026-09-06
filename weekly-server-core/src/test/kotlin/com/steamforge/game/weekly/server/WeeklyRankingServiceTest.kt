@@ -34,15 +34,17 @@ class WeeklyRankingServiceTest {
             override suspend fun recordAndRank(
                 principal: WeeklyAuthenticatedPrincipal,
                 run: AcceptedWeeklyRun,
-            ): WeeklyRankingSnapshot {
+            ): WeeklyPopulationRecordResult {
                 capturedPrincipal = principal
                 capturedRun = run
-                return WeeklyRankingSnapshot(
-                    challengeId = run.challengeId,
-                    score = run.score,
-                    percentile = 87.5,
-                    rank = 13,
-                    participantCount = 100,
+                return WeeklyPopulationRecordResult.Ranked(
+                    WeeklyRankingSnapshot(
+                        challengeId = run.challengeId,
+                        score = run.score,
+                        percentile = 87.5,
+                        rank = 13,
+                        participantCount = 100,
+                    ),
                 )
             }
         }
@@ -60,15 +62,29 @@ class WeeklyRankingServiceTest {
     }
 
     @Test
+    fun `duplicate accepted attempt is rejected`() = runTest {
+        val store = object : WeeklyRankingPopulationStore {
+            override suspend fun recordAndRank(
+                principal: WeeklyAuthenticatedPrincipal,
+                run: AcceptedWeeklyRun,
+            ): WeeklyPopulationRecordResult = WeeklyPopulationRecordResult.Duplicate
+        }
+
+        val result = WeeklyRankingService(validator, store).submit(PRINCIPAL, VALID_PAYLOAD)
+
+        assertEquals(WeeklyRankingStatus.REJECTED, result.status)
+    }
+
+    @Test
     fun `forged submission is rejected before population storage`() = runTest {
         var storeCalled = false
         val store = object : WeeklyRankingPopulationStore {
             override suspend fun recordAndRank(
                 principal: WeeklyAuthenticatedPrincipal,
                 run: AcceptedWeeklyRun,
-            ): WeeklyRankingSnapshot {
+            ): WeeklyPopulationRecordResult {
                 storeCalled = true
-                return matchingRanking(run)
+                return WeeklyPopulationRecordResult.Ranked(matchingRanking(run))
             }
         }
         val forged = VALID_SUBMISSION.copy(finalScore = VALID_SUBMISSION.finalScore + 10_000)
@@ -86,12 +102,14 @@ class WeeklyRankingServiceTest {
             override suspend fun recordAndRank(
                 principal: WeeklyAuthenticatedPrincipal,
                 run: AcceptedWeeklyRun,
-            ): WeeklyRankingSnapshot = WeeklyRankingSnapshot(
-                challengeId = run.challengeId,
-                score = run.score + 4,
-                percentile = 99.0,
-                rank = 1,
-                participantCount = 100,
+            ): WeeklyPopulationRecordResult = WeeklyPopulationRecordResult.Ranked(
+                WeeklyRankingSnapshot(
+                    challengeId = run.challengeId,
+                    score = run.score + 4,
+                    percentile = 99.0,
+                    rank = 1,
+                    participantCount = 100,
+                ),
             )
         }
 
@@ -106,7 +124,7 @@ class WeeklyRankingServiceTest {
             override suspend fun recordAndRank(
                 principal: WeeklyAuthenticatedPrincipal,
                 run: AcceptedWeeklyRun,
-            ): WeeklyRankingSnapshot = error("database unavailable")
+            ): WeeklyPopulationRecordResult = error("database unavailable")
         }
 
         val result = WeeklyRankingService(validator, store).submit(PRINCIPAL, VALID_PAYLOAD)
@@ -120,7 +138,7 @@ class WeeklyRankingServiceTest {
             override suspend fun recordAndRank(
                 principal: WeeklyAuthenticatedPrincipal,
                 run: AcceptedWeeklyRun,
-            ): WeeklyRankingSnapshot = throw CancellationException("request cancelled")
+            ): WeeklyPopulationRecordResult = throw CancellationException("request cancelled")
         }
 
         val failure = runCatching {
