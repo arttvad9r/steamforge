@@ -186,6 +186,16 @@ jobs:
             return 1
           }
 
+          assert_absent() {
+            local needle="$1"
+            dump_ui
+            if grep -Fqi "$needle" /tmp/window.xml; then
+              echo "Unexpected tracking/advertising UI: $needle"
+              cat /tmp/window.xml
+              return 1
+            fi
+          }
+
           wait_for_tile() {
             for i in $(seq 1 15); do
               if dump_ui && grep -Eqi 'content-desc="(Уголь|Медная шестерня),' /tmp/window.xml; then return 0; fi
@@ -273,9 +283,10 @@ jobs:
           }
 
           dismiss_immersive_confirmation
-          wait_for_text 'ПРИВАТНОСТЬ'
-          if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ'; fi
           wait_for_home
+          assert_absent 'ПРИВАТНОСТЬ'
+          assert_absent 'AppMetrica'
+          assert_absent 'Аналитика и реклама'
 
           play_from_home
           wait_for_tile
@@ -283,10 +294,11 @@ jobs:
           # Make the marketing gameplay frame representative instead of showing only two spawn tiles.
           for i in $(seq 1 4); do representative_moves; done
           sleep 2
+          assert_absent 'УДВОИТЬ ГЕМЫ'
+          assert_absent 'за видео'
           shot '01-game-1080x1920.png'
 
           # Workshop is intentionally hidden until the run contains meaningful progress.
-          # Continue the same durable run in bounded chunks until Home exposes it.
           adb shell input keyevent KEYCODE_BACK
           wait_for_home
           for i in $(seq 1 12); do
@@ -304,7 +316,7 @@ jobs:
           sleep 1
           shot '02-workshop-1080x1920.png'
 
-          # Achievements is a Workshop secondary destination; it stays out of the first Home shell.
+          # Achievements is a Workshop secondary destination.
           tap_node 'Достижения'
           wait_for_text 'ПРОГРЕСС'
           sleep 1
