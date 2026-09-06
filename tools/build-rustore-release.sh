@@ -171,6 +171,9 @@ certificateSha256=$CERT_SHA256
 inventoryReport=$(basename "$DIST_INVENTORY")
 EOF
 
+printf 'Verifying exact dist artifact handoff...\n'
+APKSIGNER="$APKSIGNER" bash tools/verify-rustore-release-artifact.sh "$DIST_APK"
+
 printf '\nRelease artifact:\n'
 ls -lh "$DIST_APK" "$DIST_INVENTORY"
 printf 'SHA-256: %s\n' "$APK_SHA256"
@@ -178,4 +181,4 @@ printf 'Certificate SHA-256: %s\n' "$CERT_SHA256"
 printf 'Package: %s\nVersion: %s (%s)\n' "$APP_ID" "$VERSION_NAME" "$VERSION_CODE"
 printf 'Source: %s\n' "$SOURCE_SHA"
 printf 'Inventory: %s\n' "$DIST_INVENTORY"
-printf '\nPreflight complete. Device-smoke and upload the exact APK file from dist/.\n'
+printf '\nPreflight complete. Device-smoke the exact APK from dist/, then rerun tools/verify-rustore-release-artifact.sh before upload.\n'
