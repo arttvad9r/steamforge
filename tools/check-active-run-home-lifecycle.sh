@@ -65,6 +65,18 @@ wait_for_home() {
   return 1
 }
 
+assert_tracking_ui_absent() {
+  local label="$1"
+  dump_ui "$label"
+  for needle in 'ПРИВАТНОСТЬ' 'AppMetrica' 'Аналитика и реклама' 'УДВОИТЬ ГЕМЫ' 'за видео'; do
+    if grep -Fqi "$needle" /tmp/window.xml; then
+      echo "Unexpected tracking/advertising UI: $needle" >&2
+      cat /tmp/window.xml >&2 || true
+      return 1
+    fi
+  done
+}
+
 tap_node() {
   local needle="$1"
   local label="$2"
@@ -180,6 +192,7 @@ perform_successful_move() {
 
 resume_from_home() {
   wait_for_home '40-after-relaunch-home'
+  assert_tracking_ui_absent '40-after-relaunch-home-tracking-free'
   if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
     tap_node 'ПРОДОЛЖИТЬ' '40-tap-continue'
   else
@@ -214,6 +227,7 @@ set_offline() {
 
 resume_offline_from_home() {
   wait_for_home '50-offline-home'
+  assert_tracking_ui_absent '50-offline-home-tracking-free'
   if ! grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
     echo 'Saved run did not expose Continue while offline' >&2
     return 1
@@ -222,23 +236,16 @@ resume_offline_from_home() {
   wait_for_tile '52-offline-game-window'
 }
 
-# Fresh production route: privacy -> Home -> Play.
-for attempt in $(seq 1 15); do
-  dump_ui '00-launch-window'
-  if grep -Fqi 'ПРИВАТНОСТЬ' /tmp/window.xml; then
-    if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' '00-privacy-disable'; fi
-    break
-  fi
-  if grep -Fqi 'MECHANICAL 2048' /tmp/window.xml; then break; fi
-  sleep 2
-done
+# Fresh production route: Home directly, with no analytics/advertising consent gate.
 wait_for_home '01-home-window'
+assert_tracking_ui_absent '01-home-tracking-free'
 if grep -Fqi 'ПРОДОЛЖИТЬ' /tmp/window.xml; then
   tap_node 'ПРОДОЛЖИТЬ' '02-continue-existing'
 else
   tap_node 'ИГРАТЬ' '02-play'
 fi
 wait_for_tile '03-active-game-window'
+assert_tracking_ui_absent '03-active-game-tracking-free'
 shot '03-active-game'
 
 perform_successful_move
@@ -269,9 +276,8 @@ board_signature '42-after-process-recreation-state' /tmp/actual-process-recreati
 assert_signature_matches /tmp/expected-active-run.signature.txt /tmp/actual-process-recreation.signature.txt 'process-recreation'
 shot '42-after-process-recreation'
 
-# Offline is a first-class V1 requirement. Restart the whole process with connectivity disabled so
-# AppContainer/AdsManager initialize under failed network conditions, then prove the durable run is
-# still playable and a new local autosave survives another process recreation without network.
+# Offline is a first-class V1 requirement. Restart the whole process with connectivity disabled and
+# prove the durable run is still playable and a new local autosave survives another recreation.
 set_offline
 adb shell am force-stop "$PACKAGE"
 sleep 1
@@ -297,4 +303,4 @@ assert_signature_matches /tmp/expected-active-run.signature.txt /tmp/actual-offl
 test -n "$(current_pid)"
 shot '55-offline-second-recreation'
 
-echo 'Active-run lifecycle OK: background/resume, process recreation, and offline process recreation preserved a playable durable run.'
+echo 'Active-run lifecycle OK: tracking-free startup, background/resume, process recreation, and offline process recreation preserved a playable durable run.'
