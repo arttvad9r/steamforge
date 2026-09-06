@@ -86,14 +86,16 @@ fun PersistenceGuardedGameScreen(
             modifier = modifier,
         )
 
-        if (onboardingPhase != FirstRunOnboardingPhase.NONE && !terminalWritePending) {
+        // The gameplay screen already carries the permanent swipe instruction. Avoid repeating it as a second card.
+        // After the first accepted move, keep only one small transient merge cue until the first merge succeeds.
+        if (onboardingPhase == FirstRunOnboardingPhase.MERGE && !terminalWritePending) {
             FirstRunOnboardingHint(
                 phase = onboardingPhase,
                 modifier = Modifier
                     .align(if (compactLandscape) Alignment.BottomEnd else Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-                    .widthIn(max = if (compactLandscape) 330.dp else 430.dp),
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .widthIn(max = if (compactLandscape) 250.dp else 310.dp),
             )
         }
     }
@@ -168,33 +170,24 @@ private fun FirstRunOnboardingHint(
         }
         FirstRunOnboardingPhase.NONE -> return
     }
-    val shape = RoundedCornerShape(11.dp)
+    val shape = RoundedCornerShape(99.dp)
 
     Box(
         modifier = modifier
             .clip(shape)
-            .background(Recess.copy(alpha = 0.90f))
-            .border(1.dp, accent.copy(alpha = 0.34f), shape)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .background(Recess.copy(alpha = 0.78f))
+            .border(1.dp, accent.copy(alpha = 0.28f), shape)
+            .padding(horizontal = 12.dp, vertical = 5.dp)
             .semantics { contentDescription = "$title. $body" },
+        contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = title,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.labelMedium,
-                color = accent,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-            Text(
-                text = body,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.labelSmall,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-        }
+        Text(
+            text = title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.labelSmall,
+            color = accent,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
     }
 }
