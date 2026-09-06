@@ -15,6 +15,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.ui.achievements.AchievementsScreen
@@ -83,7 +84,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     WorkshopViewModel(
                         repo = container.repo,
                         remoteConfigProvider = container.remoteConfig,
-                        analytics = container.analytics,
                     )
                 }
                 WorkshopScreen(
@@ -100,7 +100,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     ContractsViewModel(
                         repo = container.repo,
                         remoteConfigProvider = container.remoteConfig,
-                        analytics = container.analytics,
                     )
                 }
                 ContractsScreen(vm = vm, onBack = { back() })
@@ -109,7 +108,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 val vm: GameViewModel = viewModel(key = key.mode.wireName) {
                     GameViewModel(
                         repo = container.repo,
-                        analytics = container.analytics,
+                        analytics = NoopAnalytics(),
                         ads = container.ads,
                         runMode = key.mode,
                         dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
