@@ -1,7 +1,6 @@
 package com.steamforge.game.ui.game
 
 import com.steamforge.game.GameRunMode
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
@@ -40,13 +39,8 @@ class WeeklyGameViewModelRecorderTest {
         Dispatchers.resetMain()
     }
 
-    private object SilentAnalytics : Analytics {
-        override fun logEvent(name: String, params: Map<String, Any?>) = Unit
-    }
-
     private fun vm() = GameViewModel(
         repo = FakeDataRepo(),
-        analytics = SilentAnalytics,
         runMode = GameRunMode.WEEKLY,
         weeklyProvider = { weekly },
         systemAnimationsEnabled = true,
