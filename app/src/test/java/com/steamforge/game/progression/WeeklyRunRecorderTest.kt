@@ -2,6 +2,7 @@ package com.steamforge.game.progression
 
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameState
+import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 import com.steamforge.game.core.ReplayableRandom
@@ -105,5 +106,75 @@ class WeeklyRunRecorderTest {
         assertTrue(recorder.overflowed)
         assertFalse(recorder.canSubmit)
         assertNull(recorder.submission(GameState(score = 999)))
+    }
+
+    @Test
+    fun `verified submission requires terminal state and exact replay equality`() {
+        val recorder = WeeklyRunRecorder(challenge)
+        val terminal = playToGameOver(recorder)
+
+        val submission = requireNotNull(recorder.verifiedSubmission(terminal))
+        val validation = WeeklyRunReplay.validate(challenge, submission)
+
+        assertTrue(validation.valid)
+        assertEquals(terminal, validation.replayedState)
+        assertEquals(terminal.score, submission.finalScore)
+        assertEquals(terminal.maxLevel, submission.finalMaxTileLevel)
+    }
+
+    @Test
+    fun `verified submission rejects non terminal state`() {
+        val recorder = WeeklyRunRecorder(challenge)
+        val initial = GameEngine().newGame(rng = ReplayableRandom(challenge.seed))
+
+        assertEquals(GameStatus.PLAYING, initial.status)
+        assertNull(recorder.verifiedSubmission(initial))
+    }
+
+    @Test
+    fun `verified submission rejects runtime drift not covered by score and max tile fields`() {
+        val recorder = WeeklyRunRecorder(challenge)
+        val terminal = playToGameOver(recorder)
+        val drifted = terminal.copy(moves = terminal.moves + 1)
+
+        val portable = requireNotNull(recorder.submission(drifted))
+        assertTrue(WeeklyRunReplay.validate(challenge, portable).valid)
+        assertNull(recorder.verifiedSubmission(drifted))
+    }
+
+    private fun playToGameOver(recorder: WeeklyRunRecorder): GameState {
+        val engine = GameEngine()
+        val rng = ReplayableRandom(challenge.seed)
+        var state = engine.newGame(rng = rng)
+        var acceptedMoves = 0
+
+        while (state.status == GameStatus.PLAYING && acceptedMoves < WeeklyRunReplay.MAX_INPUT_MOVES) {
+            val order = MOVE_ORDERS[acceptedMoves % MOVE_ORDERS.size]
+            var accepted = false
+            for (move in order) {
+                val result = engine.applyMove(state, move, rng)
+                recorder.record(move, result)
+                if (result.moved) {
+                    state = result.state
+                    acceptedMoves++
+                    accepted = true
+                    break
+                }
+            }
+            if (!accepted) break
+        }
+
+        assertEquals("weekly test run did not reach game over", GameStatus.GAME_OVER, state.status)
+        assertTrue(acceptedMoves < WeeklyRunReplay.MAX_INPUT_MOVES)
+        return state
+    }
+
+    private companion object {
+        val MOVE_ORDERS = listOf(
+            listOf(Move.DOWN, Move.LEFT, Move.RIGHT, Move.UP),
+            listOf(Move.LEFT, Move.DOWN, Move.RIGHT, Move.UP),
+            listOf(Move.DOWN, Move.RIGHT, Move.LEFT, Move.UP),
+            listOf(Move.RIGHT, Move.DOWN, Move.LEFT, Move.UP),
+        )
     }
 }

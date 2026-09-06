@@ -1,6 +1,7 @@
 package com.steamforge.game.progression
 
 import com.steamforge.game.core.GameState
+import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 
@@ -45,5 +46,18 @@ class WeeklyRunRecorder(
             finalScore = finalState.score,
             finalMaxTileLevel = finalState.maxLevel,
         )
+    }
+
+    /**
+     * Returns a competitive payload only after an actual terminal run has independently replayed to the
+     * exact runtime state. Score/max-tile validation remains the portable wire protocol check, while the
+     * full [GameState] equality guards the Android client integration against local recorder/runtime drift.
+     */
+    fun verifiedSubmission(finalState: GameState): WeeklyRunSubmission? {
+        if (finalState.status != GameStatus.GAME_OVER) return null
+        val candidate = submission(finalState) ?: return null
+        val validation = WeeklyRunReplay.validate(challenge, candidate)
+        if (!validation.valid || validation.replayedState != finalState) return null
+        return candidate
     }
 }
