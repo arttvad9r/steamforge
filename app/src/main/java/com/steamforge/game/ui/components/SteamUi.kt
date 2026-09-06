@@ -52,7 +52,7 @@ import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 
-private val FrameShape = RoundedCornerShape(14.dp)
+private val FrameShape = RoundedCornerShape(11.dp)
 
 @Composable
 fun SteamBackdrop(
@@ -74,10 +74,10 @@ fun SteamBackdrop(
             ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val edgeMetal = BrassDark.copy(alpha = 0.12f)
-            val edgeHighlight = Copper.copy(alpha = 0.055f)
-            val tealAtmosphere = TealGlow.copy(alpha = 0.040f)
-            val warmAtmosphere = BrassBright.copy(alpha = 0.028f)
+            val edgeMetal = BrassDark.copy(alpha = 0.10f)
+            val edgeHighlight = Copper.copy(alpha = 0.045f)
+            val tealAtmosphere = TealGlow.copy(alpha = 0.034f)
+            val warmAtmosphere = BrassBright.copy(alpha = 0.024f)
             val margin = 10.dp.toPx()
 
             drawCircle(
@@ -169,22 +169,22 @@ fun SteamPanel(
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(10.dp),
     content: @Composable () -> Unit,
 ) {
-    val border = if (highlighted) Brass.copy(alpha = 0.68f) else BrassDark.copy(alpha = 0.42f)
+    val border = if (highlighted) Brass.copy(alpha = 0.58f) else BrassDark.copy(alpha = 0.28f)
     Box(
         modifier = modifier
             .shadow(
-                4.dp,
+                2.dp,
                 FrameShape,
-                ambientColor = Color.Black.copy(alpha = 0.24f),
-                spotColor = Color.Black.copy(alpha = 0.34f),
+                ambientColor = Color.Black.copy(alpha = 0.18f),
+                spotColor = Color.Black.copy(alpha = 0.24f),
             )
             .clip(FrameShape)
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        PanelRaised.copy(alpha = 0.82f),
-                        Panel.copy(alpha = 0.94f),
-                        SurfaceDark.copy(alpha = 0.98f),
+                        PanelRaised.copy(alpha = 0.70f),
+                        Panel.copy(alpha = 0.88f),
+                        SurfaceDark.copy(alpha = 0.95f),
                     ),
                 ),
             )
@@ -194,7 +194,7 @@ fun SteamPanel(
             val inset = 15.dp.toPx()
             if (size.width > inset * 2f && size.height > 10.dp.toPx()) {
                 drawLine(
-                    Color.White.copy(alpha = if (highlighted) 0.065f else 0.035f),
+                    Color.White.copy(alpha = if (highlighted) 0.045f else 0.020f),
                     Offset(inset, 3.dp.toPx()),
                     Offset(size.width - inset, 3.dp.toPx()),
                     1.dp.toPx(),
@@ -222,14 +222,14 @@ fun SteamButton(
         SteamButtonStyle.Dark -> listOf(PanelRaised, SurfaceDark, BrassDark, TextWarm)
         SteamButtonStyle.Danger -> listOf(Color(0xFF663321), Color(0xFF351C17), Color(0xFFC7603A), TextWarm)
     }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(11.dp)
     Row(
         modifier = modifier
-            .height(54.dp)
-            .shadow(3.dp, shape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.32f))
+            .height(50.dp)
+            .shadow(2.dp, shape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.25f))
             .clip(shape)
             .background(Brush.verticalGradient(listOf(start, end)))
-            .border(1.dp, border.copy(alpha = if (enabled) 0.76f else 0.26f), shape)
+            .border(1.dp, border.copy(alpha = if (enabled) 0.66f else 0.22f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp)
             .semantics {
@@ -263,16 +263,16 @@ fun BrassRoundButton(
 ) {
     Box(
         modifier = modifier
-            .size(46.dp)
-            .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.32f))
+            .size(42.dp)
+            .shadow(2.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf(PanelRaised, SurfaceDark, Recess)))
-            .border(1.dp, Brass.copy(alpha = 0.62f), CircleShape)
+            .background(Brush.radialGradient(listOf(PanelRaised.copy(alpha = 0.82f), SurfaceDark, Recess)))
+            .border(1.dp, Brass.copy(alpha = 0.50f), CircleShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         contentAlignment = Alignment.Center,
     ) {
-        Text(symbol, style = MaterialTheme.typography.titleLarge, color = BrassBright)
+        Text(symbol, style = MaterialTheme.typography.titleMedium, color = BrassBright)
     }
 }
 
@@ -285,15 +285,15 @@ fun StatPlate(label: String, value: String, modifier: Modifier = Modifier, accen
         else -> MaterialTheme.typography.labelMedium
     }
     val labelStyle = if (compactScreen || label.length > 5) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
-    val horizontalPadding = if (compactScreen) 9.dp else 12.dp
-    val verticalPadding = if (compactScreen) 5.dp else 7.dp
-    val shape = RoundedCornerShape(10.dp)
+    val horizontalPadding = if (compactScreen) 8.dp else 11.dp
+    val verticalPadding = if (compactScreen) 4.dp else 6.dp
+    val shape = RoundedCornerShape(9.dp)
 
     Column(
         modifier = modifier
             .clip(shape)
-            .background(Recess.copy(alpha = 0.58f))
-            .border(1.dp, Color.White.copy(alpha = 0.045f), shape)
+            .background(Recess.copy(alpha = 0.50f))
+            .border(1.dp, Color.White.copy(alpha = 0.035f), shape)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding)
             .semantics { contentDescription = "$label: $value" },
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -305,7 +305,7 @@ fun StatPlate(label: String, value: String, modifier: Modifier = Modifier, accen
             maxLines = 1,
             softWrap = false,
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(1.dp))
         Text(
             value,
             modifier = Modifier.fillMaxWidth(),
