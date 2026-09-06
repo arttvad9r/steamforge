@@ -29,6 +29,8 @@ import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.ProgressionConfig
 import com.steamforge.game.progression.WeeklyChallenge
 import com.steamforge.game.progression.WeeklyChallenges
+import com.steamforge.game.progression.WeeklyRunRecorder
+import com.steamforge.game.progression.WeeklyRunSubmission
 import com.steamforge.game.progression.applyGameFinished
 import java.io.IOException
 import java.util.UUID
@@ -113,6 +115,7 @@ class GameViewModel(
     private var finishPersistenceHadIoFailure = false
     private var rewardedOfferLoggedResultId: String? = null
     private var runAnalyticsId: String? = null
+    private var weeklyRecorder: WeeklyRunRecorder? = null
 
     private val _ui = MutableStateFlow(
         GameUiState(
@@ -121,6 +124,9 @@ class GameViewModel(
         ),
     )
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
+
+    private val _weeklySubmission = MutableStateFlow<WeeklyRunSubmission?>(null)
+    val weeklySubmission: StateFlow<WeeklyRunSubmission?> = _weeklySubmission.asStateFlow()
 
     private var undoSnapshot: UndoSnapshot? = null
 
@@ -258,6 +264,7 @@ class GameViewModel(
             1
         }
         val result = engine.applyMove(s.state, move, rng, multiplier)
+        weeklyRecorder?.record(move, result)
         if (!result.moved) return
 
         GameMoveAnalytics.eventsFor(
@@ -445,6 +452,8 @@ class GameViewModel(
         runAnalyticsId = createRunAnalyticsId()
         rng = ReplayableRandom(sessionSeed ?: 0L)
         undoSnapshot = null
+        weeklyRecorder = weekly?.let { WeeklyRunRecorder(it) }
+        _weeklySubmission.value = null
         val state = engine.newGame(rng = rng)
         _ui.update {
             it.copy(
@@ -568,6 +577,7 @@ class GameViewModel(
         pendingFinish = null
         finishWriteInFlight = false
         finishPersistenceHadIoFailure = false
+        _weeklySubmission.value = weeklyRecorder?.verifiedSubmission(s.state)
         _ui.update {
             it.copy(
                 finished = true,
