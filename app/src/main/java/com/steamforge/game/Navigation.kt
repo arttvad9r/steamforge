@@ -53,7 +53,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
 @Serializable data object Contracts : NavKey
-@Serializable data class Game(val daily: Boolean = false) : NavKey
+@Serializable data class Game(val mode: GameRunMode = GameRunMode.NORMAL) : NavKey
 @Serializable data object Profile : NavKey
 @Serializable data object Achievements : NavKey
 @Serializable data object Settings : NavKey
@@ -98,10 +98,10 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 val vm: HomeViewModel = viewModel { HomeViewModel(container.repo) }
                 HomeScreen(
                     vm = vm,
-                    onPlay = { backStack.add(Game(daily = false)) },
+                    onPlay = { backStack.add(Game(GameRunMode.NORMAL)) },
                     onWorkshop = { backStack.add(Workshop) },
                     onContracts = { backStack.add(Contracts) },
-                    onDaily = { backStack.add(Game(daily = true)) },
+                    onDaily = { backStack.add(Game(GameRunMode.DAILY)) },
                     onAchievements = { backStack.add(Profile) },
                     onSettings = { backStack.add(Settings) },
                 )
@@ -117,8 +117,8 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 WorkshopScreen(
                     vm = vm,
                     sfx = container.sfx,
-                    onPlay = { backStack.add(Game(daily = false)) },
-                    onDaily = { backStack.add(Game(daily = true)) },
+                    onPlay = { backStack.add(Game(GameRunMode.NORMAL)) },
+                    onDaily = { backStack.add(Game(GameRunMode.DAILY)) },
                     onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
                 )
@@ -134,19 +134,19 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 ContractsScreen(vm = vm, onBack = { back() })
             }
             entry<Game> { key ->
-                val vm: GameViewModel = viewModel(key = if (key.daily) "daily" else "normal") {
+                val vm: GameViewModel = viewModel(key = key.mode.wireName) {
                     GameViewModel(
                         repo = container.repo,
                         analytics = container.analytics,
                         ads = container.ads,
-                        dailyMode = key.daily,
+                        runMode = key.mode,
                         dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
                 }
-                val firstGameFlow = remember(container.repo, key.daily) {
+                val firstGameFlow = remember(container.repo, key.mode) {
                     container.repo.progress.map { progress ->
-                        !key.daily && progress.stats.gamesPlayed == 0
+                        key.mode == GameRunMode.NORMAL && progress.stats.gamesPlayed == 0
                     }
                 }
                 val isFirstGame by firstGameFlow.collectAsStateWithLifecycle(initialValue = false)
