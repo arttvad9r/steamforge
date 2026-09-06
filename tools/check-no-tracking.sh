@@ -20,28 +20,34 @@ search_targets=(
   app/src/main/java
 )
 
-if grep -RInE --exclude='AdsManager.kt' "$forbidden_regex" "${search_targets[@]}"; then
+if grep -RInE "$forbidden_regex" "${search_targets[@]}"; then
   fail 'advertising or user-telemetry SDK/configuration reference found in production sources'
 fi
 
-# The temporary AdsManager compatibility shell is allowed only while it remains strictly inert and SDK-free.
-compat='app/src/main/java/com/steamforge/game/monetization/AdsManager.kt'
-if [[ -f "$compat" ]]; then
-  if grep -Eq 'com\.yandex|AdRequest|RewardedAd|InterstitialAd|YandexAds|BuildConfig\.(REWARDED|INTERSTITIAL)' "$compat"; then
-    fail 'AdsManager compatibility shell contains advertising SDK/runtime code'
-  fi
-  grep -Fq 'val enabled: Boolean = false' "$compat" || fail 'AdsManager compatibility shell must stay permanently disabled'
-  grep -Fq 'MutableStateFlow(false)' "$compat" || fail 'rewarded readiness must stay false'
+# Compatibility runtime code is no longer allowed to exist.
+[[ ! -f app/src/main/java/com/steamforge/game/monetization/AdsManager.kt ]] \
+  || fail 'AdsManager compatibility shell must not exist'
+[[ ! -d app/src/main/java/com/steamforge/game/analytics ]] \
+  || fail 'runtime analytics package must not exist'
+
+if grep -RInE 'AdsManager|com\.steamforge\.game\.analytics' app/src/main/java; then
+  fail 'advertising or analytics compatibility API reference found in runtime sources'
 fi
 
-# User-facing application code must not advertise analytics/ads controls or rewarded-video offers.
+# Player-facing application code must not contain analytics/ad controls or rewarded-video offers.
 ui_targets=(
   app/src/main/java/com/steamforge/game/MainActivity.kt
   app/src/main/java/com/steamforge/game/Navigation.kt
-  app/src/main/java/com/steamforge/game/ui/settings
+  app/src/main/java/com/steamforge/game/ui
 )
-if grep -RInE 'AppMetrica|аналитик|реклам|rewarded|interstitial|privacy.*consent|analyticsConsent' "${ui_targets[@]}"; then
+if grep -RInE 'AppMetrica|аналитик|реклам|rewarded|interstitial|за видео|УДВОИТЬ ГЕМЫ|privacy.*consent|analyticsConsent' "${ui_targets[@]}"; then
   fail 'player-facing analytics/advertising/consent UI reference found'
+fi
+
+# New save/runtime code must not create analytics correlation identifiers. GameSaveCodec may only
+# mention analyticsRunId while decoding the legacy v5 format for backward compatibility.
+if grep -RInE --exclude='GameSaveCodec.kt' 'analyticsRunId|runAnalyticsId' app/src/main/java; then
+  fail 'analytics correlation identifier found outside the legacy save decoder'
 fi
 
 # Release tooling must reject obsolete credentials rather than require them.
@@ -52,4 +58,4 @@ for key in \
   grep -Fq "$key" tools/build-rustore-release.sh || fail "release preflight must explicitly reject obsolete property: $key"
 done
 
-printf 'No-tracking guard OK: no advertising SDK, AppMetrica SDK, tracking credentials or player-facing tracking controls found.\n'
+printf 'No-tracking guard OK: no advertising SDK/runtime, analytics runtime, tracking credentials or player-facing tracking controls found.\n'
