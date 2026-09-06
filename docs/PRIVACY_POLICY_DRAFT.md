@@ -42,11 +42,12 @@ Steamforge не содержит:
 - rewarded/interstitial/banner/native рекламы;
 - рекламных идентификаторов в собственной продуктовой логике;
 - AppMetrica или другого пользовательского analytics SDK;
+- runtime analytics package/event taxonomy или compatibility API для behavioral analytics;
 - отправки событий поведения/сессий в analytics service;
 - consent-диалога для рекламы/аналитики;
 - переключателя аналитики/рекламы в Settings.
 
-Внутри исходного кода могут временно сохраняться типизированные event-call sites как архитектурный compatibility layer, но production implementation является локальным no-op: события не отправляются, не сохраняются и не образуют пользовательскую телеметрию.
+Production source/runtime не содержит скрытого no-op analytics compatibility layer: legacy analytics/ad abstractions были физически удалены. Release tooling дополнительно проверяет итоговые APK/AAB, resolved runtime dependencies и advertising/analytics permissions/namespaces.
 
 ## Сетевые функции
 
@@ -74,7 +75,7 @@ Steamforge не содержит:
 
 В текущем tracking-free baseline нет AppMetrica и рекламного SDK.
 
-Android/Jetpack библиотеки используются для работы приложения, UI, lifecycle, navigation и локального хранения. Перед production release владелец должен повторно проверить dependency/manifest inventory итогового APK/AAB.
+Android/Jetpack библиотеки используются для работы приложения, UI, lifecycle, navigation и локального хранения. Canonical CI проверяет release artifact inventory; перед публикацией production preflight должен повторить эту проверку на финальном подписанном APK/AAB и сохранить соответствующий inventory report.
 
 ## Управление и удаление
 
@@ -91,4 +92,5 @@ Android/Jetpack библиотеки используются для работ�
 - используется ли production Remote Config;
 - если используется — домен, оператор инфраструктуры, server-log retention/удаление;
 - актуальные store/legal disclosure requirements;
+- подтверждение, что inventory report относится к точному production-signed release candidate;
 - при будущем включении Weekly backend — отдельное обновление этой политики до player exposure.
