@@ -46,13 +46,13 @@ import com.steamforge.game.theme.Copper
 import com.steamforge.game.theme.Panel
 import com.steamforge.game.theme.PanelRaised
 import com.steamforge.game.theme.Recess
+import com.steamforge.game.theme.SurfaceDark
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.theme.TealSurface
 import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.theme.TextWarm
 
-private val FrameShape = RoundedCornerShape(16.dp)
-private val InnerShape = RoundedCornerShape(13.dp)
+private val FrameShape = RoundedCornerShape(14.dp)
 
 @Composable
 fun SteamBackdrop(
@@ -65,41 +65,37 @@ fun SteamBackdrop(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF0B1118),
+                        Color(0xFF090F15),
                         Background,
-                        Color(0xFF0C1218),
+                        Color(0xFF0D151C),
+                        Color(0xFF080D12),
                     ),
                 ),
             ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val sideMetal = BrassDark.copy(alpha = 0.20f)
-            val sideHighlight = Copper.copy(alpha = 0.10f)
-            val tealAtmosphere = TealGlow.copy(alpha = 0.055f)
-            val warmAtmosphere = BrassBright.copy(alpha = 0.035f)
-            val margin = 11.dp.toPx()
+            val edgeMetal = BrassDark.copy(alpha = 0.12f)
+            val edgeHighlight = Copper.copy(alpha = 0.055f)
+            val tealAtmosphere = TealGlow.copy(alpha = 0.040f)
+            val warmAtmosphere = BrassBright.copy(alpha = 0.028f)
+            val margin = 10.dp.toPx()
 
             drawCircle(
                 warmAtmosphere,
-                radius = 180.dp.toPx(),
-                center = Offset(size.width * 0.56f, size.height * 0.02f),
+                radius = size.minDimension * 0.46f,
+                center = Offset(size.width * 0.72f, -size.height * 0.01f),
             )
             drawCircle(
                 tealAtmosphere,
-                radius = 120.dp.toPx(),
-                center = Offset(size.width * 0.05f, size.height * 0.34f),
-            )
-            drawCircle(
-                tealAtmosphere.copy(alpha = 0.038f),
-                radius = 150.dp.toPx(),
-                center = Offset(size.width * 0.97f, size.height * 0.78f),
+                radius = size.minDimension * 0.42f,
+                center = Offset(size.width * 0.02f, size.height * 0.72f),
             )
 
-            // Industrial context stays at the edges; gameplay content remains visually quiet.
-            drawLine(sideMetal, Offset(margin, 0f), Offset(margin, size.height), 3.dp.toPx(), StrokeCap.Round)
-            drawLine(sideMetal, Offset(size.width - margin, 0f), Offset(size.width - margin, size.height), 3.dp.toPx(), StrokeCap.Round)
-            drawLine(sideHighlight, Offset(margin + 1.dp.toPx(), 0f), Offset(margin + 1.dp.toPx(), size.height), 1.dp.toPx())
-            drawLine(sideHighlight, Offset(size.width - margin + 1.dp.toPx(), 0f), Offset(size.width - margin + 1.dp.toPx(), size.height), 1.dp.toPx())
+            // Industrial structure is only a peripheral cue. The center stays quiet for puzzle play.
+            drawLine(edgeMetal, Offset(margin, 0f), Offset(margin, size.height), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(edgeMetal, Offset(size.width - margin, 0f), Offset(size.width - margin, size.height), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(edgeHighlight, Offset(margin + 1.dp.toPx(), 0f), Offset(margin + 1.dp.toPx(), size.height), 1.dp.toPx())
+            drawLine(edgeHighlight, Offset(size.width - margin + 1.dp.toPx(), 0f), Offset(size.width - margin + 1.dp.toPx(), size.height), 1.dp.toPx())
         }
         content()
     }
@@ -173,35 +169,34 @@ fun SteamPanel(
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(10.dp),
     content: @Composable () -> Unit,
 ) {
-    val border = if (highlighted) Brass.copy(alpha = 0.78f) else BrassDark.copy(alpha = 0.62f)
+    val border = if (highlighted) Brass.copy(alpha = 0.68f) else BrassDark.copy(alpha = 0.42f)
     Box(
         modifier = modifier
-            .shadow(7.dp, FrameShape, ambientColor = Color.Black.copy(alpha = 0.32f), spotColor = Color.Black.copy(alpha = 0.45f))
+            .shadow(
+                4.dp,
+                FrameShape,
+                ambientColor = Color.Black.copy(alpha = 0.24f),
+                spotColor = Color.Black.copy(alpha = 0.34f),
+            )
             .clip(FrameShape)
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        PanelRaised.copy(alpha = 0.96f),
-                        Panel.copy(alpha = 0.98f),
-                        Recess.copy(alpha = 0.95f),
+                        PanelRaised.copy(alpha = 0.82f),
+                        Panel.copy(alpha = 0.94f),
+                        SurfaceDark.copy(alpha = 0.98f),
                     ),
                 ),
             )
             .border(1.dp, border, FrameShape),
     ) {
         Canvas(Modifier.matchParentSize()) {
-            val lineInset = 16.dp.toPx()
-            if (size.width > lineInset * 2f && size.height > 10.dp.toPx()) {
+            val inset = 15.dp.toPx()
+            if (size.width > inset * 2f && size.height > 10.dp.toPx()) {
                 drawLine(
-                    Color.White.copy(alpha = if (highlighted) 0.075f else 0.045f),
-                    Offset(lineInset, 4.dp.toPx()),
-                    Offset(size.width - lineInset, 4.dp.toPx()),
-                    1.dp.toPx(),
-                )
-                drawLine(
-                    Color.Black.copy(alpha = 0.24f),
-                    Offset(lineInset, size.height - 4.dp.toPx()),
-                    Offset(size.width - lineInset, size.height - 4.dp.toPx()),
+                    Color.White.copy(alpha = if (highlighted) 0.065f else 0.035f),
+                    Offset(inset, 3.dp.toPx()),
+                    Offset(size.width - inset, 3.dp.toPx()),
                     1.dp.toPx(),
                 )
             }
@@ -222,19 +217,19 @@ fun SteamButton(
     icon: String? = null,
 ) {
     val (start, end, border, content) = when (style) {
-        SteamButtonStyle.Teal -> listOf(TealSurface, Color(0xFF17373D), TealGlow, TextWarm)
-        SteamButtonStyle.Brass -> listOf(Color(0xFF755427), Color(0xFF3A2A18), BrassBright, TextWarm)
-        SteamButtonStyle.Dark -> listOf(PanelRaised, Recess, BrassDark, TextWarm)
-        SteamButtonStyle.Danger -> listOf(Color(0xFF6B3324), Color(0xFF341B17), Color(0xFFC7603A), TextWarm)
+        SteamButtonStyle.Teal -> listOf(Color(0xFF28585D), Color(0xFF18343A), TealGlow, TextWarm)
+        SteamButtonStyle.Brass -> listOf(Color(0xFF72552D), Color(0xFF49341D), BrassBright, TextWarm)
+        SteamButtonStyle.Dark -> listOf(PanelRaised, SurfaceDark, BrassDark, TextWarm)
+        SteamButtonStyle.Danger -> listOf(Color(0xFF663321), Color(0xFF351C17), Color(0xFFC7603A), TextWarm)
     }
-    val shape = RoundedCornerShape(13.dp)
+    val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = modifier
             .height(54.dp)
-            .shadow(6.dp, shape)
+            .shadow(3.dp, shape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.32f))
             .clip(shape)
             .background(Brush.verticalGradient(listOf(start, end)))
-            .border(1.dp, border.copy(alpha = if (enabled) 0.84f else 0.30f), shape)
+            .border(1.dp, border.copy(alpha = if (enabled) 0.76f else 0.26f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp)
             .semantics {
@@ -268,11 +263,11 @@ fun BrassRoundButton(
 ) {
     Box(
         modifier = modifier
-            .size(48.dp)
-            .shadow(5.dp, CircleShape)
+            .size(46.dp)
+            .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.32f))
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf(PanelRaised, Recess)))
-            .border(1.dp, Brass.copy(alpha = 0.78f), CircleShape)
+            .background(Brush.radialGradient(listOf(PanelRaised, SurfaceDark, Recess)))
+            .border(1.dp, Brass.copy(alpha = 0.62f), CircleShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         contentAlignment = Alignment.Center,
@@ -291,30 +286,35 @@ fun StatPlate(label: String, value: String, modifier: Modifier = Modifier, accen
     }
     val labelStyle = if (compactScreen || label.length > 5) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium
     val horizontalPadding = if (compactScreen) 9.dp else 12.dp
-    val verticalPadding = if (compactScreen) 5.dp else 8.dp
-    SteamPanel(
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = horizontalPadding, vertical = verticalPadding),
+    val verticalPadding = if (compactScreen) 5.dp else 7.dp
+    val shape = RoundedCornerShape(10.dp)
+
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(Recess.copy(alpha = 0.58f))
+            .border(1.dp, Color.White.copy(alpha = 0.045f), shape)
+            .padding(horizontal = horizontalPadding, vertical = verticalPadding)
+            .semantics { contentDescription = "$label: $value" },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                label,
-                style = labelStyle,
-                color = TextMuted,
-                maxLines = 1,
-                softWrap = false,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                value,
-                modifier = Modifier.fillMaxWidth(),
-                style = valueStyle,
-                color = accent,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
+        Text(
+            label,
+            style = labelStyle,
+            color = TextMuted,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            value,
+            modifier = Modifier.fillMaxWidth(),
+            style = valueStyle,
+            color = accent,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
