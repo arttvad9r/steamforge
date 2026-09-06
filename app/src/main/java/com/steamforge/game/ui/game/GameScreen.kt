@@ -347,7 +347,7 @@ fun GameScreen(
                         .fillMaxSize()
                         .statusBarsPadding()
                         .wrapContentWidth(Alignment.CenterHorizontally)
-                        .widthIn(max = 560.dp)
+                        .widthIn(max = 680.dp)
                         .padding(horizontal = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
