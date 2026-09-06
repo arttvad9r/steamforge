@@ -24,25 +24,28 @@ val TextMuted = Color(0xFF98A3AA)
 val Danger = Color(0xFFB95A3B)
 
 /**
- * Gameplay tiles are tile-first and steampunk-second. Low levels stay dark and machined instead of
- * pale/plastic; rarity is introduced gradually through warmer metal, patina and controlled teal.
+ * Gameplay tiles are tile-first and steampunk-second. Low levels stay quiet and machined; the
+ * material progression becomes richer only as values grow. High tiers keep a controlled patina/
+ * brass language instead of turning into a rainbow or fantasy-RPG rarity palette.
  */
 data class TileColors(val background: Color, val content: Color, val glow: Boolean = false)
 
 private data class RawTileColor(val bg: Color, val content: Color)
 
 private val rawTileColors = listOf(
-    RawTileColor(Color(0xFF354149), Color(0xFFF0E8DC)), // 2 gunmetal
-    RawTileColor(Color(0xFF44515A), Color(0xFFF0E7D8)), // 4 aged steel
-    RawTileColor(Color(0xFF725A33), Color(0xFFF5E9D4)), // 8 muted brass
-    RawTileColor(Color(0xFF7D5235), Color(0xFFF5E9D4)), // 16 aged copper
-    RawTileColor(Color(0xFF884C2F), Color(0xFFF5E7D3)), // 32 forged copper
-    RawTileColor(Color(0xFF783B2C), Color(0xFFF4E4D0)), // 64 heat-treated copper
-    RawTileColor(Color(0xFF8B692F), Color(0xFFF6E9CF)), // 128 antique brass
-    RawTileColor(Color(0xFF7B5D2B), Color(0xFFF6E9CF)), // 256 dark antique brass
-    RawTileColor(Color(0xFF52675F), Color(0xFFF2E8D8)), // 512 patinated steel
-    RawTileColor(Color(0xFF24585D), Color(0xFFF3E4C7)), // 1024 deep teal metal
-    RawTileColor(Color(0xFF2C7F83), Color(0xFFFFE8B5)), // 2048 energized teal core
+    RawTileColor(Color(0xFF303B43), Color(0xFFF0E8DC)), // 2 gunmetal
+    RawTileColor(Color(0xFF3B4850), Color(0xFFF0E7D8)), // 4 aged steel
+    RawTileColor(Color(0xFF5B4B31), Color(0xFFF4E8D5)), // 8 smoked brass
+    RawTileColor(Color(0xFF674933), Color(0xFFF4E8D5)), // 16 dark brass / copper
+    RawTileColor(Color(0xFF794A32), Color(0xFFF5E7D3)), // 32 aged copper
+    RawTileColor(Color(0xFF80402E), Color(0xFFF4E4D0)), // 64 forged copper
+    RawTileColor(Color(0xFF806333), Color(0xFFF6E9CF)), // 128 antique brass
+    RawTileColor(Color(0xFF6D5931), Color(0xFFF6E9CF)), // 256 dark antique brass
+    RawTileColor(Color(0xFF4A635D), Color(0xFFF2E8D8)), // 512 patinated steel
+    RawTileColor(Color(0xFF23565A), Color(0xFFF3E4C7)), // 1024 deep teal metal
+    RawTileColor(Color(0xFF2B777B), Color(0xFFFFE8B5)), // 2048 energized teal core
+    RawTileColor(Color(0xFF3B6C68), Color(0xFFFFE3AE)), // 4096 tempered patina core
+    RawTileColor(Color(0xFF626547), Color(0xFFFFE7B8)), // 8192 rare brass-patina alloy
 )
 
 fun tileColors(level: Int): TileColors {
@@ -51,19 +54,31 @@ fun tileColors(level: Int): TileColors {
 }
 
 /**
- * Restrained machined-metal bevel. The face remains broad and calm; a short highlight at the top and
- * a weighted lower edge create depth without the multi-band glossy mobile-plastic look.
+ * Restrained machined-metal bevel. The center stays broad and calm; progressively rarer materials
+ * gain slightly stronger edge separation, not extra ornament. This keeps 2048+ special while the
+ * number remains the primary tile content.
  */
 fun tileBevel(level: Int): Brush {
     val material = tileColors(level).background
-    val highTier = level >= 9
+    val highlight = when {
+        level >= 12 -> 1.18f
+        level >= 11 -> 1.16f
+        level >= 9 -> 1.13f
+        else -> 1.10f
+    }
+    val lowerEdge = when {
+        level >= 12 -> 0.68f
+        level >= 11 -> 0.70f
+        level >= 9 -> 0.72f
+        else -> 0.76f
+    }
     return Brush.verticalGradient(
         listOf(
-            material.lighten(if (highTier) 1.13f else 1.10f),
-            material.lighten(1.035f),
+            material.lighten(highlight),
+            material.lighten(if (level >= 11) 1.055f else 1.035f),
             material,
-            material.darken(if (highTier) 0.82f else 0.85f),
-            material.darken(if (highTier) 0.72f else 0.76f),
+            material.darken(if (level >= 9) 0.82f else 0.85f),
+            material.darken(lowerEdge),
         ),
     )
 }
