@@ -1,39 +1,39 @@
 # Steamforge — Product & Development Plan
 
-> **Status:** canonical product roadmap, updated 06.09.2026 against the tracking-free repository state.
+> **Status:** canonical development roadmap.  
+> **Priority:** first bring the game itself and its visual presentation to the target quality level. Store publication, signing, store listings, moderation, release-candidate handoff and other publication work are intentionally out of scope until a later explicit decision.
 >
-> **Product decisions:** Steamforge is a **no-ads product** (`ADR_0001_NO_ADS.md`) and a **no-user-telemetry client** (`ADR_0005_NO_USER_TELEMETRY.md`). Do not add/restore advertising, advertising SDKs, AppMetrica, behavioral analytics SDKs, analytics consent UI or tracking credentials unless a later accepted ADR explicitly supersedes the relevant decision.
+> **Product decisions:** Steamforge is a **no-ads product** (`ADR_0001_NO_ADS.md`) and a **no-user-telemetry client** (`ADR_0005_NO_USER_TELEMETRY.md`). Do not restore advertising, AppMetrica, behavioral analytics SDKs, analytics consent UI, tracking credentials or ad-driven rewards.
 
 ## 1. Target product
 
 Steamforge should become:
 
-> **a premium-feeling steampunk 2048/merge core surrounded by a living workshop, short contracts, collections and regular goals.**
+> **a premium-feeling stylized industrial-steampunk 2048/merge game with excellent core feel, highly readable material tiles and a living workshop/meta layer that visibly grows from play.**
 
 Primary loop:
 
 ```text
 2048 core
-→ satisfying mechanical merges
-→ run progress / rewards
-→ contracts and milestones
-→ workshop restoration
+→ satisfying mechanical movement / merges
+→ clear score and pressure feedback
+→ rewards / contracts
+→ visible workshop restoration
 → blueprint collection
-→ daily / weekly reasons to return
+→ reasons to return
 → back to the same core
 ```
 
-The meta exists to create reasons to play the core, not to replace it.
+The meta exists to strengthen the core, not replace it.
 
-## 2. Current repository state — 06.09.2026
+## 2. Current repository state
 
 Already implemented/current:
 
 - pure Kotlin 4×4 `GameEngine`;
 - replayable deterministic RNG;
 - autosave/process-death restore and backward-readable save format;
-- current save write format v6 without analytics/correlation identifiers; legacy v5/v4/v3/v2/v1 remain readable;
-- session statistics/state preservation across recreation;
+- save write format v6 without analytics/correlation identifiers;
 - swipe + keyboard gameplay input;
 - movement/merge feedback, SFX and haptics;
 - Steam Pressure / Overdrive;
@@ -42,142 +42,155 @@ Already implemented/current:
 - achievements;
 - Daily Challenge / daily reward;
 - Contracts and initial Blueprint Collection;
-- Workshop Parts economy/return-loop slices already merged into current master;
-- offline-first Remote Config with compiled defaults, persistent cache and bounded HTTPS refresh;
-- deterministic Weekly challenge/run/replay/ranking client foundations;
-- pure JVM replay/ranking protocol/server modules;
-- PostgreSQL accepted-population implementation and bounded Ktor ranking transport;
-- release signing/preflight tooling;
-- Android CI/emulator/lifecycle/accessibility/adaptive/16 KiB/performance diagnostics;
-- gameplay visual pass aligned with the approved Visual Bible (#156–158);
-- no advertising SDK/runtime or advertising compatibility API;
-- no AppMetrica/user analytics SDK/runtime or analytics compatibility package;
-- no analytics/ad consent state or Settings surface;
-- artifact-level release inventory gate for final APK/AAB-derived output and `releaseRuntimeClasspath` (#161).
+- Workshop Parts / return-loop slices;
+- offline-safe Remote Config foundation;
+- deterministic Weekly/replay/ranking foundations in separate modules;
+- Android CI, lifecycle, accessibility, adaptive-window, 16 KiB and performance diagnostics;
+- gameplay visual passes #156–158: premium materials, reduced chrome and expanded portrait/tablet board;
+- advertising SDK/runtime completely removed;
+- AppMetrica/user analytics SDK/runtime completely removed;
+- analytics/ad consent and Settings surfaces removed;
+- no-tracking CI guard.
 
-Weekly is not exposed in normal player navigation until production identity/backend/deployment/client endpoint are complete.
+Weekly remains hidden from normal player navigation. It is not a near-term priority while the core and visual layer are still being raised to target quality.
 
-## 3. Systems still missing from target architecture
-
-- one universal reward application layer;
-- richer Workshop restoration with multiple machines/zones;
-- production Weekly identity/session/deployment/client ranking service;
-- reusable LiveOps `EventSystem` if later justified;
-- reusable `RewardTrack` if later justified;
-- optional non-ad cosmetic/store monetization only after a separate decision;
-- seasonal collections / Season Pass only after strong product justification;
-- optional lightweight social layer.
-
-## 4. Product principles
+## 3. Product principles
 
 ### Core first
 
-If Workshop, Daily and collections disappear, the 2048 game should still feel good.
+If Workshop, Daily and collections disappeared, the 2048 game should still feel polished and satisfying.
 
-### Clean gameplay
+### Board first
 
-Gameplay prioritizes:
+Gameplay hierarchy:
 
 1. board;
 2. tiles/numbers;
-3. score;
-4. one current goal;
-5. secondary controls.
+3. movement and merge response;
+4. score / Steam Pressure;
+5. one current objective;
+6. secondary controls.
 
-### Premium through material, not clutter
+### Premium through materials and light, not decoration density
 
-Use light, bevel, material response and restrained animation. Decorative steampunk elements must not compete with the puzzle.
+Use bevel, material response, controlled highlights, soft atmospheric depth and restrained animation. Decorative steampunk elements must never compete with the board.
 
-### Permanent trace
+### Stylized, not cheap-cartoon and not photoreal
 
-A useful session should leave visible long-term progress where possible, preferably in Workshop/Blueprint systems rather than only abstract counters.
+Target: premium stylized industrial steampunk with slightly simplified forms, high-quality materials and lighting. Avoid chibi/mobile-cartoon proportions and generic fantasy-steampunk motifs.
 
-### Few currencies
+### Clean gameplay, richer meta screens
 
-Do not add currency without a clear source, sink and player purpose.
+Gameplay should be the cleanest screen. Workshop, Blueprints and collection screens may carry more environmental detail because the environment itself is part of their function.
 
-### Offline-safe core
+### No advertising / no behavioral telemetry
 
-Normal gameplay/startup must remain usable without network access. Remote services must have bounded protocols and local-safe fallbacks where appropriate.
+These are current product constraints, not temporary feature flags.
 
-### No advertising
+## 4. Current development order
 
-Advertising is prohibited by ADR 0001. Historical disabled ad code/assets/PRs are not backlog items.
+### Phase 0 — Remove publication work from the active line
 
-### No user telemetry by default
+- no store-specific workflows or assets;
+- no store listing / signing / publication plans;
+- no release-candidate publication checklist;
+- keep only engineering checks that directly protect the game: tests, lint, debug/minified build, lifecycle, accessibility, adaptive layout, performance, 16 KiB compatibility and no-tracking.
 
-The shipped client does not collect/send behavioral analytics. Runtime analytics compatibility seams, consent state and correlation IDs were removed in #160.
+**Done when:** the repository and roadmap no longer direct work toward publishing the unfinished game.
 
-Typed **gameplay-domain** events may exist where they directly drive local product behavior such as Contracts/replay/rewards; they are not telemetry and must not silently become a persistence/network analytics channel.
+### Phase 1 — Core game feel
 
-If a future product decision genuinely requires telemetry, it needs a new ADR defining exact data, purpose, retention, identifiers and legal/store implications before implementation.
+Polish the actual 2048 interaction before adding broad new meta systems.
 
-## 5. Technical architecture target
+Focus:
 
-```text
-Game Core
-  ↓ typed state/events
-Game Session / Feedback / Goals
-  ↓
-Reward Application
-  ↓
-Workshop / Economy / Collections
-  ↓
-Persistent Player Progress
-```
-
-Platform services stay separate:
-
-- optional Remote Config;
-- optional billing for future non-ad purchases;
-- optional cloud save;
-- Weekly ranking/backend.
-
-Gameplay logic must not depend directly on store/network SDKs. Advertising and behavioral analytics SDKs are not part of the target architecture under current ADRs.
-
-## 6. Sequential implementation plan
-
-### Phase 0 — Consolidate V1
-
-- keep `master` green;
-- ensure release docs match code;
-- keep Android 17 / 16 KiB and lifecycle gates green;
-- physically remove advertising/user-telemetry SDK/runtime/configuration and old compatibility APIs;
-- protect tracking-free invariants in source/config CI;
-- inspect final release APK/AAB-derived artifact and runtime dependency graph, not only source files;
-- finish physical-device release acceptance.
-
-**Done when:** canonical CI is green on final master, the final signed release candidate passes source/config + APK/AAB dependency/manifest inventory, and physical-device release gates are recorded.
-
-### Phase 1 — Core quality gate
-
-Improve only measured weaknesses in:
-
-- input responsiveness;
-- animation sequencing;
-- tile readability;
-- merge feedback hierarchy;
+- swipe responsiveness and gesture confidence;
+- movement timing;
+- merge sequencing;
+- spawn timing;
+- merge hierarchy for single vs multi-merge moves;
+- Steam Pressure / Overdrive readability;
+- Undo/Wrench clarity;
+- game-over and restart flow;
 - SFX/haptic balance;
-- game-over/restart flow;
-- save/restore reliability.
+- eliminate visual or input latency that makes the core feel soft or cheap.
 
-Do not add a new engine layer for architecture fashion.
+Quality gates:
 
-### Phase 2 — Visual Bible application
+- deterministic logic tests stay green;
+- one gesture produces one command;
+- no save/state regression;
+- animation never makes board state ambiguous;
+- interaction remains clear on compact and expanded layouts.
 
-Current gameplay pass is substantially implemented. Continue incrementally:
+### Phase 2 — Gameplay visual target
 
-1. board-first gameplay hierarchy;
-2. restrained HUD/frame;
-3. readable material tile progression;
-4. shared typography/colors/components;
-5. Workshop/Blueprint polish only after gameplay remains clear.
+Use `docs/VISUAL_BIBLE.md` and approved project references as the source of truth.
 
-Generated concepts are references, not pixel-perfect specs. Historical Shop/Remove Ads/video elements must not return.
+Target:
 
-### Phase 3 — Session orchestration cleanup
+> premium stylized industrial-steampunk, dark workshop atmosphere, warm brass/copper, restrained teal/patina accents, large readable tiles, high-quality materials and lighting, low decorative noise around the board.
 
-Before large new meta systems, reduce `GameViewModel` responsibility without a big-bang rewrite.
+Work order:
+
+1. board proportions and spacing;
+2. tile silhouette/bevel/material hierarchy;
+3. number typography and contrast across all values;
+4. merge/spawn/Overdrive visual feedback;
+5. HUD hierarchy and score/pressure presentation;
+6. background depth and edge machinery without cluttering the board;
+7. phone portrait;
+8. expanded/tablet portrait;
+9. compact landscape;
+10. high-tier tiles and long-session readability.
+
+Do not reproduce concept screens pixel-for-pixel. Preserve their art direction while improving gameplay hierarchy where necessary.
+
+### Phase 3 — Whole-app visual system
+
+After gameplay reaches the target level, bring the rest of the product to the same language.
+
+Priority:
+
+1. Home;
+2. Workshop;
+3. Blueprints / collections;
+4. Contracts / Daily;
+5. Profile;
+6. Settings and utility surfaces.
+
+Create/reuse one coherent system for:
+
+- typography;
+- panels;
+- buttons;
+- metallic materials;
+- spacing;
+- icons;
+- atmospheric backgrounds;
+- states/selection/disabled feedback;
+- transitions.
+
+Avoid adding permanent bottom navigation or decorative frames to gameplay if they weaken board dominance.
+
+### Phase 4 — Workshop presentation v2
+
+Only after the visual system is stable, make Workshop progression visibly meaningful.
+
+Start small:
+
+- one workshop zone;
+- 3–5 machines/objects;
+- several restoration states per object;
+- visible world change when progress is applied;
+- simple costs/rewards;
+- no extra currencies unless clearly necessary.
+
+The goal is visible permanent trace from play, not a spreadsheet of levels.
+
+### Phase 5 — Session orchestration cleanup
+
+Refactor only after the user-facing quality baseline is established, unless architecture blocks the visual/gameplay work earlier.
 
 Target boundaries:
 
@@ -189,21 +202,14 @@ GameSessionController
 └─ CompetitiveRunRecorder
 
 GameViewModel
-└─ UI state + intents
+└─ UI state + user intents
 ```
 
-Keep manual DI unless actual complexity justifies a DI framework.
+No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier.
 
-### Phase 4 — Universal Reward layer
+### Phase 6 — Universal Reward layer
 
-Create one authoritative reward application path for current/future systems.
-
-Initial reward types:
-
-- current soft resources;
-- Workshop Parts;
-- Blueprint Pieces;
-- Cosmetic Unlocks.
+Create one authoritative reward application path before expanding progression systems.
 
 ```text
 source
@@ -213,214 +219,100 @@ source
 → presentation
 ```
 
-### Phase 5 — Workshop meta v2
+Initial reward domain may include current soft resources, Workshop Parts, Blueprint Pieces and cosmetic unlocks.
 
-Evolve Workshop from mostly numeric progression toward visible restoration:
+### Phase 7 — Contracts / Blueprints evolution
 
-- one zone first;
-- 3–5 machines;
-- several visible restoration stages;
-- one clear cost path;
-- machine completion gives a meaningful unlock/reward.
+Keep contracts data-driven and fed by gameplay-domain events. Keep collections tied to visible workshop/world changes.
 
-### Phase 6 — Contracts evolution
-
-Keep contracts data-driven and fed by gameplay events. Avoid adding contract-specific branches inside `GameEngine`.
-
-Target definitions include:
-
-- reach tile;
-- merge count;
-- score / cumulative score;
-- combo/multi-merge;
-- runs played;
-- moves survived.
-
-### Phase 7 — Blueprint Collections
-
-Build on the existing Steam Engine collection so completion visibly affects Workshop/world presentation.
+Do not branch core 2048 rules for individual meta features.
 
 ### Phase 8 — Storage boundary review
 
-Preferences DataStore remains acceptable for V1, but before event/history/reward ledgers grow substantially, choose the smallest appropriate standard solution:
+Preferences DataStore remains acceptable while state stays manageable. Before reward/history/event records become complex, choose the smallest standard solution that fits:
 
 - Proto DataStore for one typed profile/state model; or
-- Room when relational records/history/querying/migrations become real requirements.
+- Room for relational/history/query-heavy data.
 
 Do not invent a custom database abstraction without need.
 
-### Phase 9 — Remote Config
+### Phase 9 — Return loop
 
-Current provider/cache/bounded HTTPS foundation exists.
+Only after core + visual + Workshop quality are established:
 
-Configurable meta values may include:
+- Daily goals;
+- modest Workshop bonus;
+- forgiving streak/comeback presentation;
+- no punitive energy/lives gating.
 
-- contract definitions/rewards;
-- Workshop costs;
-- reward multipliers;
-- feature flags;
-- event schedule/milestones;
-- future non-ad store offer enablement.
+### Phase 10 — Weekly/backend later
 
-Do not remotely mutate core board/spawn/RNG/save semantics that would break deterministic replay.
+The existing replay/server foundation may remain in the repository, but further production identity/deployment/client integration is deferred. Do not expose Weekly UI until the base game and visual/meta experience justify expanding this surface.
 
-Remote Config must not become a behavioral telemetry channel.
+### Phase 11 — LiveOps/social/monetization only after a new explicit product decision
 
-### Phase 10 — Return loop
-
-Use forgiving, modest return mechanics:
-
-- Daily Contracts;
-- small Workshop bonus;
-- forgiving short streak;
-- comeback presentation after absence.
-
-Avoid punitive long streak loss.
-
-### Phase 11 — Weekly production completion
-
-Already implemented foundation:
-
-- shared challenge definition;
-- deterministic seed/rules;
-- terminal replay validation;
-- ranking wire/domain/runtime;
-- server replay validation;
-- PostgreSQL accepted population;
-- Ktor transport.
-
-Remaining before player exposure:
-
-- production identity/auth flow;
-- signed session integration on current master;
-- deployment/secrets;
-- Android client provider/endpoint;
-- rate/abuse controls;
-- operational observability that is server-service oriented rather than client behavioral analytics;
-- privacy/store disclosure update for the actual backend data flow.
-
-### Phase 12 — LiveOps framework only if content cadence exists
-
-One reusable event definition should configure schedule, scoring, milestones, rewards, theme and optional collection.
-
-The second event should mostly be data/assets, not a new architecture.
-
-### Phase 13 — Optional non-ad monetization
+Do not build these merely because historical branches contain foundations for them. Reassess only after the core game, visual presentation and Workshop/meta loop are strong.
 
 Advertising remains prohibited.
 
-If later justified by product/business needs, explore only non-ad direct purchases such as:
+## 5. Explicitly out of scope now
 
-- tile cosmetics;
-- Workshop themes;
-- small cosmetic bundles.
-
-Do not add energy/lives to gate the core.
-
-### Phase 14 — Reward Track / Season Pass only after justification
-
-Do not build a Season Pass simply because old branches contain one. First prove:
-
-- stable content cadence;
-- understandable economy;
-- healthy player return behavior through non-invasive evidence/feedback;
-- reusable event/reward infrastructure.
-
-Any reintroduction of client telemetry for quantitative retention metrics requires explicitly superseding ADR 0005 first.
-
-### Phase 15 — Social only if justified
-
-Prefer lightweight asynchronous social:
-
-- friend leaderboard;
-- weekly rank/percentile;
-- score sharing;
-- partner challenge.
-
-Avoid real-time PvP/guild-war scope initially.
-
-## 7. Explicitly out of scope
-
-Under current decisions:
-
-- rewarded/interstitial/banner/native advertising;
-- advertising SDKs;
-- ad-driven rewards;
-- Remove Ads;
-- AppMetrica/user behavioral analytics SDKs;
-- analytics consent/settings UI;
+- any app-store publication plan;
+- store listing assets/workflows;
+- signing/upload/moderation work;
+- release-candidate publication checklists;
+- advertising of any kind;
+- AppMetrica/user behavioral analytics;
+- ad-driven rewards / Remove Ads;
 - energy/lives gating;
-- gacha rarity economy;
-- many new currencies;
-- real-time PvP;
-- guild wars;
-- subscriptions without continuous value;
-- multiple parallel passes;
-- unrelated minigames.
+- gacha economy;
+- Season Pass / multiple passes;
+- real-time PvP / guild wars;
+- unrelated minigames;
+- architecture rewrites that do not improve current game/visual work.
 
-## 8. Quality gates
+## 6. Development quality gates
 
 ### Core
 
 - deterministic rules tested;
 - save/restore correct;
 - responsive input;
-- readable tiles;
-- stable animation;
-- no known state duplication/loss.
+- stable move/merge sequencing;
+- no state duplication/loss.
+
+### Visual
+
+- board is visually dominant;
+- tiles remain readable through high tiers;
+- materials look intentional at phone scale;
+- animation communicates state rather than masking it;
+- adaptive layouts remain coherent;
+- accessibility geometry stays acceptable;
+- style stays inside the Visual Bible.
 
 ### Privacy/runtime
 
-- no advertising SDK/config/UI/runtime compatibility API;
-- no AppMetrica/user analytics SDK/config/UI/runtime compatibility package;
-- source/config no-tracking guard green;
-- final release APK/AAB-derived manifest, permissions and DEX inventory green;
-- resolved release runtime dependency inventory green;
-- network services explicit and bounded.
+- no advertising SDK/config/UI/runtime;
+- no AppMetrica/user analytics SDK/config/UI/runtime;
+- no-tracking guard green;
+- network services explicit, bounded and unrelated to behavioral tracking.
 
-### Meta
+### Architecture
 
-- one reward path;
-- Workshop progress understandable;
-- Contracts consume gameplay events rather than fork core rules;
-- economy sources/sinks remain inspectable through local/domain logic even without behavioral analytics.
+- game core remains Android-independent;
+- UI does not own persistence rules;
+- meta systems consume gameplay-domain outcomes rather than fork engine rules;
+- new abstractions must solve a demonstrated problem.
 
-### Release
+## 7. Working rule
 
-- canonical CI green;
-- Android 17 / 16 KiB green;
-- final signed artifact inventory report retained with release candidate;
-- physical-device lifecycle/performance/thermal/TalkBack checks complete;
-- signing/key backups verified;
-- privacy/store text matches actual production network/data behavior.
+For every proposed task ask:
 
-## 9. Final product formula
+1. Does it improve the actual game or its visual quality now?
+2. Does it make the board/gameplay clearer, more satisfying or more premium?
+3. Is there an existing standard solution before inventing a custom one?
+4. Does it preserve save/replay/reliability invariants?
+5. Is it premature infrastructure for a feature/publication step we are not doing yet?
 
-```text
-PREMIUM 2048 CORE
-+
-MECHANICAL GAME FEEL
-+
-VISIBLE WORKSHOP PROGRESSION
-+
-CONTRACTS
-+
-BLUEPRINT COLLECTIONS
-+
-WEEKLY CHALLENGES
-+
-OPTIONAL REUSABLE LIVEOPS
-+
-OPTIONAL NON-AD COSMETICS
-+
-PRIVACY-MINIMAL CLIENT
-```
-
-Rule for every new feature:
-
-1. What player/product problem does it solve?
-2. How does it send the player back to the core?
-3. Can it be implemented with a proven/simple standard approach?
-4. Does it preserve offline/replay/reliability invariants?
-5. Does it add new data collection or network behavior, and if so is that explicitly justified/documented?
-6. Are we willing to remove it if it does not improve the product?
+If the answer to #5 is yes, defer it.
