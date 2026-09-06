@@ -81,7 +81,8 @@ Preflight проверяет:
 - отсутствие AD_ID / AdServices advertising identifier permissions;
 - 16 KiB compatibility APK;
 - APK signature через `apksigner`;
-- APK SHA-256 и certificate SHA-256.
+- APK SHA-256 и certificate SHA-256;
+- согласованность exact `dist/` APK, SHA file, metadata, certificate, package/version и inventory report через `tools/verify-rustore-release-artifact.sh`.
 
 Tracking/ad credentials **не являются release input**. В частности, не требуются:
 
@@ -107,7 +108,26 @@ Inventory report содержит source commit, SHA-256 проверенных 
 
 После этого не пересобирать APK между device smoke и загрузкой: проверять и загружать тот же файл из `dist/`.
 
-## 5. Финальный physical-device smoke
+## 5. Перед physical-device smoke
+
+Ещё раз проверить exact artifact:
+
+```bash
+bash tools/verify-rustore-release-artifact.sh \
+  dist/Steamforge-<version>-vc<code>-rustore.apk
+```
+
+Verifier не пересобирает приложение. Он повторно сверяет:
+
+- APK SHA-256 с `.sha256` и `.metadata.txt`;
+- certificate SHA-256 через `apksigner`;
+- package/version через Android `apkanalyzer`;
+- source commit metadata;
+- APK SHA-256 с сохранённым inventory report.
+
+Создайте локальную копию `docs/PHYSICAL_DEVICE_ACCEPTANCE.md` и заполняйте её фактическими устройствами/результатами. Не помечайте ручные пункты пройденными на основании emulator/hosted CI.
+
+## 6. Финальный physical-device smoke
 
 Установить production APK из `dist/` и проверить минимум:
 
@@ -119,11 +139,22 @@ Inventory report содержит source commit, SHA-256 проверенных 
 - Settings и reset progress;
 - offline startup/gameplay;
 - отсутствие AppMetrica/advertising/consent/rewarded-video UI;
-- отсутствие неожиданных сетевых запросов при пустом Remote Config endpoint;
-- TalkBack / large text spot-check;
-- frame timing/thermal acceptance на реальном устройстве.
+- отсутствие неожиданных сетевых зависимостей при пустом Remote Config endpoint;
+- TalkBack / large text / safe-area spot-check;
+- frame timing и 30–60 minute thermal/battery acceptance на реальном устройстве согласно release plan.
 
-После smoke повторно проверить SHA-256 и загрузить именно проверенный APK.
+Фактические device/build/result/evidence записываются в `PHYSICAL_DEVICE_ACCEPTANCE.md` или его локальную release-candidate копию.
+
+## 7. Перед загрузкой
+
+После smoke, не пересобирая APK, повторить:
+
+```bash
+bash tools/verify-rustore-release-artifact.sh \
+  dist/Steamforge-<version>-vc<code>-rustore.apk
+```
+
+SHA-256 должен совпасть с acceptance record и preflight metadata. Загружать только этот exact APK. Любая пересборка создаёт новый release candidate и требует повторной привязки inventory/device acceptance к новому SHA-256.
 
 ## AAB — если будет выбран как store upload позже
 
