@@ -35,12 +35,13 @@ if grep -RInE 'AdsManager|com\.steamforge\.game\.analytics' app/src/main/java; t
 fi
 
 # Player-facing application code must not contain analytics/ad controls or rewarded-video offers.
+# Do not ban the generic word "rewarded": RewardSystem uses it for ordinary local game rewards.
 ui_targets=(
   app/src/main/java/com/steamforge/game/MainActivity.kt
   app/src/main/java/com/steamforge/game/Navigation.kt
   app/src/main/java/com/steamforge/game/ui
 )
-if grep -RInE 'AppMetrica|аналитик|реклам|rewarded|interstitial|за видео|УДВОИТЬ ГЕМЫ|privacy.*consent|analyticsConsent' "${ui_targets[@]}"; then
+if grep -RInE 'AppMetrica|аналитик|реклам|showRewarded|rewardedAvailable|rewardDoubled|interstitial|за видео|УДВОИТЬ ГЕМЫ|privacy.*consent|analyticsConsent' "${ui_targets[@]}"; then
   fail 'player-facing analytics/advertising/consent UI reference found'
 fi
 
