@@ -30,8 +30,8 @@ fi
 [[ ! -d app/src/main/java/com/steamforge/game/analytics ]] \
   || fail 'runtime analytics package must not exist'
 
-if grep -RInE 'AdsManager|com\.steamforge\.game\.analytics' app/src/main/java; then
-  fail 'advertising or analytics compatibility API reference found in runtime sources'
+if grep -RInE 'AdsManager|com\.steamforge\.game\.analytics|claimDoubleReward|rewardedClaimed|analyticsConsent' app/src/main/java; then
+  fail 'legacy advertising, analytics or consent API reference found in runtime sources'
 fi
 
 # Player-facing application code must not contain analytics/ad controls or rewarded-video offers.
@@ -59,4 +59,4 @@ for key in \
   grep -Fq "$key" tools/build-rustore-release.sh || fail "release preflight must explicitly reject obsolete property: $key"
 done
 
-printf 'No-tracking guard OK: no advertising SDK/runtime, analytics runtime, tracking credentials or player-facing tracking controls found.\n'
+printf 'No-tracking guard OK: no advertising SDK/runtime, analytics runtime, tracking credentials, legacy ad APIs or player-facing tracking controls found.\n'
