@@ -1,6 +1,6 @@
 package com.steamforge.game.progression
 
-/** Накопительная статистика игрока — источник для достижений и аналитики. */
+/** Накопительная статистика игрока — источник для достижений и игровой прогрессии. */
 data class PlayerStats(
     val gamesPlayed: Int = 0,
     val bestScore: Int = 0,
@@ -264,7 +264,6 @@ data class PlayerProgress(
     val soundEnabled: Boolean = true,
     val hapticsEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
-    val analyticsConsent: Boolean? = null,
     val workshopParts: Int = 0,
     val workshopCoreStage: Int = 0,
     val workshopPressureStage: Int = 0,
