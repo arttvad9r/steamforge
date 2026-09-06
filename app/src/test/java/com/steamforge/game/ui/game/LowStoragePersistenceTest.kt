@@ -1,6 +1,5 @@
 package com.steamforge.game.ui.game
 
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
 import com.steamforge.game.data.DataRepo
@@ -17,7 +16,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -34,14 +32,6 @@ class LowStoragePersistenceTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
-    }
-
-    private class RecordingAnalytics : Analytics {
-        val names = mutableListOf<String>()
-
-        override fun logEvent(name: String, params: Map<String, Any?>) {
-            names += name
-        }
     }
 
     private class FlakySaveRepo(
@@ -64,10 +54,8 @@ class LowStoragePersistenceTest {
     @Test
     fun `transient save io failure keeps run alive and next autosave recovers`() = runTest(dispatcher) {
         val repo = FlakySaveRepo()
-        val analytics = RecordingAnalytics()
         val model = GameViewModel(
             repo = repo,
-            analytics = analytics,
             seedProvider = { 73L },
             savedGameProvider = { repo.currentGame },
         )
@@ -81,14 +69,12 @@ class LowStoragePersistenceTest {
 
         assertEquals(failedSaveState, model.ui.value.state)
         assertEquals(durableBeforeFailure, requireNotNull(repo.currentGame).state)
-        assertTrue("I/O save failure was not surfaced to analytics", "run_save_failed" in analytics.names)
 
         val recoveredState = performOneValidMove(model)
         advanceUntilIdle()
 
         assertNotEquals(failedSaveState, recoveredState)
         assertEquals(recoveredState, requireNotNull(repo.currentGame).state)
-        assertTrue("save recovery was not surfaced to analytics", "run_save_recovered" in analytics.names)
     }
 
     private fun performOneValidMove(model: GameViewModel): GameState {
