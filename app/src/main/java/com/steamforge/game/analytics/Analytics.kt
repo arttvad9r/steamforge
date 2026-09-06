@@ -1,13 +1,16 @@
 package com.steamforge.game.analytics
 
-/** Абстракция аналитики. Реализации не должны проникать в GameEngine. */
+/**
+ * Transitional internal event sink.
+ *
+ * Steamforge does not ship an analytics SDK or transmit/store telemetry. Existing typed event
+ * call sites are kept temporarily so gameplay/progression refactors do not get mixed into the
+ * tracking-removal change; every event is discarded in-process.
+ */
 interface Analytics {
     fun logEvent(name: String, params: Map<String, Any?> = emptyMap())
 }
 
-/** Безопасная реализация по умолчанию: без сети, без ключей, пишет в Logcat в debug-сборках. */
-class NoopAnalytics(private val debugLogging: Boolean = false) : Analytics {
-    override fun logEvent(name: String, params: Map<String, Any?>) {
-        if (debugLogging) println("Analytics: $name $params")
-    }
+class NoopAnalytics : Analytics {
+    override fun logEvent(name: String, params: Map<String, Any?>) = Unit
 }
