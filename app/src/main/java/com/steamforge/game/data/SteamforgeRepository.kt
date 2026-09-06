@@ -85,7 +85,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val soundEnabled = booleanPreferencesKey("sound_enabled")
         val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
         val animationsEnabled = booleanPreferencesKey("animations_enabled")
-        val analyticsConsent = booleanPreferencesKey("analytics_consent")
     }
 
     override val progress: Flow<PlayerProgress> = context.dataStore.data.map(::mapProgress)
@@ -209,22 +208,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         }
     }
 
-    override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
-        if (gems <= 0) return false
-        var granted = false
-        context.dataStore.edit { prefs ->
-            val record = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
-            if (record != null && record.id == gameResultId && !record.rewardedClaimed) {
-                val progress = mapProgress(prefs)
-                val (updated, _) = RewardSystem.apply(progress, Reward.Gems(gems))
-                prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.copy(rewardedClaimed = true))
-                writeProgress(prefs, updated)
-                granted = true
-            }
-        }
-        return granted
-    }
-
     override suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean {
         if (rewardGems < 0 || bonusXp < 0) return false
         var granted = false
@@ -271,21 +254,16 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         context.dataStore.edit { it.remove(Keys.finishedGame) }
     }
 
-    /**
-     * Сбрасывает только игровые данные. Privacy-выбор и пользовательские настройки сохраняются,
-     * поэтому reset progression не возвращает приложение в промежуточное consent-состояние.
-     */
+    /** Сбрасывает игровой прогресс, сохраняя пользовательские настройки приложения. */
     override suspend fun resetGameProgress() {
         context.dataStore.edit { prefs ->
             val sound = prefs[Keys.soundEnabled]
             val haptics = prefs[Keys.hapticsEnabled]
             val animations = prefs[Keys.animationsEnabled]
-            val consent = prefs[Keys.analyticsConsent]
             prefs.clear()
             if (sound != null) prefs[Keys.soundEnabled] = sound
             if (haptics != null) prefs[Keys.hapticsEnabled] = haptics
             if (animations != null) prefs[Keys.animationsEnabled] = animations
-            if (consent != null) prefs[Keys.analyticsConsent] = consent
         }
     }
 
@@ -354,7 +332,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
             soundEnabled = prefs[Keys.soundEnabled] ?: true,
             hapticsEnabled = prefs[Keys.hapticsEnabled] ?: true,
             animationsEnabled = prefs[Keys.animationsEnabled] ?: true,
-            analyticsConsent = prefs[Keys.analyticsConsent],
         )
     }
 
@@ -413,7 +390,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         prefs[Keys.soundEnabled] = p.soundEnabled
         prefs[Keys.hapticsEnabled] = p.hapticsEnabled
         prefs[Keys.animationsEnabled] = p.animationsEnabled
-        if (p.analyticsConsent != null) prefs[Keys.analyticsConsent] = p.analyticsConsent else prefs.remove(Keys.analyticsConsent)
     }
 
     /**
