@@ -135,6 +135,7 @@ dependencies {
   androidTestImplementation(composeBom)
 
   implementation(project(":weekly-core"))
+  implementation(project(":weekly-protocol"))
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.serialization.json)
