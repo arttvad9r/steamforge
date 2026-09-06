@@ -1,48 +1,65 @@
-# ADR 0001 — In-game advertising is disabled and frozen
+# ADR 0001 — In-game advertising is prohibited
 
 - **Status:** Accepted
 - **Date:** 2026-09-05
-- **Scope:** Steamforge product, Android client, analytics, rewards and monetization roadmap
+- **Implementation status:** advertising SDK/runtime removal applied 2026-09-06
+- **Scope:** Steamforge product, Android client, rewards and monetization roadmap
 
 ## Context
 
-Steamforge previously contained Yandex rewarded/interstitial advertising infrastructure and roadmap items for rewarded placements, ad-driven rewards and Remove Ads.
+Steamforge previously contained Yandex rewarded/interstitial infrastructure, ad-driven reward flows and historical Remove Ads plans.
 
-The current product decision is to develop Steamforge without in-game advertising. This decision is intentionally stronger than merely keeping ads disabled in the current build: ad development itself is frozen so future work does not accidentally restart it from stale code or roadmap entries.
+The product decision is to develop Steamforge without in-game advertising. This is stronger than keeping ads disabled by a feature switch: advertising must not exist as a production runtime/dependency/UI surface.
 
 ## Decision
 
-Steamforge must not add, restore or expand in-game advertising unless a later ADR explicitly supersedes this decision.
+Steamforge must not add, restore or expand in-game advertising unless a later accepted ADR explicitly supersedes this decision.
 
-The following are out of scope:
+Prohibited product/runtime surface:
 
 - rewarded ads;
 - interstitial ads;
 - banner/native ads;
 - ad-driven reward multipliers or bonus rewards;
-- ad offer/start/complete product flows;
-- ad-specific analytics added for future monetization;
-- a Remove Ads purchase;
-- new ad-network SDKs or migrations to another ad provider.
+- ad offer/start/complete flows;
+- ad-specific telemetry;
+- Remove Ads purchases;
+- ad-network SDKs;
+- ad unit IDs or advertising credentials;
+- advertising consent UI;
+- advertising settings UI.
 
-Existing dormant/disabled advertising code may remain temporarily while unrelated work is in progress, but it is legacy code, not an active product surface and must not be treated as a roadmap item. It can be removed in a dedicated cleanup change when safe.
+## Implementation invariant
+
+The production Android dependency graph and manifest must not contain an advertising SDK or ad-network initialization metadata.
+
+Historical gameplay call sites may temporarily use a strictly inert compatibility shell only while they are mechanically removed. Such a shell must:
+
+- have no advertising dependency;
+- perform no network request;
+- never report rewarded readiness;
+- never show an ad;
+- never grant an ad-driven reward;
+- never expose an advertising surface to the player.
+
+It is not a roadmap feature and should disappear as orchestration code is decomposed.
 
 ## Allowed monetization work
 
-This decision does not prohibit future non-ad monetization. If separately justified by product data, Steamforge may later consider direct-purchase items such as cosmetics, Workshop themes or small cosmetic/starter bundles. Such work must not depend on advertising.
+This decision does not prohibit future non-ad monetization. If separately justified, Steamforge may later consider direct-purchase cosmetic content such as tile sets or Workshop themes. Such work must not depend on advertising and must have a separate product/release decision.
 
 ## Implementation rule
 
-Before starting any task involving ads, rewarded offers, interstitials, ad SDKs, ad analytics or Remove Ads, check this ADR. The task must be rejected or reframed unless a newer accepted ADR explicitly supersedes ADR 0001.
+Any task involving rewarded/interstitial/banner/native ads, ad SDKs, ad telemetry, ad-driven rewards or Remove Ads must be rejected unless a newer accepted ADR explicitly supersedes ADR 0001.
 
 ## Superseding this decision
 
 Changing this decision requires a new ADR that:
 
-1. explicitly states that ADR 0001 is superseded;
-2. explains the product reason for bringing advertising back;
-3. defines acceptable placements and player-experience constraints;
+1. explicitly supersedes ADR 0001;
+2. states the product reason;
+3. defines placements/player-experience constraints;
 4. defines privacy/store/compliance implications;
-5. updates the canonical `docs/PRODUCT_PLAN.md` in the same change.
+5. updates `docs/PRODUCT_PLAN.md` in the same change.
 
-Until then, **Steamforge is a no-ads product and advertising development is frozen**.
+Until then, **Steamforge is an advertising-free product and the shipped application must contain no advertising SDK or player-facing advertising surface**.
