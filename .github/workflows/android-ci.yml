@@ -54,6 +54,7 @@ jobs:
           bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
           bash -n tools/check-release-aab.sh
+          bash -n tools/check-release-inventory.sh
           bash -n tools/check-no-tracking.sh
           bash tools/check-no-tracking.sh
           python3 - <<'PY'
@@ -89,3 +90,6 @@ jobs:
 
       - name: Validate release app bundle
         run: bash tools/check-release-aab.sh
+
+      - name: Verify final release artifact inventory
+        run: bash tools/check-release-inventory.sh

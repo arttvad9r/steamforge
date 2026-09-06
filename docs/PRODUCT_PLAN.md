@@ -32,6 +32,7 @@ Already implemented/current:
 - pure Kotlin 4×4 `GameEngine`;
 - replayable deterministic RNG;
 - autosave/process-death restore and backward-readable save format;
+- current save write format v6 without analytics/correlation identifiers; legacy v5/v4/v3/v2/v1 remain readable;
 - session statistics/state preservation across recreation;
 - swipe + keyboard gameplay input;
 - movement/merge feedback, SFX and haptics;
@@ -49,9 +50,10 @@ Already implemented/current:
 - release signing/preflight tooling;
 - Android CI/emulator/lifecycle/accessibility/adaptive/16 KiB/performance diagnostics;
 - gameplay visual pass aligned with the approved Visual Bible (#156–158);
-- no advertising SDK/runtime;
-- no AppMetrica/user analytics SDK/runtime;
-- no analytics/ad consent or Settings surface.
+- no advertising SDK/runtime or advertising compatibility API;
+- no AppMetrica/user analytics SDK/runtime or analytics compatibility package;
+- no analytics/ad consent state or Settings surface;
+- artifact-level release inventory gate for final APK/AAB-derived output and `releaseRuntimeClasspath` (#161).
 
 Weekly is not exposed in normal player navigation until production identity/backend/deployment/client endpoint are complete.
 
@@ -104,7 +106,9 @@ Advertising is prohibited by ADR 0001. Historical disabled ad code/assets/PRs ar
 
 ### No user telemetry by default
 
-The shipped client does not collect/send behavioral analytics. Internal typed events may exist temporarily as no-op architecture seams, but they are not a data-collection product feature.
+The shipped client does not collect/send behavioral analytics. Runtime analytics compatibility seams, consent state and correlation IDs were removed in #160.
+
+Typed **gameplay-domain** events may exist where they directly drive local product behavior such as Contracts/replay/rewards; they are not telemetry and must not silently become a persistence/network analytics channel.
 
 If a future product decision genuinely requires telemetry, it needs a new ADR defining exact data, purpose, retention, identifiers and legal/store implications before implementation.
 
@@ -138,11 +142,12 @@ Gameplay logic must not depend directly on store/network SDKs. Advertising and b
 - keep `master` green;
 - ensure release docs match code;
 - keep Android 17 / 16 KiB and lifecycle gates green;
-- physically remove advertising/user-telemetry SDK/runtime/configuration;
-- protect tracking-free invariants in CI;
+- physically remove advertising/user-telemetry SDK/runtime/configuration and old compatibility APIs;
+- protect tracking-free invariants in source/config CI;
+- inspect final release APK/AAB-derived artifact and runtime dependency graph, not only source files;
 - finish physical-device release acceptance.
 
-**Done when:** CI is green on current master, final APK inventory is tracking-free, and physical-device release gates are recorded.
+**Done when:** canonical CI is green on final master, the final signed release candidate passes source/config + APK/AAB dependency/manifest inventory, and physical-device release gates are recorded.
 
 ### Phase 1 — Core quality gate
 
@@ -366,10 +371,11 @@ Under current decisions:
 
 ### Privacy/runtime
 
-- no advertising SDK/config/UI;
-- no AppMetrica/user analytics SDK/config/UI;
-- CI guard green;
-- final APK/AAB inventory checked;
+- no advertising SDK/config/UI/runtime compatibility API;
+- no AppMetrica/user analytics SDK/config/UI/runtime compatibility package;
+- source/config no-tracking guard green;
+- final release APK/AAB-derived manifest, permissions and DEX inventory green;
+- resolved release runtime dependency inventory green;
 - network services explicit and bounded.
 
 ### Meta
@@ -383,6 +389,7 @@ Under current decisions:
 
 - canonical CI green;
 - Android 17 / 16 KiB green;
+- final signed artifact inventory report retained with release candidate;
 - physical-device lifecycle/performance/thermal/TalkBack checks complete;
 - signing/key backups verified;
 - privacy/store text matches actual production network/data behavior.

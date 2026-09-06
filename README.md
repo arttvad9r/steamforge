@@ -92,14 +92,17 @@ Release signing credentials находятся только вне git. См. `d
 ./gradlew assembleRelease
 ./gradlew bundleRelease
 bash tools/check-android-16kb.sh
+bash tools/check-release-inventory.sh
 bash tools/build-rustore-release.sh
 ```
+
+`check-release-inventory.sh` запускается после `assembleRelease bundleRelease`: он проверяет merged manifest/permissions/DEX packages финального APK, AAB-derived universal APK и resolved `releaseRuntimeClasspath` на запрещённые advertising/analytics SDK и advertising identifier permissions.
 
 ## CI / runtime checks
 
 Основные workflows:
 
-- **Android CI** — unit tests, lint, debug/release APK, AAB и module tests;
+- **Android CI** — unit tests, lint, debug/release APK, AAB, module tests и final APK/AAB dependency/manifest inventory;
 - **UI Emulator Smoke** — production UI;
 - **Android 17 16 KB Smoke** — API 37 / 16 KiB runtime environment;
 - **Active Run Lifecycle Smoke** — recreation/background/process-death/offline recovery;
@@ -119,7 +122,7 @@ Release key не хранится в репозитории. Первый RuStor
 bash tools/build-rustore-release.sh
 ```
 
-Preflight больше не требует AppMetrica key, Privacy Policy URL или ad unit IDs. Он проверяет source cleanliness, package confirmation, signing, tests/lint/build, 16 KiB compatibility, APK signature и SHA-256.
+Preflight больше не требует AppMetrica key, Privacy Policy URL или ad unit IDs. Он проверяет source cleanliness, package confirmation, signing inputs, tests/lint, release APK/AAB build, final dependency/manifest inventory, 16 KiB compatibility, APK signature и SHA-256. Inventory report сохраняется рядом с финальным APK в `dist/`.
 
 ## Документация
 

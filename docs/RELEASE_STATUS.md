@@ -2,7 +2,7 @@
 
 **Актуализировано:** 06.09.2026.
 
-Этот файл фиксирует фактический V1 baseline после gameplay visual pass #156–158 и cleanup #159.
+Этот файл фиксирует фактический V1 baseline после gameplay visual pass #156–158, tracking cleanup #159–160 и final artifact inventory gate #161.
 
 ## Product/privacy baseline
 
@@ -11,9 +11,9 @@ Steamforge является:
 - **no-ads product** по `ADR_0001_NO_ADS.md`;
 - **no-user-telemetry product** по `ADR_0005_NO_USER_TELEMETRY.md`.
 
-Production Android client не должен содержать рекламный SDK, AppMetrica/другой user analytics SDK, ad unit IDs, analytics API keys, advertising/analytics consent UI или соответствующий Settings surface.
+Production Android client не должен содержать рекламный SDK, AppMetrica/другой user analytics SDK, ad unit IDs, analytics API keys, advertising/analytics consent UI, соответствующий Settings surface или runtime compatibility API для рекламы/behavioral analytics.
 
-Внутренние typed event call sites временно допускаются только за strict no-op implementation: без SDK, сети, хранения и Logcat event stream.
+После #160 runtime analytics package, `AdsManager`, rewarded/interstitial wiring, ad-driven reward repository API, analytics consent state и новые analytics correlation identifiers физически отсутствуют из production source/runtime.
 
 ## Current technical baseline
 
@@ -22,7 +22,8 @@ Production Android client не должен содержать рекламны�
 - pure Kotlin 4×4 `GameEngine`;
 - deterministic replayable RNG;
 - normal active-run autosave и process-death restore;
-- backward-readable save codec и сохранение session counters / stable run identity;
+- backward-readable save codec; текущая запись — v6 без analytics/correlation ID, старые v5/v4/v3/v2/v1 читаются совместимо;
+- сохранение session counters / stable run identity без telemetry identity;
 - terminal result persistence с retry/idempotency/recovery;
 - Steam Pressure / Overdrive;
 - Undo и Wrench;
@@ -56,7 +57,7 @@ Production Android client не должен содержать рекламны�
 
 ## Advertising / analytics removal status
 
-Cleanup #159 removes from production configuration/runtime:
+Cleanup #159 удалил из production configuration/runtime:
 
 - Yandex Mobile Ads dependency;
 - AppMetrica dependency/implementation;
@@ -69,9 +70,28 @@ Cleanup #159 removes from production configuration/runtime:
 - consent/session AppMetrica wiring from `MainActivity`/`AppContainer`;
 - release requirements for AppMetrica/ad credentials.
 
-CI includes `tools/check-no-tracking.sh`, which fails if prohibited SDK/config references return to production sources.
+Cleanup #160 завершил source-level removal:
 
-`INTERNET` remains intentional for optional Remote Config and future explicit Weekly backend functionality. Эти services не должны использоваться как behavioral analytics channel.
+- удалён runtime analytics package и analytics event taxonomy;
+- удалён `AdsManager`;
+- удалены rewarded/interstitial gameplay wiring и rewarded-video UI;
+- удалены `claimDoubleReward` / `rewardedClaimed`;
+- удалён локальный `analyticsConsent` model/persistence state;
+- `GameViewModel`, Workshop и Contracts больше не зависят от analytics/ad abstractions;
+- save codec пишет v6 без analytics correlation ID, при этом legacy v5 ID безопасно игнорируется при чтении;
+- старые неизвестные поля `FinishedGameRecord` остаются backward-readable через `ignoreUnknownKeys`.
+
+CI включает `tools/check-no-tracking.sh`, который запрещает возвращать prohibited SDK/config/runtime/UI references.
+
+Gate #161 добавляет **artifact-level** проверку финального release output:
+
+- официальный Android `apkanalyzer` читает merged manifest, permissions, packaged files и defined DEX packages release APK;
+- официальный pinned `bundletool` строит universal APK из release AAB, после чего тот проверяется тем же artifact analyzer;
+- resolved `releaseRuntimeClasspath` проверяется на advertising/analytics SDK families;
+- advertising identifier / AdServices permissions запрещены;
+- production preflight сохраняет inventory report рядом с финальным APK в `dist/`.
+
+`INTERNET` остаётся intentional для optional Remote Config и будущего explicit Weekly backend. Эти services не должны использоваться как behavioral analytics channel.
 
 ## Reliability / lifecycle status
 
@@ -92,7 +112,7 @@ Automated baseline covers:
 
 Canonical workflows include:
 
-- Android CI;
+- Android CI — tests/lint/APK/AAB, 16 KiB checks и final release artifact inventory;
 - UI Emulator Smoke;
 - Android 17 / 16 KB Smoke;
 - Active Run Lifecycle Smoke;
@@ -102,7 +122,7 @@ Canonical workflows include:
 - Frame Timing Diagnostic Smoke;
 - RuStore Store Assets.
 
-Tracking-free UI smoke additionally требует прямой Home startup и отсутствие AppMetrica/analytics-ad/consent/rewarded-video copy на проверяемых production surfaces.
+Tracking-free UI smoke дополнительно требует прямой Home startup и отсутствие AppMetrica/analytics-ad/consent/rewarded-video copy на проверяемых production surfaces.
 
 ## Visual status
 
@@ -148,7 +168,7 @@ Generated concept screens остаются art-direction references. Истор�
 Перед первым store release необходимы:
 
 1. зелёный canonical CI на финальном `master`;
-2. проверка final APK/AAB dependency/manifest inventory на отсутствие ad/analytics SDK;
+2. успешный final signed APK/AAB dependency/manifest inventory gate и сохранённый inventory report для release candidate;
 3. physical-device smoke normal/save/process-death/offline/settings/reset;
 4. manual TalkBack/large-text/safe-area spot-check;
 5. physical-device Macrobenchmark/frame-timing acceptance;
@@ -178,7 +198,6 @@ Generated concept screens остаются art-direction references. Истор�
 
 - разгрузить `GameViewModel` от persistence/progression/competitive orchestration;
 - переименовать/выделить общий `GameEngine` ownership из исторического `:weekly-core` в semantic game/simulation core module;
-- определить storage boundary (Proto DataStore/Room) до роста event/reward/history state;
-- очистить оставшиеся inert legacy field/call-site names после безопасной декомпозиции.
+- определить storage boundary (Proto DataStore/Room) до роста event/reward/history state.
 
 `GameEngine` и текущую reliability foundation радикально переписывать не требуется.

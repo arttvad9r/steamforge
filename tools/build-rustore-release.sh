@@ -72,8 +72,9 @@ printf 'Source commit: %s\n' "$SOURCE_SHA"
 
 DIST_DIR="$ROOT_DIR/dist"
 DIST_APK="$DIST_DIR/Steamforge-${VERSION_NAME}-vc${VERSION_CODE}-rustore.apk"
+DIST_INVENTORY="$DIST_DIR/Steamforge-${VERSION_NAME}-vc${VERSION_CODE}-inventory.txt"
 mkdir -p "$DIST_DIR"
-rm -f "$DIST_APK" "$DIST_APK.sha256" "$DIST_APK.metadata.txt"
+rm -f "$DIST_APK" "$DIST_APK.sha256" "$DIST_APK.metadata.txt" "$DIST_INVENTORY"
 
 CONFIRMED_APP_ID="$(read_prop steamforge.confirmApplicationId || true)"
 [[ -n "$CONFIRMED_APP_ID" ]] || fail "steamforge.confirmApplicationId is missing. Set it to '$APP_ID' only after confirming the final package name before first publication."
@@ -104,11 +105,13 @@ case "$KEYSTORE_PATH" in
 esac
 
 printf 'Production inputs: OK\n'
-printf 'Running tests, lint and signed release build...\n'
-./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+printf 'Running tests, lint and signed release builds...\n'
+./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease bundleRelease
 
 APK="app/build/outputs/apk/release/app-release.apk"
 [[ -s "$APK" ]] || fail "signed release APK not found: $APK"
+AAB="app/build/outputs/bundle/release/app-release.aab"
+[[ -s "$AAB" ]] || fail "signed release AAB not found: $AAB"
 
 OUTPUT_METADATA="app/build/outputs/apk/release/output-metadata.json"
 [[ -s "$OUTPUT_METADATA" ]] || fail "release metadata not found: $OUTPUT_METADATA"
@@ -141,6 +144,10 @@ fi
 printf 'Checking APK 16 KB compatibility...\n'
 bash tools/check-android-16kb.sh "$APK"
 
+printf 'Checking final APK/AAB dependency and manifest inventory...\n'
+STEAMFORGE_INVENTORY_REPORT="$DIST_INVENTORY" \
+  bash tools/check-release-inventory.sh "$APK" "$AAB"
+
 printf 'Checking APK signature...\n'
 APKSIGNER_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
 printf '%s\n' "$APKSIGNER_OUTPUT"
@@ -161,12 +168,14 @@ versionCode=$VERSION_CODE
 versionName=$VERSION_NAME
 apkSha256=$APK_SHA256
 certificateSha256=$CERT_SHA256
+inventoryReport=$(basename "$DIST_INVENTORY")
 EOF
 
 printf '\nRelease artifact:\n'
-ls -lh "$DIST_APK"
+ls -lh "$DIST_APK" "$DIST_INVENTORY"
 printf 'SHA-256: %s\n' "$APK_SHA256"
 printf 'Certificate SHA-256: %s\n' "$CERT_SHA256"
 printf 'Package: %s\nVersion: %s (%s)\n' "$APP_ID" "$VERSION_NAME" "$VERSION_CODE"
 printf 'Source: %s\n' "$SOURCE_SHA"
-printf '\nPreflight complete. Device-smoke and upload the exact file from dist/.\n'
+printf 'Inventory: %s\n' "$DIST_INVENTORY"
+printf '\nPreflight complete. Device-smoke and upload the exact APK file from dist/.\n'
