@@ -13,7 +13,8 @@ Steamforge — Android-игра на основе механики 2048 в premi
 - Replayable PRNG: seed + позиция RNG сохраняются для normal run и используются deterministic Weekly replay.
 - Steam Pressure / Overdrive, Undo и Wrench находятся выше чистого движка.
 - Normal run сохраняется в DataStore после значимых изменений и восстанавливается после process death.
-- Save codec backward-readable; terminal result persistence идемпотентна и имеет retry/recovery path.
+- Текущий save codec — **v6**, без analytics/correlation identifier; старые `v5/v4/v3/v2/v1` читаются для совместимости, причём legacy v5 analytics ID игнорируется.
+- Terminal result persistence идемпотентна и имеет retry/recovery path.
 - Daily reward/contract claims защищены от повторной выдачи.
 - Weekly replay authority вынесена в pure JVM-модули для повторной серверной валидации.
 
@@ -54,9 +55,9 @@ Steamforge не содержит:
 - advertising identifiers;
 - consent-диалога для рекламы/аналитики;
 - analytics/ad switches в Settings;
-- ad unit IDs или analytics API keys в release configuration.
-
-Существующие внутренние typed event schemas временно могут оставаться как **in-process no-op compatibility layer** для безопасной поэтапной разгрузки ViewModel/прогрессии. Они никуда не отправляются, не сохраняются и не логируются.
+- ad unit IDs или analytics API keys в release configuration;
+- runtime analytics package, ad manager или rewarded-ad repository API;
+- новых analytics correlation identifiers в сохранениях.
 
 Сетевые разрешения остаются нужны для опционального Remote Config и будущего Weekly backend; это не рекламный/аналитический трафик.
 
@@ -125,6 +126,7 @@ Preflight больше не требует AppMetrica key, Privacy Policy URL и
 - `docs/PRODUCT_PLAN.md` — product/development roadmap.
 - `docs/VISUAL_BIBLE.md` — approved primary art direction.
 - `docs/ADR_0001_NO_ADS.md` — обязательное no-ads решение.
+- `docs/ADR_0005_NO_USER_TELEMETRY.md` — обязательное no-user-telemetry решение.
 - `docs/GAME_LOGIC_AUDIT_2026.md` — game-state consistency audit.
 - `docs/BRANCH_AUDIT_2026-09-01.md` — historical branch consolidation decisions.
 - `docs/ANDROID_2026_CHECKLIST.md` — Android/platform release checklist.
