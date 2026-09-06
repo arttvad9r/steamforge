@@ -6,8 +6,6 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private const val MAX_WEEKLY_WIRE_BYTES = 16 * 1024
-
 private val weeklyWireJson = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
@@ -55,6 +53,9 @@ private data class WeeklyRankingResponsePayload(
  * parsing it as an IEEE-754 number.
  */
 object WeeklyRankingWire {
+    /** Maximum UTF-8 request/response payload accepted by the shared Weekly wire contract. */
+    const val MAX_PAYLOAD_BYTES: Int = 16 * 1024
+
     fun encodeSubmission(submission: WeeklyRunSubmission): String =
         weeklyWireJson.encodeToString(
             WeeklyRunSubmissionPayload(
@@ -144,5 +145,5 @@ object WeeklyRankingWire {
     }
 
     private fun fitsWireLimit(payload: String): Boolean =
-        payload.toByteArray(Charsets.UTF_8).size <= MAX_WEEKLY_WIRE_BYTES
+        payload.toByteArray(Charsets.UTF_8).size <= MAX_PAYLOAD_BYTES
 }

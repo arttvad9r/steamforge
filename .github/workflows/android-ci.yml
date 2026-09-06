@@ -84,7 +84,7 @@ jobs:
           PY
 
       - name: Verify debug and release code
-        run: ./gradlew :weekly-core:test :weekly-protocol:test :weekly-server-core:test :weekly-server-postgres:test testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
+        run: ./gradlew :weekly-core:test :weekly-protocol:test :weekly-server-core:test :weekly-server-postgres:test :weekly-server-ktor:test testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
 
       - name: Verify Macrobenchmark harness compiles
         run: ./gradlew :app:assembleBenchmark :macrobenchmark:assembleBenchmark --stacktrace --no-daemon
