@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,6 +39,7 @@ import com.steamforge.game.ui.contracts.ContractsScreen
 import com.steamforge.game.ui.contracts.ContractsViewModel
 import com.steamforge.game.ui.game.GameViewModel
 import com.steamforge.game.ui.game.PersistenceGuardedGameScreen
+import com.steamforge.game.ui.game.WeeklyRankingViewModel
 import com.steamforge.game.ui.home.HomeScreen
 import com.steamforge.game.ui.home.HomeViewModel
 import com.steamforge.game.ui.profile.ProfileScreen
@@ -46,6 +48,7 @@ import com.steamforge.game.ui.settings.SettingsScreen
 import com.steamforge.game.ui.settings.SettingsViewModel
 import com.steamforge.game.ui.workshop.WorkshopScreen
 import com.steamforge.game.ui.workshop.WorkshopViewModel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -143,6 +146,17 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                         dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
                         systemAnimationsEnabled = systemAnimationsEnabled,
                     )
+                }
+                val weeklyRankingVm: WeeklyRankingViewModel? = if (key.mode == GameRunMode.WEEKLY) {
+                    viewModel(key = "weekly-ranking-${key.mode.wireName}") {
+                        WeeklyRankingViewModel(container.weeklyRankingProvider)
+                    }
+                } else {
+                    null
+                }
+                LaunchedEffect(vm, weeklyRankingVm) {
+                    val rankingVm = weeklyRankingVm ?: return@LaunchedEffect
+                    vm.weeklySubmission.collect(rankingVm::onSubmission)
                 }
                 val firstGameFlow = remember(container.repo, key.mode) {
                     container.repo.progress.map { progress ->
