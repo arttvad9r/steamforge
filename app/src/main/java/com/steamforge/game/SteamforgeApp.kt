@@ -8,7 +8,6 @@ import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
 import com.steamforge.game.config.PreferencesRemoteConfigCache
 import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
-import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.progression.UnavailableWeeklyRankingProvider
 import com.steamforge.game.progression.WeeklyRankingProvider
 import com.steamforge.game.sound.SfxPlayer
@@ -27,9 +26,6 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val repo = SteamforgeRepository(appContext)
     val sfx = SfxPlayer(appContext)
-
-    // Advertising compatibility remains temporarily isolated until gameplay call sites are removed.
-    val ads = AdsManager()
     val remoteConfig: RemoteConfigProvider = createRemoteConfigProvider(appContext)
     val weeklyRankingProvider: WeeklyRankingProvider = UnavailableWeeklyRankingProvider
 
