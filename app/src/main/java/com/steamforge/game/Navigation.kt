@@ -132,7 +132,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 PersistenceGuardedGameScreen(
                     vm = vm,
                     sfx = container.sfx,
-                    ads = container.ads,
                     isFirstGame = isFirstGame,
                     onExit = { back() },
                     modifier = Modifier.navigationBarsPadding(),
