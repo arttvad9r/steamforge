@@ -10,4 +10,5 @@ dependencies {
     implementation(project(":weekly-core"))
     implementation(project(":weekly-protocol"))
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
