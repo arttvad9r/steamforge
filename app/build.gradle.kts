@@ -1,5 +1,4 @@
 import java.util.Base64
-import java.util.Properties
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
@@ -39,11 +38,6 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
-val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
-
 val generateLauncherIcon = tasks.register<GenerateLauncherIconTask>("generateLauncherIcon") {
     parts.from(fileTree("src/main/icon-assets") {
         include("steamforge-launcher-*.b64")
@@ -67,19 +61,11 @@ android {
 
     buildTypes {
         release {
+            // Minified development-quality variant used to catch R8/resource-shrinking issues.
+            // No production/store signing configuration is kept in the active project.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-
-            val storeFilePath = keystoreProps.getProperty("storeFile")
-            if (storeFilePath != null) {
-                signingConfig = signingConfigs.create("release") {
-                    storeFile = rootProject.file(storeFilePath)
-                    storePassword = keystoreProps.getProperty("storePassword")
-                    keyAlias = keystoreProps.getProperty("keyAlias")
-                    keyPassword = keystoreProps.getProperty("keyPassword")
-                }
-            }
         }
         create("benchmark") {
             initWith(getByName("release"))
@@ -156,6 +142,6 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
-  // Macrobenchmark-only helper; production release dependency graph is unchanged.
+  // Macrobenchmark-only helper; the app runtime dependency graph is unchanged.
   add("benchmarkImplementation", libs.androidx.profileinstaller)
 }
