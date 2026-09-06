@@ -4,12 +4,13 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Tile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameSaveCodecTest {
 
     @Test
-    fun `v5 roundtrip preserves board rng counters and analytics run id`() {
+    fun `v6 roundtrip preserves gameplay state without analytics identifier`() {
         val original = SavedGame(
             state = GameState(
                 tiles = listOf(Tile(1, 1, 0, 0), Tile(7, 5, 3, 2)),
@@ -28,13 +29,24 @@ class GameSaveCodecTest {
             overdrivesSession = 2,
             undosSession = 4,
             highMergesSession = 5,
-            analyticsRunId = "normal-7a8e2b4f-6c20-47b7-9e82-44e2386d7c9a",
         )
-        assertEquals(original, GameSaveCodec.decode(GameSaveCodec.encode(original)))
+        val encoded = GameSaveCodec.encode(original)
+        assertTrue(encoded.startsWith("v6|"))
+        assertEquals(original, GameSaveCodec.decode(encoded))
     }
 
     @Test
-    fun `v4 remains readable without analytics run id`() {
+    fun `legacy v5 remains readable while analytics run id is discarded`() {
+        val raw = "v5|4|100|3|0|5|42|70|2|1|17|9|3|2|4|5|normal-legacy-run|1,1,0,0;2,2,1,1"
+        val decoded = GameSaveCodec.decode(raw)!!
+        assertEquals(42L, decoded.seed)
+        assertEquals(70, decoded.pressure)
+        assertEquals(17L, decoded.rngDraws)
+        assertEquals(9, decoded.mergesTotal)
+    }
+
+    @Test
+    fun `v4 remains readable`() {
         val raw = "v4|4|100|3|0|5|42|70|2|1|17|9|3|2|4|5|1,1,0,0;2,2,1,1"
         val decoded = GameSaveCodec.decode(raw)!!
         assertEquals(42L, decoded.seed)
@@ -45,7 +57,6 @@ class GameSaveCodecTest {
         assertEquals(2, decoded.overdrivesSession)
         assertEquals(4, decoded.undosSession)
         assertEquals(5, decoded.highMergesSession)
-        assertNull(decoded.analyticsRunId)
     }
 
     @Test
@@ -62,7 +73,6 @@ class GameSaveCodecTest {
         assertEquals(0, decoded.overdrivesSession)
         assertEquals(0, decoded.undosSession)
         assertEquals(0, decoded.highMergesSession)
-        assertNull(decoded.analyticsRunId)
     }
 
     @Test
@@ -74,7 +84,6 @@ class GameSaveCodecTest {
         assertEquals(2, decoded.overdriveRemaining)
         assertEquals(1, decoded.freeUndosLeft)
         assertEquals(0L, decoded.rngDraws)
-        assertNull(decoded.analyticsRunId)
     }
 
     @Test
@@ -86,12 +95,12 @@ class GameSaveCodecTest {
         assertEquals(0, decoded.overdriveRemaining)
         assertEquals(0, decoded.freeUndosLeft)
         assertEquals(0L, decoded.rngDraws)
-        assertNull(decoded.analyticsRunId)
     }
 
     @Test
     fun `broken or structurally invalid input returns null`() {
         assertNull(GameSaveCodec.decode("garbage"))
+        assertNull(GameSaveCodec.decode("v6|bad"))
         assertNull(GameSaveCodec.decode("v5|bad"))
         assertNull(GameSaveCodec.decode("v4|bad"))
         assertNull(GameSaveCodec.decode("v3|bad"))

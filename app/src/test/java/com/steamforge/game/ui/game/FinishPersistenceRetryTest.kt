@@ -1,6 +1,5 @@
 package com.steamforge.game.ui.game
 
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
@@ -43,13 +42,6 @@ class FinishPersistenceRetryTest {
         Dispatchers.resetMain()
     }
 
-    private class RecordingAnalytics : Analytics {
-        val names = mutableListOf<String>()
-        override fun logEvent(name: String, params: Map<String, Any?>) {
-            names += name
-        }
-    }
-
     private class FlakyFinishRepo(
         private val delegate: FakeDataRepo,
     ) : DataRepo by delegate {
@@ -83,10 +75,8 @@ class FinishPersistenceRetryTest {
     fun `game over io failure keeps final board stable and retry commits exactly once`() = runTest(dispatcher) {
         val initial = finishingSavedGame()
         val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial))
-        val analytics = RecordingAnalytics()
         val model = GameViewModel(
             repo = repo,
-            analytics = analytics,
             seedProvider = { 17L },
             savedGameProvider = { initial },
         )
@@ -104,7 +94,6 @@ class FinishPersistenceRetryTest {
         assertNull(repo.currentFinished)
         assertEquals(0, repo.currentProgress.stats.gamesPlayed)
         assertEquals(1, repo.finishAttempts)
-        assertTrue("terminal I/O failure was not surfaced", "game_finish_save_failed" in analytics.names)
 
         val finalState = model.ui.value.state
         model.retryFinishPersistence()
@@ -119,10 +108,6 @@ class FinishPersistenceRetryTest {
         assertNotNull(repo.currentFinished)
         assertEquals(repo.attemptedIds.first(), repo.currentFinished?.id)
         assertEquals(1, repo.currentProgress.stats.gamesPlayed)
-        assertEquals(1, analytics.names.count { it == "game_finished" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_failed" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_retry" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_recovered" })
 
         model.retryFinishPersistence()
         advanceUntilIdle()
@@ -134,10 +119,8 @@ class FinishPersistenceRetryTest {
     fun `ambiguous io after durable commit retries idempotently`() = runTest(dispatcher) {
         val initial = finishingSavedGame()
         val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial)).apply { commitBeforeFailure = true }
-        val analytics = RecordingAnalytics()
         val model = GameViewModel(
             repo = repo,
-            analytics = analytics,
             seedProvider = { 17L },
             savedGameProvider = { initial },
         )
@@ -164,10 +147,6 @@ class FinishPersistenceRetryTest {
         assertEquals(durable.xpGained, model.ui.value.effects?.xpGained)
         assertEquals(durable.gemsGained, model.ui.value.effects?.gemsGained)
         assertEquals(durable.workshopPartsGained, model.ui.value.effects?.workshopPartsGained)
-        assertEquals(1, analytics.names.count { it == "game_finished" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_failed" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_retry" })
-        assertEquals(1, analytics.names.count { it == "game_finish_save_recovered" })
     }
 
     @Test
@@ -176,7 +155,6 @@ class FinishPersistenceRetryTest {
         val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial))
         val first = GameViewModel(
             repo = repo,
-            analytics = RecordingAnalytics(),
             seedProvider = { 17L },
             savedGameProvider = { initial },
         )
@@ -192,7 +170,6 @@ class FinishPersistenceRetryTest {
 
         val recreated = GameViewModel(
             repo = repo,
-            analytics = RecordingAnalytics(),
             seedProvider = { 17L },
         )
         advanceUntilIdle()
@@ -211,7 +188,6 @@ class FinishPersistenceRetryTest {
         val repo = FlakyFinishRepo(FakeDataRepo(initialGame = initial)).apply { commitBeforeFailure = true }
         val first = GameViewModel(
             repo = repo,
-            analytics = RecordingAnalytics(),
             seedProvider = { 17L },
             savedGameProvider = { initial },
         )
@@ -227,7 +203,6 @@ class FinishPersistenceRetryTest {
 
         val recreated = GameViewModel(
             repo = repo,
-            analytics = RecordingAnalytics(),
             seedProvider = { 17L },
         )
         advanceUntilIdle()
@@ -235,7 +210,6 @@ class FinishPersistenceRetryTest {
         assertTrue(recreated.ui.value.finished)
         assertFalse(recreated.ui.value.finishPersistenceFailed)
         assertFalse(recreated.ui.value.finishPersistenceInProgress)
-        assertEquals(durable.id, recreated.ui.value.gameResultId)
         assertEquals(durable.score, recreated.ui.value.state.score)
         assertEquals(durable.xpGained, recreated.ui.value.effects?.xpGained)
         assertEquals(durable.gemsGained, recreated.ui.value.effects?.gemsGained)

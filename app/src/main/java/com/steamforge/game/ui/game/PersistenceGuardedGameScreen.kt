@@ -25,7 +25,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.sound.SfxPlayer
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.Recess
@@ -58,7 +57,6 @@ internal fun firstRunOnboardingPhase(
 fun PersistenceGuardedGameScreen(
     vm: GameViewModel,
     sfx: SfxPlayer,
-    ads: AdsManager,
     isFirstGame: Boolean,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
@@ -79,7 +77,6 @@ fun PersistenceGuardedGameScreen(
         GameScreen(
             vm = vm,
             sfx = sfx,
-            ads = ads,
             onExit = {
                 if (!terminalWritePending) onExit()
             },

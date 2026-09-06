@@ -1,7 +1,6 @@
 package com.steamforge.game.ui.game
 
 import com.steamforge.game.GameRunMode
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
@@ -45,19 +44,10 @@ class WeeklyGameViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private class RecordingAnalytics : Analytics {
-        val events = mutableListOf<Pair<String, Map<String, Any?>>>()
-        override fun logEvent(name: String, params: Map<String, Any?>) {
-            events += name to params
-        }
-    }
-
     private fun vm(
         repo: FakeDataRepo = FakeDataRepo(),
-        analytics: RecordingAnalytics = RecordingAnalytics(),
     ) = GameViewModel(
         repo = repo,
-        analytics = analytics,
         runMode = GameRunMode.WEEKLY,
         weeklyProvider = { weekly },
         savedGameProvider = { repo.currentGame },
@@ -65,11 +55,9 @@ class WeeklyGameViewModelTest {
     )
 
     @Test
-    fun `weekly runs use the challenge seed and typed analytics`() = runTest(dispatcher) {
-        val analyticsA = RecordingAnalytics()
-        val analyticsB = RecordingAnalytics()
-        val a = vm(analytics = analyticsA)
-        val b = vm(analytics = analyticsB)
+    fun `weekly runs use the challenge seed deterministically`() = runTest(dispatcher) {
+        val a = vm()
+        val b = vm()
         advanceUntilIdle()
 
         val canonicalStart = WeeklyRunReplay.replay(weekly, emptyList())
@@ -82,14 +70,6 @@ class WeeklyGameViewModelTest {
             advanceUntilIdle()
             assertEquals(a.ui.value.state, b.ui.value.state)
         }
-
-        val started = analyticsA.events.first { it.first == "game_started" }.second
-        assertEquals("weekly", started["run_mode"])
-        assertEquals(false, started["daily"])
-        val moveEvents = analyticsA.events
-            .filter { it.first == "merge" || it.first == "highest_tile_unlocked" }
-        assertTrue(moveEvents.isNotEmpty())
-        assertTrue(moveEvents.all { it.second["run_mode"] == "weekly" })
     }
 
     @Test
@@ -187,8 +167,7 @@ class WeeklyGameViewModelTest {
             initialProgress = initialProgress,
             initialFinished = sentinelFinished,
         )
-        val analytics = RecordingAnalytics()
-        val model = vm(repo, analytics)
+        val model = vm(repo)
         advanceUntilIdle()
 
         val probe = GameEngine()
@@ -210,13 +189,8 @@ class WeeklyGameViewModelTest {
         assertEquals(sentinelFinished, repo.currentFinished)
         assertNull(repo.currentGame)
         assertNull(model.ui.value.effects)
-        assertNull(model.ui.value.gameResultId)
         assertEquals(0, model.ui.value.pressure)
         assertEquals(0, model.ui.value.overdriveRemaining)
-
-        val finishedEvent = analytics.events.last { it.first == "game_finished" }.second
-        assertEquals("weekly", finishedEvent["run_mode"])
-        assertEquals(false, finishedEvent["daily"])
 
         model.restart()
         advanceUntilIdle()

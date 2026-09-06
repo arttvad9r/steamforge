@@ -1,6 +1,5 @@
 package com.steamforge.game.ui.game
 
-import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -76,7 +75,6 @@ import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.MoveResult
 import com.steamforge.game.core.Tile
-import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.progression.DailyChallenge
 import com.steamforge.game.progression.DailyGoalType
 import com.steamforge.game.sound.Sfx
@@ -99,7 +97,6 @@ import com.steamforge.game.ui.components.StatPlate
 import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
-import com.steamforge.game.ui.components.SteamLogoHeader
 import com.steamforge.game.ui.components.SteamPanel
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -112,15 +109,12 @@ private const val SPAWN_MS = 130
 fun GameScreen(
     vm: GameViewModel,
     sfx: SfxPlayer,
-    ads: AdsManager,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val rewardedReady by ads.rewardedReady.collectAsStateWithLifecycle()
     var exitHandled by remember { mutableStateOf(false) }
     val view = LocalView.current
-    val context = androidx.compose.ui.platform.LocalContext.current
     var prevOverdrive by remember { mutableIntStateOf(0) }
     var prevFinished by remember { mutableStateOf(false) }
     var prevWon by remember { mutableStateOf(false) }
@@ -183,7 +177,6 @@ fun GameScreen(
             exitHandled = true
             vm.exit()
             onExit()
-            if (ui.finished && context is Activity) ads.maybeShowInterstitial(context)
         }
     }
 
@@ -470,17 +463,9 @@ fun GameScreen(
     }
 
     if (ui.finished) {
-        val activity = context as? Activity
         GameOverOverlay(
             ui = ui,
-            rewardedAvailable = rewardedReady && (ui.effects?.gemsGained ?: 0) > 0 && !ui.rewardDoubled,
-            onRewarded = {
-                if (activity != null) ads.showRewarded(activity) { vm.grantDoubleReward() }
-            },
-            onRestart = {
-                if (activity != null) ads.maybeShowInterstitial(activity)
-                vm.restart()
-            },
+            onRestart = vm::restart,
             onExit = ::leave,
         )
     } else if (ui.winCelebrated && !ui.winBannerShown) {
@@ -897,8 +882,6 @@ private fun ToolButton(
 @Composable
 private fun GameOverOverlay(
     ui: GameUiState,
-    rewardedAvailable: Boolean,
-    onRewarded: () -> Unit,
     onRestart: () -> Unit,
     onExit: () -> Unit,
 ) {
@@ -945,9 +928,6 @@ private fun GameOverOverlay(
                     )
                     GameOverActions(
                         ui = ui,
-                        gemsGained = gemsGained,
-                        rewardedAvailable = rewardedAvailable,
-                        onRewarded = onRewarded,
                         onRestart = onRestart,
                         onExit = onExit,
                         compactLandscape = true,
@@ -967,9 +947,6 @@ private fun GameOverOverlay(
                     )
                     GameOverActions(
                         ui = ui,
-                        gemsGained = gemsGained,
-                        rewardedAvailable = rewardedAvailable,
-                        onRewarded = onRewarded,
                         onRestart = onRestart,
                         onExit = onExit,
                         compactLandscape = false,
@@ -1078,9 +1055,6 @@ private fun GameOverSummary(
 @Composable
 private fun GameOverActions(
     ui: GameUiState,
-    gemsGained: Int,
-    rewardedAvailable: Boolean,
-    onRewarded: () -> Unit,
     onRestart: () -> Unit,
     onExit: () -> Unit,
     compactLandscape: Boolean,
@@ -1131,77 +1105,6 @@ private fun GameOverActions(
             Modifier.fillMaxWidth(),
             style = SteamButtonStyle.Dark,
         )
-
-        if (ui.rewardDoubled) {
-            Spacer(Modifier.height(if (compactLandscape) 7.dp else 11.dp))
-            Text(
-                "◆ Награда за партию удвоена",
-                modifier = Modifier.fillMaxWidth(),
-                color = TealGlow,
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.Center,
-            )
-        } else if (rewardedAvailable) {
-            Spacer(Modifier.height(if (compactLandscape) 7.dp else 11.dp))
-            if (compactLandscape) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Recess.copy(alpha = 0.78f))
-                        .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 7.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Необязательно · ещё +$gemsGained гемов",
-                            modifier = Modifier.weight(1f),
-                            color = TextMuted,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 2,
-                        )
-                        Spacer(Modifier.width(7.dp))
-                        SteamButton(
-                            "×2 ГЕМЫ",
-                            onRewarded,
-                            Modifier.width(132.dp),
-                            style = SteamButtonStyle.Dark,
-                            icon = "▶",
-                        )
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Recess.copy(alpha = 0.78f))
-                        .border(1.dp, Color.White.copy(alpha = 0.055f), RoundedCornerShape(12.dp))
-                        .padding(9.dp),
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Необязательно · ещё +$gemsGained гемов за видео",
-                            modifier = Modifier.fillMaxWidth(),
-                            color = TextMuted,
-                            style = MaterialTheme.typography.labelMedium,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        SteamButton(
-                            "УДВОИТЬ ГЕМЫ",
-                            onRewarded,
-                            Modifier.fillMaxWidth(),
-                            style = SteamButtonStyle.Dark,
-                            icon = "▶",
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 

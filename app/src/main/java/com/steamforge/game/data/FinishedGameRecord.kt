@@ -5,9 +5,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Запись о завершённой партии. Персистится до выхода с экрана игры и служит
- * фундаментом идемпотентности rewarded-награды: [id] уникален, [rewardedClaimed]
- * изменяется только атомарно в репозитории.
+ * Запись о завершённой партии. Персистится до выхода с экрана игры; [id] обеспечивает
+ * идемпотентность атомарной finish-транзакции и безопасное восстановление после process death.
  */
 @Serializable
 data class FinishedGameRecord(
@@ -25,7 +24,6 @@ data class FinishedGameRecord(
     val newAchievementIds: List<String> = emptyList(),
     /** Финальная доска (GameSaveCodec) для восстановления overlay после process death. */
     val state: String,
-    val rewardedClaimed: Boolean = false,
 )
 
 /** Заполняет поля эффектов записи результатом атомарной транзакции завершения. */
@@ -38,7 +36,7 @@ internal fun FinishedGameRecord.withEffects(effects: FinishEffects): FinishedGam
     newAchievementIds = effects.newAchievements.map { it.id },
 )
 
-/** Json-кодирование записи для Preferences DataStore. */
+/** Json-кодирование записи для Preferences DataStore. Старые неизвестные поля безопасно игнорируются. */
 object FinishedGameCodec {
     private val json = Json { ignoreUnknownKeys = true }
 

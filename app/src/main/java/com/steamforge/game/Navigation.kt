@@ -83,7 +83,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     WorkshopViewModel(
                         repo = container.repo,
                         remoteConfigProvider = container.remoteConfig,
-                        analytics = container.analytics,
                     )
                 }
                 WorkshopScreen(
@@ -100,7 +99,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     ContractsViewModel(
                         repo = container.repo,
                         remoteConfigProvider = container.remoteConfig,
-                        analytics = container.analytics,
                     )
                 }
                 ContractsScreen(vm = vm, onBack = { back() })
@@ -109,8 +107,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 val vm: GameViewModel = viewModel(key = key.mode.wireName) {
                     GameViewModel(
                         repo = container.repo,
-                        analytics = container.analytics,
-                        ads = container.ads,
                         runMode = key.mode,
                         dailyProvider = { DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
                         systemAnimationsEnabled = systemAnimationsEnabled,
@@ -136,7 +132,6 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                 PersistenceGuardedGameScreen(
                     vm = vm,
                     sfx = container.sfx,
-                    ads = container.ads,
                     isFirstGame = isFirstGame,
                     onExit = { back() },
                     modifier = Modifier.navigationBarsPadding(),

@@ -2,14 +2,12 @@ package com.steamforge.game
 
 import android.app.Application
 import android.content.Context
-import com.steamforge.game.analytics.NoopAnalytics
 import com.steamforge.game.config.CachingRemoteConfigProvider
 import com.steamforge.game.config.HttpsRemoteConfigFetcher
 import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
 import com.steamforge.game.config.PreferencesRemoteConfigCache
 import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
-import com.steamforge.game.monetization.AdsManager
 import com.steamforge.game.progression.UnavailableWeeklyRankingProvider
 import com.steamforge.game.progression.WeeklyRankingProvider
 import com.steamforge.game.sound.SfxPlayer
@@ -28,10 +26,6 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val repo = SteamforgeRepository(appContext)
     val sfx = SfxPlayer(appContext)
-
-    // Compatibility sinks only: no SDK, network, persistence or debug telemetry is attached.
-    val analytics = NoopAnalytics()
-    val ads = AdsManager()
     val remoteConfig: RemoteConfigProvider = createRemoteConfigProvider(appContext)
     val weeklyRankingProvider: WeeklyRankingProvider = UnavailableWeeklyRankingProvider
 

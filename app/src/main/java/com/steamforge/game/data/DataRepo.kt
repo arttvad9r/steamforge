@@ -45,9 +45,6 @@ interface DataRepo {
         applyGameFinish(record, finisher)
     }
 
-    /** Атомарная идемпотентная выдача x2-гемов: true только один раз для данного gameResultId. */
-    suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean
-
     /** Атомарная награда за daily challenge: true только один раз для epochDay. */
     suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean
 
@@ -57,6 +54,6 @@ interface DataRepo {
     /** Overlay результата обработан (выход/новая партия) — запись больше не нужна. */
     suspend fun clearFinishedGame()
 
-    /** Сброс только игрового прогресса; privacy/settings сохраняются. */
+    /** Сброс игрового прогресса с сохранением пользовательских настроек. */
     suspend fun resetGameProgress()
 }
