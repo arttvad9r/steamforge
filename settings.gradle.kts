@@ -32,3 +32,4 @@ plugins {
 rootProject.name = "Steamforge"
 include(":app")
 include(":macrobenchmark")
+include(":weekly-core")
