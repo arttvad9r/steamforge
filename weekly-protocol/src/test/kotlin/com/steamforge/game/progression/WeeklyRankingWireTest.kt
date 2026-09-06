@@ -31,6 +31,36 @@ class WeeklyRankingWireTest {
     }
 
     @Test
+    fun `server result encoder round trips all stable statuses`() {
+        val ranked = WeeklyRankingResult.ranked(
+            WeeklyRankingSnapshot(
+                challengeId = submission.challengeId,
+                score = submission.finalScore,
+                percentile = 87.5,
+                rank = 13,
+                participantCount = 100,
+            ),
+        )
+        val cases = listOf(
+            ranked to "ranked",
+            WeeklyRankingResult.rejected() to "rejected",
+            WeeklyRankingResult.unavailable() to "unavailable",
+        )
+
+        cases.forEach { (result, expectedStatus) ->
+            val encoded = WeeklyRankingWire.encodeResult(result)
+            val root = Json.parseToJsonElement(encoded).jsonObject
+
+            assertEquals(
+                WeeklyRunReplay.PROTOCOL_VERSION.toString(),
+                requireNotNull(root["protocolVersion"]).jsonPrimitive.content,
+            )
+            assertEquals(expectedStatus, requireNotNull(root["status"]).jsonPrimitive.content)
+            assertEquals(result, WeeklyRankingWire.decodeResult(encoded))
+        }
+    }
+
+    @Test
     fun `ranked response decodes and remains bound to submitted challenge and score`() {
         val payload = """
             {

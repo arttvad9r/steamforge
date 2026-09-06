@@ -87,6 +87,27 @@ object WeeklyRankingWire {
         )
     }
 
+    /** Shared server-side encoder for the stable ranking response protocol. */
+    fun encodeResult(result: WeeklyRankingResult): String {
+        val ranking = result.ranking
+        val status = when (result.status) {
+            WeeklyRankingStatus.RANKED -> WeeklyRankingWireStatus.RANKED
+            WeeklyRankingStatus.REJECTED -> WeeklyRankingWireStatus.REJECTED
+            WeeklyRankingStatus.UNAVAILABLE -> WeeklyRankingWireStatus.UNAVAILABLE
+        }
+        return weeklyWireJson.encodeToString(
+            WeeklyRankingResponsePayload(
+                protocolVersion = WeeklyRunReplay.PROTOCOL_VERSION,
+                status = status,
+                challengeId = ranking?.challengeId,
+                score = ranking?.score,
+                percentile = ranking?.percentile,
+                rank = ranking?.rank,
+                participantCount = ranking?.participantCount,
+            ),
+        )
+    }
+
     /**
      * Decodes ranking data defensively. Unknown protocol versions or invalid ranking invariants are
      * rejected before they can reach presentation code. Challenge/score ownership is still checked
