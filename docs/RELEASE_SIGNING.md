@@ -72,9 +72,14 @@ Preflight проверяет:
 - отсутствие obsolete tracking/ad properties в tracked `gradle.properties`;
 - наличие и git-safety keystore;
 - unit tests и lint;
-- signed release APK;
-- `applicationId`, `versionCode`, `versionName` generated metadata;
-- 16 KiB compatibility;
+- signed release APK и release AAB из одной source revision;
+- `applicationId`, `versionCode`, `versionName` generated APK metadata;
+- final APK/AAB-derived dependency/manifest inventory через `tools/check-release-inventory.sh`;
+- merged manifest/permissions/DEX packages финального APK через Android `apkanalyzer`;
+- AAB-derived universal APK через pinned official `bundletool`, проверенный по закреплённому SHA-256;
+- resolved `releaseRuntimeClasspath` на отсутствие advertising/analytics SDK families;
+- отсутствие AD_ID / AdServices advertising identifier permissions;
+- 16 KiB compatibility APK;
 - APK signature через `apksigner`;
 - APK SHA-256 и certificate SHA-256.
 
@@ -95,7 +100,10 @@ Privacy/store policy может всё равно потребовать опу�
 dist/Steamforge-<version>-vc<code>-rustore.apk
 dist/Steamforge-<version>-vc<code>-rustore.apk.sha256
 dist/Steamforge-<version>-vc<code>-rustore.apk.metadata.txt
+dist/Steamforge-<version>-vc<code>-inventory.txt
 ```
+
+Inventory report содержит source commit, SHA-256 проверенных APK/AAB, artifact summaries/permissions и resolved release dependency graph. Release AAB собирается как дополнительный verification input; текущим RuStore upload artifact остаётся APK из `dist/`.
 
 После этого не пересобирать APK между device smoke и загрузкой: проверять и загружать тот же файл из `dist/`.
 
@@ -117,6 +125,6 @@ dist/Steamforge-<version>-vc<code>-rustore.apk.metadata.txt
 
 После smoke повторно проверить SHA-256 и загрузить именно проверенный APK.
 
-## AAB — если будет выбран позже
+## AAB — если будет выбран как store upload позже
 
-При переходе на AAB соблюдать актуальную процедуру RuStore для app signing key и upload key. Не менять production signing key после первого опубликованного релиза без отдельной миграционной процедуры.
+Production preflight уже собирает AAB для artifact-level verification, но текущая публикационная процедура использует APK. Если RuStore upload будет переведён на AAB, отдельно подтвердить актуальную процедуру store signing/upload key и не менять production signing key после первого опубликованного релиза без отдельной миграционной процедуры.
