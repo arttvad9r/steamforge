@@ -1,9 +1,8 @@
 # Steamforge — Android 2026 Technical Checklist
 
-**Актуальность:** 6 сентября 2026 года.  
-**Основа:** текущий Steamforge `master` + accepted ADR 0001/0005.
+**Назначение:** техническая проверка разработки. Это не checklist публикации и не план выхода в магазин.
 
-## Текущий stack
+## Stack
 
 - Kotlin / JDK 17.
 - Jetpack Compose + Material 3/custom Steamforge design system.
@@ -12,41 +11,32 @@
 - Preferences DataStore persistence.
 - Pure Kotlin game/replay core.
 - Optional bounded HTTPS Remote Config.
-- Weekly server foundation in separate pure JVM/server modules.
-- **No advertising SDK.**
-- **No AppMetrica or user analytics SDK.**
+- Weekly foundation in separate JVM/server modules.
+- No advertising SDK.
+- No AppMetrica or user analytics SDK.
 
-## Platform / distribution
+## Platform compatibility
 
-- [x] `targetSdk >= 36`.
-- [x] AAB build path exists.
-- [x] Release signing path exists without committing keys.
-- [x] Android 17 / API 37 runtime smoke workflow exists.
+- [x] `targetSdk = 36`.
+- [x] Android 17 / API 37 runtime smoke exists.
 - [x] 16 KiB structural/runtime checks exist.
-- [ ] Final production artifact must be tested on physical devices before release.
+- [x] Minified `assembleRelease` build is exercised as a code-quality/R8 check.
+- [ ] Re-run compatibility checks after dependency/toolchain changes.
 
-## 64-bit / 16 KiB
-
-Steamforge has no custom NDK/game-engine layer. Any future dependency that introduces native `.so` files must pass the existing 16 KiB checks.
-
-- [x] `tools/check-android-16kb.sh` exists.
-- [x] Android 17 / 16 KiB smoke workflow exists.
-- [x] Advertising/analytics SDK native compatibility risk removed with those SDKs.
-- [ ] Re-run compatibility checks after every dependency/toolchain update.
-
-## Privacy / tracking
+## Privacy / tracking invariant
 
 - [x] Advertising SDK dependency removed.
 - [x] Advertising manifest metadata removed.
 - [x] AppMetrica dependency/implementation removed.
-- [x] Analytics API key and ad unit BuildConfig fields removed.
+- [x] Runtime analytics package/event taxonomy removed.
+- [x] Analytics/ad BuildConfig credentials removed.
 - [x] Startup consent dialog removed.
 - [x] Analytics/advertising Settings surface removed.
-- [x] Production release preflight no longer requests analytics/ad credentials.
-- [x] App-level analytics implementation is a strict in-process no-op during compatibility cleanup.
-- [ ] Before release, verify the final APK dependency/manifest inventory still contains no analytics/ad SDK.
+- [x] Rewarded/interstitial gameplay paths removed.
+- [x] Local analytics consent/correlation state removed.
+- [x] `tools/check-no-tracking.sh` protects these invariants in CI.
 
-Network permission remains intentional for non-telemetry product services (optional Remote Config / future Weekly backend).
+`INTERNET` remains intentional for explicit non-telemetry product services such as optional Remote Config and possible future Weekly networking.
 
 ## Reliability / lifecycle
 
@@ -56,28 +46,42 @@ Network permission remains intentional for non-telemetry product services (optio
 - [x] Terminal finish persistence is retryable/idempotent.
 - [x] Daily/contract reward claims are protected against duplicate application.
 - [x] Lifecycle smoke covers recreation, Home/background, force-stop relaunch, screen-off/wake and offline continuation.
+- [ ] Keep these checks green through gameplay/visual refactors.
 
-## Input / UI
+## Input / gameplay UI
 
 - [x] Touch swipe input.
 - [x] Keyboard arrows in gameplay.
 - [x] Compact-landscape handling.
 - [x] Expanded portrait/tablet board scaling.
-- [x] Semantics/content descriptions in key custom controls.
-- [x] Accessibility UI Smoke checks font scale 1.3, critical clickable targets >=48dp and runtime bounds.
-- [ ] Manual TalkBack smoke on physical devices.
-- [ ] Real-device safe-area/system-inset spot-checks.
-- [ ] Visual Bible changes must keep high-tier/adaptive/accessibility gates green.
+- [x] Key custom controls have semantics/content descriptions.
+- [x] Accessibility UI smoke checks font scale 1.3 and critical clickable geometry.
+- [ ] Continue tuning swipe confidence/input latency from real gameplay use.
+- [ ] Manually spot-check TalkBack/large text when major UI structure changes.
+- [ ] Keep safe-area/system-inset behavior correct across target form factors.
+
+## Visual quality
+
+Source of truth: `docs/VISUAL_BIBLE.md`.
+
+- [x] Gameplay visual hierarchy moved toward board-first composition.
+- [x] Premium material tile pass exists.
+- [x] Gameplay chrome has been reduced.
+- [x] Expanded portrait/tablet board scaling exists.
+- [ ] Validate tile readability across all high-tier values.
+- [ ] Improve movement/merge/spawn/Overdrive visual sequencing.
+- [ ] Bring Home and meta screens into one coherent material/typography/component system.
+- [ ] Keep decorative workshop machinery away from critical gameplay space.
+- [ ] Avoid chibi/mobile-cartoon drift and photoreal drift.
 
 ## Performance
 
-For a 2048-style puzzle the target is stable response/frame pacing and low input latency, not maximal FPS.
+For this puzzle the target is stable response/frame pacing and low input latency, not maximal FPS.
 
-- [x] Release-like Macrobenchmark harness exists.
+- [x] Macrobenchmark harness exists.
 - [x] Hosted frame-timing diagnostic exists.
-- [ ] Record physical-device frame timing on low/mid/high Android devices.
-- [ ] Run a 30–60 minute thermal/battery session after final visual/VFX changes.
-- [ ] Ensure menus/background do not retain heavy animation workload.
+- [ ] Measure after significant animation/material/VFX changes.
+- [ ] Ensure menus/backgrounds do not retain unnecessary continuous animation workload.
 - [ ] Add graphics-quality tiers only if measurements justify them.
 
 ## Weekly/backend boundary
@@ -87,20 +91,18 @@ For a 2048-style puzzle the target is stable response/frame pacing and low input
 - [x] Server-side replay validation exists.
 - [x] PostgreSQL accepted-population store exists.
 - [x] Bounded authenticated Ktor ranking route exists.
-- [ ] Production identity/session issuance must be completed and reviewed before Weekly UI exposure.
-- [ ] Production deployment/secrets/rate-abuse/observability must be defined before player exposure.
-- [ ] Weekly must remain hidden while the client provider is unavailable.
+- [x] Weekly remains hidden while client provider is unavailable.
+- [ ] Do not prioritize further Weekly deployment/client exposure until core gameplay and visual/meta quality reach the target level.
 
-## Release gate
+## Development gate for major gameplay/visual changes
 
-Before final store build:
+Before merging a substantial gameplay or visual change:
 
 1. Unit/module tests and lint green.
-2. Debug + release build and AAB green.
-3. Android 17 / 16 KiB smoke green, with infrastructure failures distinguished from app failures.
-4. Lifecycle, high-tier/input, adaptive-window and accessibility UI gates green.
-5. Confirm final APK/AAB contains no advertising or analytics SDK/declarations.
-6. Physical-device core/save/offline + TalkBack/large-text + performance/thermal spot-check.
-7. Production signing credentials only outside git.
-8. Signed artifact SHA-256 recorded; upload exactly the verified artifact.
-9. No analytics key, ad unit ID or advertising/privacy-consent configuration is a release requirement.
+2. Debug + minified build green.
+3. Android 17 / 16 KiB smoke green where relevant.
+4. Lifecycle smoke green if state/UI flow changed.
+5. High-tier/adaptive/accessibility smoke green if gameplay visuals changed.
+6. Frame timing diagnostic reviewed if animation/VFX/material workload increased.
+7. No-tracking guard green.
+8. Visual result checked against `VISUAL_BIBLE.md`, not against historical store/publication concepts.
