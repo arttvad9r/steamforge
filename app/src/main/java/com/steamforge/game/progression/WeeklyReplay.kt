@@ -2,6 +2,7 @@ package com.steamforge.game.progression
 
 import com.steamforge.game.core.GameEngine
 import com.steamforge.game.core.GameState
+import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.ReplayableRandom
 
@@ -25,6 +26,7 @@ enum class WeeklyReplayValidationStatus {
     INVALID_MOVE_SEQUENCE,
     SCORE_MISMATCH,
     MAX_TILE_MISMATCH,
+    NOT_TERMINAL,
 }
 
 data class WeeklyReplayValidation(
@@ -103,6 +105,25 @@ object WeeklyRunReplay {
             return WeeklyReplayValidation(WeeklyReplayValidationStatus.MAX_TILE_MISMATCH, state)
         }
         return WeeklyReplayValidation(WeeklyReplayValidationStatus.VALID, state)
+    }
+
+    /**
+     * Ranked/server acceptance policy. [validate] intentionally remains useful for deterministic
+     * replay tooling and may validate a canonical partial run; a submitted competitive attempt must
+     * additionally replay all the way to GAME_OVER before it is eligible for ranking.
+     */
+    fun validateTerminal(
+        challenge: WeeklyChallenge,
+        submission: WeeklyRunSubmission,
+    ): WeeklyReplayValidation {
+        val validation = validate(challenge, submission)
+        if (!validation.valid) return validation
+        val state = validation.replayedState
+        return if (state?.status == GameStatus.GAME_OVER) {
+            validation
+        } else {
+            WeeklyReplayValidation(WeeklyReplayValidationStatus.NOT_TERMINAL, state)
+        }
     }
 
     internal fun supports(challenge: WeeklyChallenge): Boolean =
