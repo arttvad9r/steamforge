@@ -13,6 +13,8 @@ import com.steamforge.game.config.PreferencesRemoteConfigCache
 import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.SteamforgeRepository
 import com.steamforge.game.monetization.AdsManager
+import com.steamforge.game.progression.UnavailableWeeklyRankingProvider
+import com.steamforge.game.progression.WeeklyRankingProvider
 import com.steamforge.game.sound.SfxPlayer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +36,7 @@ class AppContainer(context: Context) {
     val analytics = MutableAnalytics(NoopAnalytics(debugLogging = isDebug), debugLogging = isDebug)
     val ads = AdsManager(analytics, isDebug = isDebug)
     val remoteConfig: RemoteConfigProvider = createRemoteConfigProvider(appContext)
+    val weeklyRankingProvider: WeeklyRankingProvider = UnavailableWeeklyRankingProvider
 
     private var metrica: AppMetricaAnalytics? = null
     private var adsInitialized = false
