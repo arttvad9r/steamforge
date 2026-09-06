@@ -1,0 +1,32 @@
+name: Temp Apply Home Hero
+
+on:
+  push:
+    branches:
+      - visual/home-first-run-hero-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: visual/home-first-run-hero-v2
+      - name: Apply anchored Home hero edit
+        run: python3 tools/temp_apply_home_hero.py
+      - name: Verify focused diff
+        run: |
+          git diff --check
+          changed="$(git diff --name-only)"
+          test "$changed" = "app/src/main/java/com/steamforge/game/ui/home/HomeScreen.kt"
+      - name: Commit source edit
+        run: |
+          git config user.name steamforge-ci
+          git config user.email steamforge-ci@users.noreply.github.com
+          git add app/src/main/java/com/steamforge/game/ui/home/HomeScreen.kt
+          git commit -m "Strengthen first-run Home hero"
+          git push origin HEAD:visual/home-first-run-hero-v2
