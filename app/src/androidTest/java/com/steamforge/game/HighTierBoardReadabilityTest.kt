@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -62,6 +63,8 @@ class HighTierBoardReadabilityTest {
         composeRule.onNodeWithContentDescription("Турбина, 512").fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Реактор, 1024").fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Механическое ядро, 2048").fetchSemanticsNode()
+        composeRule.onNodeWithText("4096").fetchSemanticsNode()
+        composeRule.onNodeWithText("8192").fetchSemanticsNode()
         composeRule.waitForIdle()
 
         val output = File(
@@ -86,12 +89,14 @@ class HighTierBoardReadabilityTest {
                 Tile(id = 2L, level = 9, row = 0, col = 1),
                 Tile(id = 3L, level = 10, row = 0, col = 2),
                 Tile(id = 4L, level = 11, row = 0, col = 3),
+                Tile(id = 5L, level = 12, row = 1, col = 0),
+                Tile(id = 6L, level = 13, row = 1, col = 1),
             ),
-            score = 8192,
-            nextTileId = 5L,
+            score = 32_768,
+            nextTileId = 7L,
             status = GameStatus.PLAYING,
             won = true,
-            moves = 64,
+            moves = 96,
         )
     }
 }
