@@ -94,15 +94,18 @@ Release signing credentials находятся только вне git. См. `d
 bash tools/check-android-16kb.sh
 bash tools/check-release-inventory.sh
 bash tools/build-rustore-release.sh
+bash tools/verify-rustore-release-artifact.sh dist/Steamforge-<version>-vc<code>-rustore.apk
 ```
 
 `check-release-inventory.sh` запускается после `assembleRelease bundleRelease`: он проверяет merged manifest/permissions/DEX packages финального APK, AAB-derived universal APK и resolved `releaseRuntimeClasspath` на запрещённые advertising/analytics SDK и advertising identifier permissions.
+
+`verify-rustore-release-artifact.sh` ничего не пересобирает: он повторно сверяет exact `dist/` APK с SHA file, metadata, signing certificate, package/version и inventory report. Его следует запускать перед physical-device smoke и ещё раз непосредственно перед store upload.
 
 ## CI / runtime checks
 
 Основные workflows:
 
-- **Android CI** — unit tests, lint, debug/release APK, AAB, module tests и final APK/AAB dependency/manifest inventory;
+- **Android CI** — unit tests, lint, debug/release APK, AAB, module tests, final APK/AAB dependency/manifest inventory и smoke exact-artifact verifier;
 - **UI Emulator Smoke** — production UI;
 - **Android 17 16 KB Smoke** — API 37 / 16 KiB runtime environment;
 - **Active Run Lifecycle Smoke** — recreation/background/process-death/offline recovery;
@@ -112,7 +115,7 @@ bash tools/build-rustore-release.sh
 - **Frame Timing Diagnostic Smoke** — release-like rendering diagnostic;
 - **RuStore Store Assets** — store screenshots/assets.
 
-Physical-device performance, thermal and TalkBack checks остаются отдельным production gate.
+Physical-device performance, thermal and TalkBack checks остаются отдельным production gate и должны быть записаны против exact release SHA в `docs/PHYSICAL_DEVICE_ACCEPTANCE.md` или его локальной release-candidate копии.
 
 ## Release
 
@@ -122,7 +125,9 @@ Release key не хранится в репозитории. Первый RuStor
 bash tools/build-rustore-release.sh
 ```
 
-Preflight больше не требует AppMetrica key, Privacy Policy URL или ad unit IDs. Он проверяет source cleanliness, package confirmation, signing inputs, tests/lint, release APK/AAB build, final dependency/manifest inventory, 16 KiB compatibility, APK signature и SHA-256. Inventory report сохраняется рядом с финальным APK в `dist/`.
+Preflight больше не требует AppMetrica key, Privacy Policy URL или ad unit IDs. Он проверяет source cleanliness, package confirmation, signing inputs, tests/lint, release APK/AAB build, final dependency/manifest inventory, 16 KiB compatibility, APK signature, SHA-256 и exact `dist/` artifact handoff consistency. Inventory report сохраняется рядом с финальным APK в `dist/`.
+
+После сборки APK не пересобирать между device acceptance и загрузкой. Заполнить `PHYSICAL_DEVICE_ACCEPTANCE.md`, затем повторно прогнать exact-artifact verifier и загрузить только проверенный APK с тем же SHA-256.
 
 ## Документация
 
@@ -135,6 +140,7 @@ Preflight больше не требует AppMetrica key, Privacy Policy URL и
 - `docs/ANDROID_2026_CHECKLIST.md` — Android/platform release checklist.
 - `docs/RELEASE_STATUS.md` — фактический release baseline.
 - `docs/RELEASE_SIGNING.md` — signing/release key process.
+- `docs/PHYSICAL_DEVICE_ACCEPTANCE.md` — manual physical-device release acceptance record tied to exact artifact SHA.
 - `docs/RUSTORE_LISTING.md` — store listing/assets.
 
 ## Visual direction
