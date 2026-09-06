@@ -151,7 +151,7 @@ class DailyRewardTest {
     }
 
     @Test
-    fun `reset game progress preserves settings and consent`() = runTest(dispatcher) {
+    fun `reset game progress preserves user settings`() = runTest(dispatcher) {
         val repo = FakeDataRepo(
             initialProgress = PlayerProgress(
                 gems = 99,
@@ -159,7 +159,6 @@ class DailyRewardTest {
                 soundEnabled = false,
                 hapticsEnabled = false,
                 animationsEnabled = false,
-                analyticsConsent = true,
             ),
         )
         repo.resetGameProgress()
@@ -169,6 +168,5 @@ class DailyRewardTest {
         assertFalse(p.soundEnabled)
         assertFalse(p.hapticsEnabled)
         assertFalse(p.animationsEnabled)
-        assertEquals(true, p.analyticsConsent)
     }
 }
