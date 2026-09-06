@@ -116,7 +116,7 @@ jobs:
           sleep 5
           adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
 
-      - name: Capture real UI screens
+      - name: Capture real tracking-free UI screens
         shell: bash
         run: |
           set -euo pipefail
@@ -138,10 +138,9 @@ jobs:
                 cp /tmp/window.xml "ci-screenshots/${label}.xml"
                 return 0
               fi
-              echo "UI dump attempt $i failed"
-              cat /tmp/ui-dump.log || true
               sleep 2
             done
+            cat /tmp/ui-dump.log || true
             return 1
           }
 
@@ -166,6 +165,15 @@ jobs:
               cat /tmp/window.xml
               return 1
             fi
+          }
+
+          assert_tracking_ui_absent() {
+            local label="$1"
+            assert_text_absent 'AppMetrica' "${label}-no-appmetrica"
+            assert_text_absent 'Аналитика и реклама' "${label}-no-analytics-ads"
+            assert_text_absent 'ОТКЛЮЧИТЬ' "${label}-no-consent-disable"
+            assert_text_absent 'УДВОИТЬ ГЕМЫ' "${label}-no-rewarded-copy"
+            assert_text_absent 'за видео' "${label}-no-video-copy"
           }
 
           wait_for_home() {
@@ -200,7 +208,6 @@ jobs:
             dump_ui "$label"
             python3 -c 'import re,sys,xml.etree.ElementTree as ET; n=sys.argv[1].casefold(); root=ET.parse("/tmp/window.xml").getroot(); parents={c:p for p in root.iter() for c in p}; matches=[x for x in root.iter("node") if n in (((x.attrib.get("text") or "")+" "+(x.attrib.get("content-desc") or "")).casefold())]; assert matches, "node not found: "+n; original=matches[0]; node=next((a for a in [original, parents.get(original), parents.get(parents.get(original)) if parents.get(original) is not None else None] if a is not None and a.attrib.get("clickable")=="true"), original); m=re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", "")); assert m, "bounds missing"; a=list(map(int,m.groups())); print((a[0]+a[2])//2,(a[1]+a[3])//2)' "$needle" > /tmp/tap.txt
             read -r x y < /tmp/tap.txt
-            echo "Tap '$needle' at $x,$y"
             adb shell input tap "$x" "$y"
             sleep 2
           }
@@ -260,47 +267,44 @@ jobs:
           PY
           }
 
-          # Standard phone (~411 x 914 dp)
-          wait_for_text 'ПРИВАТНОСТЬ' '00-consent-window'
-          shot '00-consent.png'
-          if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/window.xml; then tap_node 'ОТКЛЮЧИТЬ' 'privacy-disable'; fi
-          wait_for_home '01-home-window'
-          shot '01-home.png'
-          assert_text_absent 'Мастерская' '01-home-no-workshop'
-          assert_text_absent 'Контракты' '01-home-no-contracts'
-          assert_text_absent 'Испытание дня' '01-home-no-daily'
-          assert_text_absent 'Коллекция' '01-home-no-collection'
+          # Standard phone (~411 x 914 dp). The app must enter Home directly with no consent gate.
+          wait_for_home '00-home-window'
+          assert_tracking_ui_absent '00-home'
+          shot '00-home.png'
+          assert_text_absent 'Мастерская' '00-home-no-workshop'
+          assert_text_absent 'Контракты' '00-home-no-contracts'
+          assert_text_absent 'Испытание дня' '00-home-no-daily'
+          assert_text_absent 'Коллекция' '00-home-no-collection'
 
           play_from_home '01-home-play'
           wait_for_tile '02-game-window'
+          assert_tracking_ui_absent '02-game'
           shot '02-game.png'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           wait_for_home '02-back-to-home-window'
-          assert_text_absent 'Мастерская' '02-home-no-workshop'
-          assert_text_absent 'Контракты' '02-home-no-contracts'
-          assert_text_absent 'Испытание дня' '02-home-no-daily'
-          assert_text_absent 'Коллекция' '02-home-no-collection'
           shot '03-first-run-home.png'
 
           open_settings '04-home'
+          assert_tracking_ui_absent '04-settings'
           shot '04-settings.png'
-          dump_ui '04-settings-window'
           assert_toggle_accessibility 'Звук' '04-sound-toggle-a11y'
           tap_node 'СБРОСИТЬ' 'reset-open'
           wait_for_text 'СБРОСИТЬ ПРОГРЕСС?' '05-reset-window'
+          assert_tracking_ui_absent '05-reset'
           shot '05-reset-confirmation.png'
           tap_node 'ОТМЕНА' 'reset-cancel'
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           wait_for_home '05-back-to-home-window'
 
-          # Compact phone (360 x 800 dp): catches vertical and narrow-width regressions.
+          # Compact phone (360 x 800 dp).
           adb shell wm size 720x1600
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           wait_for_home '10-compact-home-window'
+          assert_tracking_ui_absent '10-compact-home'
           shot '10-compact-home.png'
 
           play_from_home '10-compact-home-play'
@@ -309,18 +313,19 @@ jobs:
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           open_settings '11-compact-home'
+          assert_tracking_ui_absent '12-compact-settings'
           shot '12-compact-settings.png'
-          dump_ui '12-compact-settings-window' || true
           adb shell input keyevent KEYCODE_BACK
           sleep 2
 
-          # Large text on a standard phone. Functional navigation must remain reachable at 1.3x font scale.
+          # Large text on a standard phone.
           adb shell wm size 1080x2400
           adb shell wm density 420
           adb shell settings put system font_scale 1.3
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           wait_for_home '20-large-text-home-window'
+          assert_tracking_ui_absent '20-large-text-home'
           shot '20-large-text-home.png'
           play_from_home '20-large-text-home-play'
           wait_for_tile '21-large-text-game-window'
@@ -328,18 +333,21 @@ jobs:
           adb shell input keyevent KEYCODE_BACK
           sleep 2
           open_settings '21-large-text-home'
+          assert_tracking_ui_absent '22-large-text-settings'
           shot '22-large-text-settings.png'
 
-          # Expanded portrait surface (~800 x 1280 dp): catches width assumptions on tablets/large windows.
+          # Expanded portrait surface (~800 x 1280 dp).
           adb shell settings put system font_scale 1.0
           adb shell wm size 1600x2560
           adb shell wm density 320
           adb shell am force-stop com.steamforge.game
           adb shell monkey -p com.steamforge.game -c android.intent.category.LAUNCHER 1
           wait_for_home '30-expanded-home-window'
+          assert_tracking_ui_absent '30-expanded-home'
           shot '30-expanded-home.png'
           play_from_home '30-expanded-home-play'
           wait_for_tile '31-expanded-game-window'
+          assert_tracking_ui_absent '31-expanded-game'
           shot '31-expanded-game.png'
 
       - name: Upload screenshot artifact
