@@ -23,7 +23,9 @@
 - [x] Release signing path exists without committing keys.
 - [x] Android 17 / API 37 runtime smoke workflow exists.
 - [x] 16 KiB structural/runtime checks exist.
-- [ ] Final production artifact must be tested on physical devices before release.
+- [x] Final APK/AAB artifact inventory tooling exists.
+- [x] Exact `dist/` APK handoff verifier exists.
+- [ ] Final production artifact must be tested on physical devices before release; record results against its exact SHA-256 in `PHYSICAL_DEVICE_ACCEPTANCE.md`.
 
 ## 64-bit / 16 KiB
 
@@ -32,19 +34,22 @@ Steamforge has no custom NDK/game-engine layer. Any future dependency that intro
 - [x] `tools/check-android-16kb.sh` exists.
 - [x] Android 17 / 16 KiB smoke workflow exists.
 - [x] Advertising/analytics SDK native compatibility risk removed with those SDKs.
-- [ ] Re-run compatibility checks after every dependency/toolchain update.
+- [ ] Re-run compatibility checks after every dependency/toolchain update and on the final production candidate.
 
 ## Privacy / tracking
 
 - [x] Advertising SDK dependency removed.
 - [x] Advertising manifest metadata removed.
 - [x] AppMetrica dependency/implementation removed.
+- [x] Runtime analytics package/event taxonomy and legacy ad compatibility APIs removed.
 - [x] Analytics API key and ad unit BuildConfig fields removed.
 - [x] Startup consent dialog removed.
 - [x] Analytics/advertising Settings surface removed.
 - [x] Production release preflight no longer requests analytics/ad credentials.
-- [x] App-level analytics implementation is a strict in-process no-op during compatibility cleanup.
-- [ ] Before release, verify the final APK dependency/manifest inventory still contains no analytics/ad SDK.
+- [x] `tools/check-no-tracking.sh` protects source/config/runtime/UI invariants.
+- [x] `tools/check-release-inventory.sh` inspects release APK + AAB-derived universal APK + `releaseRuntimeClasspath` and rejects prohibited advertising/analytics namespaces/permissions.
+- [x] Artifact inventory gate is part of canonical Android CI.
+- [ ] Run the same inventory gate on the final **production-signed** release candidate and retain its `dist/*-inventory.txt` report.
 
 Network permission remains intentional for non-telemetry product services (optional Remote Config / future Weekly backend).
 
@@ -56,6 +61,7 @@ Network permission remains intentional for non-telemetry product services (optio
 - [x] Terminal finish persistence is retryable/idempotent.
 - [x] Daily/contract reward claims are protected against duplicate application.
 - [x] Lifecycle smoke covers recreation, Home/background, force-stop relaunch, screen-off/wake and offline continuation.
+- [ ] Repeat the core/lifecycle/offline smoke on the exact final signed APK on physical hardware.
 
 ## Input / UI
 
@@ -75,10 +81,12 @@ For a 2048-style puzzle the target is stable response/frame pacing and low input
 
 - [x] Release-like Macrobenchmark harness exists.
 - [x] Hosted frame-timing diagnostic exists.
-- [ ] Record physical-device frame timing on low/mid/high Android devices.
+- [ ] Record physical-device frame timing on the required representative Android devices.
 - [ ] Run a 30–60 minute thermal/battery session after final visual/VFX changes.
 - [ ] Ensure menus/background do not retain heavy animation workload.
 - [ ] Add graphics-quality tiers only if measurements justify them.
+
+Manual results belong in a local copy of `docs/PHYSICAL_DEVICE_ACCEPTANCE.md`; emulator/hosted CI results do not substitute for missing device classes required by the release plan.
 
 ## Weekly/backend boundary
 
@@ -93,14 +101,16 @@ For a 2048-style puzzle the target is stable response/frame pacing and low input
 
 ## Release gate
 
-Before final store build:
+Before final store upload:
 
-1. Unit/module tests and lint green.
+1. Unit/module tests and lint green on the release source commit.
 2. Debug + release build and AAB green.
 3. Android 17 / 16 KiB smoke green, with infrastructure failures distinguished from app failures.
 4. Lifecycle, high-tier/input, adaptive-window and accessibility UI gates green.
-5. Confirm final APK/AAB contains no advertising or analytics SDK/declarations.
-6. Physical-device core/save/offline + TalkBack/large-text + performance/thermal spot-check.
-7. Production signing credentials only outside git.
-8. Signed artifact SHA-256 recorded; upload exactly the verified artifact.
-9. No analytics key, ad unit ID or advertising/privacy-consent configuration is a release requirement.
+5. Final production-signed APK/AAB inventory gate green and inventory report retained.
+6. Physical-device core/save/offline + TalkBack/large-text/safe-area + performance/thermal checks recorded in `PHYSICAL_DEVICE_ACCEPTANCE.md`.
+7. Production signing credentials only outside git; signing key backups verified.
+8. `tools/verify-rustore-release-artifact.sh` passes before device testing and again immediately before upload; APK SHA-256/certificate/package/version/inventory metadata all agree.
+9. Privacy/store disclosure matches the actual production network/data configuration.
+10. Upload exactly the APK accepted in the physical-device record; do not rebuild between smoke and upload.
+11. No analytics key, ad unit ID or advertising/privacy-consent configuration is a release requirement.
