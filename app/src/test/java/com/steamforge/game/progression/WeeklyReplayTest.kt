@@ -1,6 +1,10 @@
 package com.steamforge.game.progression
 
+import com.steamforge.game.core.GameEngine
+import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Move
+import com.steamforge.game.core.ReplayableRandom
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -48,6 +52,32 @@ class WeeklyReplayTest {
         assertEquals(WeeklyReplayValidationStatus.VALID, validation.status)
         assertEquals(submission.finalScore, validation.replayedState?.score)
         assertEquals(submission.finalMaxTileLevel, validation.replayedState?.maxLevel)
+    }
+
+    @Test
+    fun `terminal validation rejects canonical partial replay`() {
+        val partial = WeeklyRunReplay.submission(challenge, emptyList())
+
+        val portable = WeeklyRunReplay.validate(challenge, partial)
+        val terminal = WeeklyRunReplay.validateTerminal(challenge, partial)
+
+        assertTrue(portable.valid)
+        assertFalse(terminal.valid)
+        assertEquals(WeeklyReplayValidationStatus.NOT_TERMINAL, terminal.status)
+        assertEquals(GameStatus.PLAYING, terminal.replayedState?.status)
+    }
+
+    @Test
+    fun `terminal validation accepts completed deterministic run`() {
+        val terminalMoves = playToGameOver()
+        val submission = WeeklyRunReplay.submission(challenge, terminalMoves)
+
+        val validation = WeeklyRunReplay.validateTerminal(challenge, submission)
+
+        assertTrue(validation.valid)
+        assertEquals(WeeklyReplayValidationStatus.VALID, validation.status)
+        assertEquals(GameStatus.GAME_OVER, validation.replayedState?.status)
+        assertEquals(terminalMoves.size, submission.moveSequence.length)
     }
 
     @Test
@@ -114,6 +144,37 @@ class WeeklyReplayTest {
         assertEquals(
             WeeklyReplayValidationStatus.INVALID_MOVE_SEQUENCE,
             WeeklyRunReplay.validate(challenge, invalid).status,
+        )
+    }
+
+    private fun playToGameOver(): List<Move> {
+        val engine = GameEngine()
+        val rng = ReplayableRandom(challenge.seed)
+        var state = engine.newGame(rng = rng)
+        val accepted = ArrayList<Move>()
+
+        while (state.status == GameStatus.PLAYING && accepted.size < WeeklyRunReplay.MAX_INPUT_MOVES) {
+            val order = MOVE_ORDERS[accepted.size % MOVE_ORDERS.size]
+            val move = order.firstOrNull { candidate ->
+                engine.applyMove(state, candidate, Random(0)).moved
+            } ?: break
+            val result = engine.applyMove(state, move, rng)
+            assertTrue(result.moved)
+            accepted += move
+            state = result.state
+        }
+
+        assertEquals(GameStatus.GAME_OVER, state.status)
+        assertTrue(accepted.size < WeeklyRunReplay.MAX_INPUT_MOVES)
+        return accepted
+    }
+
+    private companion object {
+        val MOVE_ORDERS = listOf(
+            listOf(Move.DOWN, Move.LEFT, Move.RIGHT, Move.UP),
+            listOf(Move.LEFT, Move.DOWN, Move.RIGHT, Move.UP),
+            listOf(Move.DOWN, Move.RIGHT, Move.LEFT, Move.UP),
+            listOf(Move.RIGHT, Move.DOWN, Move.LEFT, Move.UP),
         )
     }
 }
