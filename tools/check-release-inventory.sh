@@ -9,7 +9,18 @@ fail() {
   exit 1
 }
 
-APK="${1:-app/build/outputs/apk/release/app-release.apk}"
+if [[ $# -ge 1 && -n "$1" ]]; then
+  APK="$1"
+else
+  mapfile -t release_apks < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
+  if [[ ${#release_apks[@]} -ne 1 ]]; then
+    printf 'ERROR: expected exactly one release APK, found %s\n' "${#release_apks[@]}" >&2
+    printf '  %s\n' "${release_apks[@]:-}" >&2
+    exit 1
+  fi
+  APK="${release_apks[0]}"
+fi
+
 AAB="${2:-app/build/outputs/bundle/release/app-release.aab}"
 REPORT="${STEAMFORGE_INVENTORY_REPORT:-app/build/reports/release-inventory.txt}"
 
