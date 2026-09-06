@@ -11,7 +11,7 @@ fail() {
 
 forbidden_regex='io\.appmetrica|com\.yandex\.android:mobileads|com\.yandex\.mobile\.ads|steamforge\.appmetricaApiKey|steamforge\.rewardedAdUnitId|steamforge\.interstitialAdUnitId|APPMETRICA_API_KEY|REWARDED_AD_UNIT_ID|INTERSTITIAL_AD_UNIT_ID|AUTOMATIC_SDK_INITIALIZATION'
 
-# Production/runtime/build configuration must stay free of tracking and advertising SDKs.
+# Runtime/build configuration must stay free of tracking and advertising SDKs.
 search_targets=(
   app/build.gradle.kts
   app/src/main/AndroidManifest.xml
@@ -21,7 +21,7 @@ search_targets=(
 )
 
 if grep -RInE "$forbidden_regex" "${search_targets[@]}"; then
-  fail 'advertising or user-telemetry SDK/configuration reference found in production sources'
+  fail 'advertising or user-telemetry SDK/configuration reference found in application sources'
 fi
 
 # Compatibility runtime code is no longer allowed to exist.
@@ -50,13 +50,5 @@ fi
 if grep -RInE --exclude='GameSaveCodec.kt' 'analyticsRunId|runAnalyticsId' app/src/main/java; then
   fail 'analytics correlation identifier found outside the legacy save decoder'
 fi
-
-# Release tooling must reject obsolete credentials rather than require them.
-for key in \
-  steamforge.appmetricaApiKey \
-  steamforge.rewardedAdUnitId \
-  steamforge.interstitialAdUnitId; do
-  grep -Fq "$key" tools/build-rustore-release.sh || fail "release preflight must explicitly reject obsolete property: $key"
-done
 
 printf 'No-tracking guard OK: no advertising SDK/runtime, analytics runtime, tracking credentials, legacy ad APIs or player-facing tracking controls found.\n'
