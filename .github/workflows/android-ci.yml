@@ -55,6 +55,7 @@ jobs:
           bash -n tools/check-android-16kb.sh
           bash -n tools/check-release-aab.sh
           bash -n tools/check-release-inventory.sh
+          bash -n tools/verify-rustore-release-artifact.sh
           bash -n tools/check-no-tracking.sh
           bash tools/check-no-tracking.sh
           python3 - <<'PY'
@@ -78,6 +79,48 @@ jobs:
 
       - name: Verify debug and release code
         run: ./gradlew :weekly-core:test :weekly-protocol:test :weekly-server-core:test :weekly-server-postgres:test :weekly-server-ktor:test testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
+
+      - name: Smoke exact artifact handoff verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture_dir="$(mktemp -d)"
+          trap 'rm -rf "$fixture_dir"' EXIT
+          fixture_apk="$fixture_dir/Steamforge-ci-rustore.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$fixture_apk"
+
+          fixture_sha="$(sha256sum "$fixture_apk" | awk '{print $1}')"
+          printf '%s  %s\n' "$fixture_sha" "$(basename "$fixture_apk")" > "$fixture_apk.sha256"
+
+          IFS='|' read -r app_id version_code version_name <<< "$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          metadata = json.loads(Path('app/build/outputs/apk/debug/output-metadata.json').read_text(encoding='utf-8'))
+          element = metadata['elements'][0]
+          print('|'.join((
+              metadata['applicationId'],
+              str(element['versionCode']),
+              str(element['versionName']),
+          )))
+          PY
+          )"
+
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          cert_sha="$("$apksigner" verify --verbose --print-certs "$fixture_apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')"
+          inventory="$fixture_dir/fixture-inventory.txt"
+          printf 'apkSha256=%s\n' "$fixture_sha" > "$inventory"
+          cat > "$fixture_apk.metadata.txt" <<EOF
+          sourceCommit=$(git rev-parse HEAD)
+          applicationId=$app_id
+          versionCode=$version_code
+          versionName=$version_name
+          apkSha256=$fixture_sha
+          certificateSha256=$cert_sha
+          inventoryReport=$(basename "$inventory")
+          EOF
+
+          APKSIGNER="$apksigner" bash tools/verify-rustore-release-artifact.sh "$fixture_apk"
 
       - name: Verify Macrobenchmark harness compiles
         run: ./gradlew :app:assembleBenchmark :macrobenchmark:assembleBenchmark --stacktrace --no-daemon
