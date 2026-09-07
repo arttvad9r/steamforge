@@ -25,6 +25,7 @@ import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.ui.workshop.SteamEngineBlueprintModule
 import com.steamforge.game.ui.workshop.WorkshopHero
 import com.steamforge.game.ui.workshop.WorkshopMechanismUi
+import com.steamforge.game.ui.workshop.WorkshopMetaDock
 import com.steamforge.game.ui.workshop.WorkshopUpgradeDeck
 import java.io.File
 import java.io.FileOutputStream
@@ -161,6 +162,39 @@ class WorkshopBlueprintVisualTest {
         saveRootScreenshot(UPGRADES_SCREENSHOT_FILE, "Workshop upgrade bays")
     }
 
+    @Test
+    fun metaDockRendersDailyAndRewardAsSecondaryWorkshopActions() {
+        composeRule.setContent {
+            SteamforgeTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Background)
+                        .padding(18.dp),
+                ) {
+                    WorkshopMetaDock(
+                        dailyDone = false,
+                        dailyRewardAvailable = true,
+                        dailyRewardDay = 3,
+                        dailyRewardGems = 6,
+                        dailyRewardWorkshopParts = 2,
+                        onDaily = {},
+                        onClaimReward = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            "Испытание дня. Новая задача на сегодня. ОТКРЫТЬ",
+        ).fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription(
+            "Ежедневная награда. День 3 · ◆ +6 · ⚙ +2. ПОЛУЧИТЬ",
+        ).fetchSemanticsNode()
+        composeRule.waitForIdle()
+        saveRootScreenshot(META_DOCK_SCREENSHOT_FILE, "Workshop meta dock")
+    }
+
     private fun saveRootScreenshot(fileName: String, label: String) {
         val output = File(
             InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
@@ -178,5 +212,6 @@ class WorkshopBlueprintVisualTest {
         const val BLUEPRINT_SCREENSHOT_FILE = "workshop-blueprint.png"
         const val HERO_SCREENSHOT_FILE = "workshop-hero.png"
         const val UPGRADES_SCREENSHOT_FILE = "workshop-upgrades.png"
+        const val META_DOCK_SCREENSHOT_FILE = "workshop-meta-dock.png"
     }
 }
