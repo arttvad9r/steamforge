@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -236,7 +237,7 @@ private fun CompactResource(
 }
 
 @Composable
-private fun WorkshopHero(
+internal fun WorkshopHero(
     level: Int,
     levelInfo: com.steamforge.game.progression.LevelInfo,
     animationsEnabled: Boolean,
@@ -251,8 +252,22 @@ private fun WorkshopHero(
     val normalizedStage = coreStage.coerceIn(0, 4)
     val normalizedPressure = pressureStage.coerceIn(0, 4)
     val normalizedPress = gearPressStage.coerceIn(0, 4)
+    val heroShape = RoundedCornerShape(20.dp)
+
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(heroShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Panel.copy(alpha = 0.76f),
+                        Recess.copy(alpha = 0.94f),
+                    ),
+                ),
+            )
+            .border(1.dp, BrassDark.copy(alpha = 0.42f), heroShape)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
@@ -261,28 +276,36 @@ private fun WorkshopHero(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "УРОВЕНЬ МАСТЕРСКОЙ",
-                    style = MaterialTheme.typography.labelMedium,
+                    "ГЛАВНЫЙ УЗЕЛ",
+                    style = MaterialTheme.typography.labelSmall,
                     color = TextMuted,
                 )
                 Text(
-                    "МЕХАНИЧЕСКОЕ ЯДРО · $coreStageLabel",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (normalizedStage >= 3) accent else BrassBright,
+                    "МЕХАНИЧЕСКОЕ ЯДРО",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextWarm,
                     maxLines = 1,
                 )
             }
+            WorkshopStageBadge(
+                label = coreStageLabel,
+                active = normalizedStage >= 3,
+                accent = accent,
+            )
+            Spacer(Modifier.width(8.dp))
             Text(
-                level.toString(),
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextWarm,
+                "УР. $level",
+                style = MaterialTheme.typography.titleMedium,
+                color = BrassBright,
+                maxLines = 1,
             )
         }
 
+        Spacer(Modifier.height(4.dp))
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(204.dp),
+                .height(214.dp),
             contentAlignment = Alignment.Center,
         ) {
             WorkshopScene(
@@ -294,25 +317,56 @@ private fun WorkshopHero(
             )
             Box(
                 Modifier
-                    .size(82.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Recess.copy(alpha = 0.90f))
+                    .size(112.dp)
+                    .clip(CircleShape)
+                    .background(Recess.copy(alpha = 0.88f))
                     .border(
-                        1.dp,
+                        2.dp,
                         (if (normalizedStage >= 3) accent else BrassDark)
-                            .copy(alpha = if (normalizedStage == 0) 0.32f else 0.62f),
-                        RoundedCornerShape(26.dp),
+                            .copy(alpha = if (normalizedStage == 0) 0.42f else 0.76f),
+                        CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "CORE",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (normalizedStage >= 3) accent else TextMuted,
-                )
+                Box(
+                    Modifier
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .border(
+                            1.dp,
+                            (if (normalizedStage >= 3) accent else Brass)
+                                .copy(alpha = if (normalizedStage >= 3) 0.44f else 0.24f),
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "CORE",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (normalizedStage >= 3) accent else TextWarm,
+                        )
+                        Text(
+                            coreStageLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (normalizedStage >= 3) accent else TextMuted,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MachineStageIndicator("ЯДРО", normalizedStage, accent, Modifier.weight(1f))
+            MachineStageIndicator("ГЕН.", normalizedPressure, accent, Modifier.weight(1f))
+            MachineStageIndicator("ПРЕСС", normalizedPress, accent, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(9.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -342,6 +396,60 @@ private fun WorkshopHero(
             )
             InlineMetric("РЕКОРД", bestScore.toString(), Modifier.weight(1f), BrassBright)
         }
+    }
+}
+
+@Composable
+private fun WorkshopStageBadge(
+    label: String,
+    active: Boolean,
+    accent: Color,
+) {
+    val shape = RoundedCornerShape(9.dp)
+    Text(
+        text = label,
+        modifier = Modifier
+            .clip(shape)
+            .background((if (active) accent else BrassDark).copy(alpha = if (active) 0.12f else 0.20f))
+            .border(
+                1.dp,
+                (if (active) accent else BrassDark).copy(alpha = if (active) 0.34f else 0.26f),
+                shape,
+            )
+            .padding(horizontal = 7.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = if (active) accent else BrassBright,
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun MachineStageIndicator(
+    label: String,
+    stage: Int,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(
+                    if (stage >= 3) accent.copy(alpha = 0.88f)
+                    else BrassDark.copy(alpha = 0.46f + stage * 0.10f),
+                ),
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            "$label $stage/4",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (stage >= 3) TextWarm else TextMuted,
+            maxLines = 1,
+        )
     }
 }
 
