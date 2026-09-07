@@ -27,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -191,6 +193,7 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
         item.recommended -> BrassBright
         else -> BrassDark
     }
+    val railAlpha = if (item.claimed) 0.42f else 0.78f
     val shape = RoundedCornerShape(14.dp)
     val surfaceAlpha = when {
         item.complete && !item.claimed -> 0.80f
@@ -198,12 +201,19 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
         else -> 0.68f
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(Recess.copy(alpha = surfaceAlpha))
+            .drawBehind {
+                drawRect(
+                    color = statusAccent.copy(alpha = railAlpha),
+                    size = Size(4.dp.toPx(), size.height),
+                )
+            }
             .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
+            .padding(start = 15.dp, end = 11.dp, top = 10.dp, bottom = 10.dp)
             .semantics {
                 contentDescription = buildString {
                     if (item.recommended) append("Рекомендуемый первый контракт. ")
@@ -211,79 +221,66 @@ private fun ContractRow(item: ContractItemUi, onClaim: () -> Unit) {
                 }
             },
     ) {
-        Box(
-            modifier = Modifier
-                .width(4.dp)
-                .height(if (item.complete && !item.claimed) 142.dp else 112.dp)
-                .background(statusAccent.copy(alpha = if (item.claimed) 0.42f else 0.78f)),
-        )
+        if (item.recommended) {
+            Text(
+                "ПЕРВЫЙ ШАГ",
+                style = MaterialTheme.typography.labelSmall,
+                color = BrassBright,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(5.dp))
+        }
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 11.dp, vertical = 10.dp),
-        ) {
-            if (item.recommended) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ContractBadge(
+                icon = contractIcon(item),
+                accent = when {
+                    item.complete -> TealGlow
+                    item.recommended -> BrassBright
+                    else -> TextMuted
+                },
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    "ПЕРВЫЙ ШАГ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = BrassBright,
-                    maxLines = 1,
+                    item.def.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextWarm,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(5.dp))
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ContractBadge(
-                    icon = contractIcon(item),
-                    accent = when {
-                        item.complete -> TealGlow
-                        item.recommended -> BrassBright
-                        else -> TextMuted
-                    },
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        item.def.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextWarm,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(1.dp))
-                    Text(
-                        item.def.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                RewardBlock(item)
-            }
-
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ContractProgress(
-                    fraction = item.fraction,
-                    modifier = Modifier.weight(1f),
-                    strong = item.complete,
-                )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.height(1.dp))
                 Text(
-                    if (item.claimed) "ГОТОВО" else "${item.progress}/${item.def.target}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (item.complete) TealGlow else TextMuted,
-                    maxLines = 1,
+                    item.def.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+            Spacer(Modifier.width(10.dp))
+            RewardBlock(item)
+        }
 
-            if (item.complete && !item.claimed) {
-                Spacer(Modifier.height(9.dp))
-                ContractClaimAction(reward = item.def.reward, onClaim = onClaim)
-            }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ContractProgress(
+                fraction = item.fraction,
+                modifier = Modifier.weight(1f),
+                strong = item.complete,
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (item.claimed) "ГОТОВО" else "${item.progress}/${item.def.target}",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (item.complete) TealGlow else TextMuted,
+                maxLines = 1,
+            )
+        }
+
+        if (item.complete && !item.claimed) {
+            Spacer(Modifier.height(9.dp))
+            ContractClaimAction(reward = item.def.reward, onClaim = onClaim)
         }
     }
 }
