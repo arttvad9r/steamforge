@@ -17,9 +17,12 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.steamforge.game.progression.LevelInfo
 import com.steamforge.game.theme.Background
 import com.steamforge.game.theme.SteamforgeTheme
+import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.ui.workshop.SteamEngineBlueprintModule
+import com.steamforge.game.ui.workshop.WorkshopHero
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertTrue
@@ -65,20 +68,58 @@ class WorkshopBlueprintVisualTest {
         composeRule.onNodeWithContentDescription("Чертёж Steam Engine: собрано 3 из 6 частей").fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Steam Engine собран и установлен в мастерской").fetchSemanticsNode()
         composeRule.waitForIdle()
+        saveRootScreenshot(BLUEPRINT_SCREENSHOT_FILE, "Workshop blueprint")
+    }
 
+    @Test
+    fun machineryHeroRendersAsPrimaryWorkshopModule() {
+        composeRule.setContent {
+            SteamforgeTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Background)
+                        .padding(18.dp),
+                ) {
+                    WorkshopHero(
+                        level = 7,
+                        levelInfo = LevelInfo(level = 7, xpIntoLevel = 164, xpToNext = 360),
+                        animationsEnabled = false,
+                        accent = TealGlow,
+                        gamesPlayed = 18,
+                        bestScore = 61_440,
+                        coreStage = 3,
+                        coreStageLabel = "РАБОТАЕТ",
+                        pressureStage = 2,
+                        gearPressStage = 1,
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            "Цех мастерской. Ядро: стадия 3. Генератор: стадия 2. Пресс: стадия 1",
+        ).fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription("Прогресс уровня: 45 процентов").fetchSemanticsNode()
+        composeRule.waitForIdle()
+        saveRootScreenshot(HERO_SCREENSHOT_FILE, "Workshop machinery hero")
+    }
+
+    private fun saveRootScreenshot(fileName: String, label: String) {
         val output = File(
             InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
-            SCREENSHOT_FILE,
+            fileName,
         )
         FileOutputStream(output).use { stream ->
             val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
                 .compress(Bitmap.CompressFormat.PNG, 100, stream)
-            assertTrue("Workshop blueprint screenshot compression failed", written)
+            assertTrue("$label screenshot compression failed", written)
         }
-        assertTrue("Workshop blueprint screenshot was not written", output.length() > 0L)
+        assertTrue("$label screenshot was not written", output.length() > 0L)
     }
 
     private companion object {
-        const val SCREENSHOT_FILE = "workshop-blueprint.png"
+        const val BLUEPRINT_SCREENSHOT_FILE = "workshop-blueprint.png"
+        const val HERO_SCREENSHOT_FILE = "workshop-hero.png"
     }
 }
