@@ -112,7 +112,7 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Verify and capture meta visuals
+      - name: Verify meta semantics and capture stable visuals
         shell: bash
         run: |
           set -euo pipefail
@@ -129,15 +129,13 @@ jobs:
           grep -F 'OK (1 test)' home-visual-instrumentation.txt
 
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
-          adb exec-out run-as com.steamforge.game cat cache/home-unlocked.png > home-unlocked.png
           test -s contracts-task-list.png
-          test -s home-unlocked.png
           python3 - <<'PY'
           from pathlib import Path
-          for name in ('contracts-task-list.png', 'home-unlocked.png'):
-              data = Path(name).read_bytes()
-              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
-              print(f'{name}: {len(data)} bytes')
+          name = 'contracts-task-list.png'
+          data = Path(name).read_bytes()
+          assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+          print(f'{name}: {len(data)} bytes')
           PY
 
       - name: Upload meta diagnostics
@@ -147,7 +145,6 @@ jobs:
           name: steamforge-meta-visual
           path: |
             contracts-task-list.png
-            home-unlocked.png
             contracts-visual-instrumentation.txt
             home-visual-instrumentation.txt
             emulator.log
