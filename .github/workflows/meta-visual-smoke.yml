@@ -6,16 +6,20 @@ on:
       - master
     paths:
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
+      - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
+      - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
   workflow_dispatch:
 
@@ -108,15 +112,22 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Verify and capture meta visuals
+      - name: Verify meta semantics and capture stable visuals
         shell: bash
         run: |
           set -euo pipefail
           adb shell am instrument -w -r \
             -e class com.steamforge.game.ContractsVisualTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
-            | tee meta-visual-instrumentation.txt
-          grep -F 'OK (1 test)' meta-visual-instrumentation.txt
+            | tee contracts-visual-instrumentation.txt
+          grep -F 'OK (1 test)' contracts-visual-instrumentation.txt
+
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.ui.home.HomeUnlockedVisualTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee home-visual-instrumentation.txt
+          grep -F 'OK (1 test)' home-visual-instrumentation.txt
+
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
           test -s contracts-task-list.png
           python3 - <<'PY'
@@ -134,7 +145,8 @@ jobs:
           name: steamforge-meta-visual
           path: |
             contracts-task-list.png
-            meta-visual-instrumentation.txt
+            contracts-visual-instrumentation.txt
+            home-visual-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -146,5 +158,7 @@ jobs:
           tail -400 emulator.log || true
           echo '=== adb devices ==='
           adb devices -l || true
-          echo '=== Meta instrumentation ==='
-          cat meta-visual-instrumentation.txt || true
+          echo '=== Contracts instrumentation ==='
+          cat contracts-visual-instrumentation.txt || true
+          echo '=== Home instrumentation ==='
+          cat home-visual-instrumentation.txt || true
