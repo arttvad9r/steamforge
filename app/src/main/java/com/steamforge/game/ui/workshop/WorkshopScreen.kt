@@ -120,7 +120,7 @@ fun WorkshopScreen(
             )
             Spacer(Modifier.height(9.dp))
 
-            MechanismUpgradeSelector(
+            WorkshopUpgradeDeck(
                 mechanisms = ui.mechanisms,
                 onUpgrade = { mechanism ->
                     sfx.play(Sfx.COIN)
@@ -450,88 +450,6 @@ private fun MachineStageIndicator(
             color = if (stage >= 3) TextWarm else TextMuted,
             maxLines = 1,
         )
-    }
-}
-
-@Composable
-private fun MechanismUpgradeSelector(
-    mechanisms: List<WorkshopMechanismUi>,
-    onUpgrade: (com.steamforge.game.progression.WorkshopMechanism) -> Unit,
-) {
-    val shape = RoundedCornerShape(13.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Panel.copy(alpha = 0.44f))
-            .border(1.dp, BrassDark.copy(alpha = 0.34f), shape)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("ВОССТАНОВЛЕНИЕ ЦЕХА", style = MaterialTheme.typography.labelMedium, color = TextWarm)
-            Spacer(Modifier.weight(1f))
-            Text("ВЫБЕРИТЕ УЗЕЛ", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-        }
-        Spacer(Modifier.height(5.dp))
-        mechanisms.forEachIndexed { index, mechanism ->
-            MechanismUpgradeRow(mechanism, onUpgrade = { onUpgrade(mechanism.mechanism) })
-            if (index != mechanisms.lastIndex) Spacer(Modifier.height(5.dp))
-        }
-    }
-}
-
-@Composable
-private fun MechanismUpgradeRow(
-    mechanism: WorkshopMechanismUi,
-    onUpgrade: () -> Unit,
-) {
-    val maxed = mechanism.nextCost == null
-    val enabled = !maxed && mechanism.canUpgrade
-    val accent = when {
-        maxed -> TealGlow
-        enabled -> BrassBright
-        else -> TextMuted
-    }
-    val action = when {
-        maxed -> "ГОТОВО"
-        enabled -> "УЛУЧШИТЬ · ⚙ ${mechanism.nextCost}"
-        else -> "НУЖНО ⚙ ${mechanism.nextCost}"
-    }
-    val shape = RoundedCornerShape(10.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(shape)
-            .background(Recess.copy(alpha = 0.62f))
-            .border(1.dp, accent.copy(alpha = if (enabled || maxed) 0.28f else 0.12f), shape)
-            .clickable(enabled = enabled, onClick = onUpgrade)
-            .padding(horizontal = 10.dp)
-            .semantics {
-                role = Role.Button
-                contentDescription = "${mechanism.mechanism.title}: ${mechanism.stageLabel}. $action"
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                mechanism.mechanism.shortTitle,
-                style = MaterialTheme.typography.labelMedium,
-                color = TextWarm,
-                maxLines = 1,
-            )
-            Text(
-                mechanism.stageLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (mechanism.stage >= 3) TealGlow else TextMuted,
-                maxLines = 1,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(action, style = MaterialTheme.typography.labelSmall, color = accent, maxLines = 1)
     }
 }
 
