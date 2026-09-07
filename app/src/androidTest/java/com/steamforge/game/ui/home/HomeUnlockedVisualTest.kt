@@ -25,7 +25,6 @@ class HomeUnlockedVisualTest {
 
     @Test
     fun unlockedHomeRendersPrimaryPlayAndSecondaryNavigationDeck() {
-        composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             SteamforgeTheme {
                 HomeContent(
