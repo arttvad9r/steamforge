@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workshop-blueprint:
+  workshop-visual:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -106,22 +106,25 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Verify and capture Workshop blueprint
+      - name: Verify and capture Workshop visuals
         shell: bash
         run: |
           set -euo pipefail
           adb shell am instrument -w -r \
             -e class com.steamforge.game.WorkshopBlueprintVisualTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
-            | tee workshop-blueprint-instrumentation.txt
-          grep -F 'OK (1 test)' workshop-blueprint-instrumentation.txt
+            | tee workshop-visual-instrumentation.txt
+          grep -F 'OK (2 tests)' workshop-visual-instrumentation.txt
           adb exec-out run-as com.steamforge.game cat cache/workshop-blueprint.png > workshop-blueprint.png
+          adb exec-out run-as com.steamforge.game cat cache/workshop-hero.png > workshop-hero.png
           test -s workshop-blueprint.png
+          test -s workshop-hero.png
           python3 - <<'PY'
           from pathlib import Path
-          data = Path('workshop-blueprint.png').read_bytes()
-          assert data.startswith(b'\x89PNG\r\n\x1a\n'), 'workshop-blueprint.png is not a PNG'
-          print(f'workshop-blueprint.png: {len(data)} bytes')
+          for name in ('workshop-blueprint.png', 'workshop-hero.png'):
+              data = Path(name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+              print(f'{name}: {len(data)} bytes')
           PY
 
       - name: Upload Workshop diagnostics
@@ -131,7 +134,8 @@ jobs:
           name: steamforge-workshop-visual
           path: |
             workshop-blueprint.png
-            workshop-blueprint-instrumentation.txt
+            workshop-hero.png
+            workshop-visual-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -144,4 +148,4 @@ jobs:
           echo '=== adb devices ==='
           adb devices -l || true
           echo '=== Workshop instrumentation ==='
-          cat workshop-blueprint-instrumentation.txt || true
+          cat workshop-visual-instrumentation.txt || true
