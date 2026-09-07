@@ -18,11 +18,14 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.progression.LevelInfo
+import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.theme.Background
 import com.steamforge.game.theme.SteamforgeTheme
 import com.steamforge.game.theme.TealGlow
 import com.steamforge.game.ui.workshop.SteamEngineBlueprintModule
 import com.steamforge.game.ui.workshop.WorkshopHero
+import com.steamforge.game.ui.workshop.WorkshopMechanismUi
+import com.steamforge.game.ui.workshop.WorkshopUpgradeDeck
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertTrue
@@ -105,6 +108,59 @@ class WorkshopBlueprintVisualTest {
         saveRootScreenshot(HERO_SCREENSHOT_FILE, "Workshop machinery hero")
     }
 
+    @Test
+    fun upgradeBaysRenderDistinctMechanismStates() {
+        composeRule.setContent {
+            SteamforgeTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Background)
+                        .padding(18.dp),
+                ) {
+                    WorkshopUpgradeDeck(
+                        mechanisms = listOf(
+                            WorkshopMechanismUi(
+                                mechanism = WorkshopMechanism.CORE,
+                                stage = 4,
+                                stageLabel = "УСИЛЕНО",
+                                nextCost = null,
+                                canUpgrade = false,
+                            ),
+                            WorkshopMechanismUi(
+                                mechanism = WorkshopMechanism.PRESSURE_GENERATOR,
+                                stage = 2,
+                                stageLabel = "МЕХАНИЗМЫ",
+                                nextCost = 55,
+                                canUpgrade = true,
+                            ),
+                            WorkshopMechanismUi(
+                                mechanism = WorkshopMechanism.GEAR_PRESS,
+                                stage = 1,
+                                stageLabel = "КАРКАС",
+                                nextCost = 35,
+                                canUpgrade = false,
+                            ),
+                        ),
+                        onUpgrade = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            "МЕХАНИЧЕСКОЕ ЯДРО: УСИЛЕНО. Узел полностью улучшен",
+        ).fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription(
+            "ГЕНЕРАТОР ДАВЛЕНИЯ: МЕХАНИЗМЫ. Улучшить за 55 деталей",
+        ).fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription(
+            "ШЕСТЕРЁНОЧНЫЙ ПРЕСС: КАРКАС. Нужно 35 деталей",
+        ).fetchSemanticsNode()
+        composeRule.waitForIdle()
+        saveRootScreenshot(UPGRADES_SCREENSHOT_FILE, "Workshop upgrade bays")
+    }
+
     private fun saveRootScreenshot(fileName: String, label: String) {
         val output = File(
             InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
@@ -121,5 +177,6 @@ class WorkshopBlueprintVisualTest {
     private companion object {
         const val BLUEPRINT_SCREENSHOT_FILE = "workshop-blueprint.png"
         const val HERO_SCREENSHOT_FILE = "workshop-hero.png"
+        const val UPGRADES_SCREENSHOT_FILE = "workshop-upgrades.png"
     }
 }
