@@ -33,7 +33,6 @@ class ActiveRunActivityRecreationTest {
         val app = ApplicationProvider.getApplicationContext<SteamforgeApp>()
         runBlocking {
             app.container.repo.clearGame()
-            app.container.repo.updateProgress { it.copy(analyticsConsent = false) }
             app.container.repo.saveGame(testRun)
         }
 

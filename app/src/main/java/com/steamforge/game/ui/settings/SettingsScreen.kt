@@ -2,7 +2,6 @@ package com.steamforge.game.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,9 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.steamforge.game.theme.Brass
 import com.steamforge.game.theme.BrassBright
 import com.steamforge.game.theme.Danger
 import com.steamforge.game.theme.Panel
@@ -83,7 +80,7 @@ fun SettingsScreen(
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("Настройки", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
-                    Text("Игра и приватность", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                    Text("Параметры игры", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -101,33 +98,6 @@ fun SettingsScreen(
                 SettingToggleRow("⚙", "Анимации", "Визуальные эффекты и движение", ui.animationsEnabled, vm::setAnimations)
             }
 
-            Spacer(Modifier.height(16.dp))
-            SettingsGroupTitle("ПРИВАТНОСТЬ")
-            Spacer(Modifier.height(6.dp))
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            ) {
-                SettingToggleRow(
-                    "▥",
-                    "Аналитика и реклама",
-                    "AppMetrica и рекламный SDK",
-                    ui.analyticsConsent == true,
-                    vm::setAnalyticsConsent,
-                )
-                SettingDivider()
-                Text(
-                    "При отключении AppMetrica перестаёт отправлять статистику. Рекламный SDK получает " +
-                        "признак отсутствия согласия; реклама может продолжать показываться с учётом " +
-                        "правил SDK и региона.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted,
-                    modifier = Modifier.padding(vertical = 10.dp),
-                )
-                SettingDivider()
-                PrivacyPolicyRow()
-            }
-
             Spacer(Modifier.height(18.dp))
             SettingsGroupTitle("ДАННЫЕ")
             Spacer(Modifier.height(6.dp))
@@ -143,7 +113,7 @@ fun SettingsScreen(
             body = {
                 Text(
                     "Будут удалены очки, гемы, уровень мастерской, достижения, статистика, " +
-                        "испытания и сохранённая партия. Настройки и выбор приватности сохранятся. " +
+                        "испытания и сохранённая партия. Настройки звука, вибрации и анимаций сохранятся. " +
                         "Отменить это нельзя.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted,
@@ -235,35 +205,6 @@ private fun SettingDivider() {
             .height(1.dp)
             .background(Color.White.copy(alpha = 0.055f)),
     )
-}
-
-@Composable
-private fun PrivacyPolicyRow() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val url = com.steamforge.game.BuildConfig.PRIVACY_POLICY_URL
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = url.isNotBlank()) {
-                runCatching {
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri()))
-                }
-            }
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SettingIcon("▣", url.isNotBlank())
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Политика конфиденциальности", style = MaterialTheme.typography.titleMedium, color = TextWarm)
-            Text(
-                if (url.isBlank()) "URL будет добавлен перед публикацией" else "Открыть документ",
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (url.isBlank()) TextMuted else TealGlow,
-            )
-        }
-        Text("›", style = MaterialTheme.typography.headlineSmall, color = TextMuted)
-    }
 }
 
 @Composable

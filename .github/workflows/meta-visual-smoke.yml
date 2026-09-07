@@ -1,35 +1,37 @@
-name: High Tier Tile Smoke
+name: Meta Visual Smoke
 
 on:
   push:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
+      - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
-      - 'app/src/main/java/com/steamforge/game/ui/game/**'
-      - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
-      - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
-      - 'app/src/androidTest/java/com/steamforge/game/ui/game/DailyObjectiveVisualTest.kt'
-      - '.github/workflows/high-tier-tile-smoke.yml'
+      - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
+      - '.github/workflows/meta-visual-smoke.yml'
   pull_request:
+    branches:
+      - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
+      - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
-      - 'app/src/main/java/com/steamforge/game/ui/game/**'
-      - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
-      - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
-      - 'app/src/androidTest/java/com/steamforge/game/ui/game/DailyObjectiveVisualTest.kt'
-      - '.github/workflows/high-tier-tile-smoke.yml'
+      - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
+      - '.github/workflows/meta-visual-smoke.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: high-tier-tile-${{ github.ref }}
+  group: meta-visual-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  high-tier-readability:
+  meta-visual:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -57,7 +59,7 @@ jobs:
             'build-tools;36.0.0' \
             'system-images;android-36;google_apis;x86_64'
 
-      - name: Build debug and board instrumentation APKs
+      - name: Build meta instrumentation APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleDebugAndroidTest
 
       - name: Create and boot emulator
@@ -70,12 +72,12 @@ jobs:
           AVDMANAGER="$ANDROID_HOME/cmdline-tools/16.0/bin/avdmanager"
           test -x "$AVDMANAGER"
           echo no | "$AVDMANAGER" create avd \
-            -n steamforge_high_tier_ci \
+            -n steamforge_meta_ci \
             -k 'system-images;android-36;google_apis;x86_64' \
             -d pixel_6 \
             --force
           ANDROID_AVD_HOME="$ANDROID_AVD_HOME" nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd steamforge_high_tier_ci \
+            -avd steamforge_meta_ci \
             -no-window \
             -noaudio \
             -no-boot-anim \
@@ -110,67 +112,41 @@ jobs:
           adb install -r app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-      - name: Verify board swipe input semantics
+      - name: Verify meta semantics and capture stable visuals
         shell: bash
         run: |
           set -euo pipefail
           adb shell am instrument -w -r \
-            -e class com.steamforge.game.BoardSwipeInputTest \
+            -e class com.steamforge.game.ContractsVisualTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
-            | tee board-input-instrumentation.txt
-          grep -F 'OK (1 test)' board-input-instrumentation.txt
+            | tee contracts-visual-instrumentation.txt
+          grep -F 'OK (1 test)' contracts-visual-instrumentation.txt
 
-      - name: Verify and capture high-tier board
-        shell: bash
-        run: |
-          set -euo pipefail
           adb shell am instrument -w -r \
-            -e class com.steamforge.game.HighTierBoardReadabilityTest \
+            -e class com.steamforge.game.ui.home.HomeUnlockedVisualTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
-            | tee high-tier-instrumentation.txt
-          grep -F 'OK (1 test)' high-tier-instrumentation.txt
-          adb exec-out run-as com.steamforge.game cat cache/high-tier-board.png > high-tier-board.png
-          test -s high-tier-board.png
+            | tee home-visual-instrumentation.txt
+          grep -F 'OK (1 test)' home-visual-instrumentation.txt
+
+          adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
+          test -s contracts-task-list.png
           python3 - <<'PY'
           from pathlib import Path
-          data = Path('high-tier-board.png').read_bytes()
-          assert data.startswith(b'\x89PNG\r\n\x1a\n'), 'high-tier-board.png is not a PNG'
-          print(f'high-tier-board.png: {len(data)} bytes')
+          name = 'contracts-task-list.png'
+          data = Path(name).read_bytes()
+          assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+          print(f'{name}: {len(data)} bytes')
           PY
 
-      - name: Verify and capture Daily objective states
-        shell: bash
-        run: |
-          set -euo pipefail
-          adb shell am instrument -w -r \
-            -e class com.steamforge.game.ui.game.DailyObjectiveVisualTest \
-            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
-            | tee daily-objective-instrumentation.txt
-          grep -F 'OK (2 tests)' daily-objective-instrumentation.txt
-          adb exec-out run-as com.steamforge.game cat cache/daily-objective-active.png > daily-objective-active.png
-          adb exec-out run-as com.steamforge.game cat cache/daily-objective-complete.png > daily-objective-complete.png
-          test -s daily-objective-active.png
-          test -s daily-objective-complete.png
-          python3 - <<'PY'
-          from pathlib import Path
-          for name in ('daily-objective-active.png', 'daily-objective-complete.png'):
-              data = Path(name).read_bytes()
-              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
-              print(f'{name}: {len(data)} bytes')
-          PY
-
-      - name: Upload board diagnostics
+      - name: Upload meta diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: steamforge-high-tier-readability
+          name: steamforge-meta-visual
           path: |
-            high-tier-board.png
-            high-tier-instrumentation.txt
-            daily-objective-active.png
-            daily-objective-complete.png
-            daily-objective-instrumentation.txt
-            board-input-instrumentation.txt
+            contracts-task-list.png
+            contracts-visual-instrumentation.txt
+            home-visual-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -182,9 +158,7 @@ jobs:
           tail -400 emulator.log || true
           echo '=== adb devices ==='
           adb devices -l || true
-          echo '=== board input instrumentation ==='
-          cat board-input-instrumentation.txt || true
-          echo '=== high-tier instrumentation ==='
-          cat high-tier-instrumentation.txt || true
-          echo '=== Daily objective instrumentation ==='
-          cat daily-objective-instrumentation.txt || true
+          echo '=== Contracts instrumentation ==='
+          cat contracts-visual-instrumentation.txt || true
+          echo '=== Home instrumentation ==='
+          cat home-visual-instrumentation.txt || true

@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -41,9 +41,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -119,7 +117,7 @@ fun WorkshopScreen(
             )
             Spacer(Modifier.height(9.dp))
 
-            MechanismUpgradeSelector(
+            WorkshopUpgradeDeck(
                 mechanisms = ui.mechanisms,
                 onUpgrade = { mechanism ->
                     sfx.play(Sfx.COIN)
@@ -139,29 +137,14 @@ fun WorkshopScreen(
             )
             Spacer(Modifier.height(14.dp))
 
-            WorkshopMetaRow(
-                badge = "2048",
-                title = "Испытание дня",
-                subtitle = if (ui.dailyDone) "Сегодня выполнено" else "Новая задача на сегодня",
-                actionLabel = if (ui.dailyDone) "ВЫПОЛНЕНО" else "ОТКРЫТЬ",
-                accent = if (ui.dailyDone) TealGlow else BrassBright,
-                enabled = !ui.dailyDone,
-                onClick = onDaily,
-            )
-            Spacer(Modifier.height(8.dp))
-
-            WorkshopMetaRow(
-                badge = "◆",
-                title = "Ежедневная награда",
-                subtitle = if (ui.dailyRewardAvailable) {
-                    "День ${ui.dailyRewardDay} · +${ui.dailyRewardGems} гемов · +${ui.dailyRewardWorkshopParts} детали"
-                } else {
-                    "Награда сегодня уже получена"
-                },
-                actionLabel = if (ui.dailyRewardAvailable) "ПОЛУЧИТЬ" else "ПОЛУЧЕНО",
-                accent = if (ui.dailyRewardAvailable) TealGlow else TextMuted,
-                enabled = ui.dailyRewardAvailable,
-                onClick = {
+            WorkshopMetaDock(
+                dailyDone = ui.dailyDone,
+                dailyRewardAvailable = ui.dailyRewardAvailable,
+                dailyRewardDay = ui.dailyRewardDay,
+                dailyRewardGems = ui.dailyRewardGems,
+                dailyRewardWorkshopParts = ui.dailyRewardWorkshopParts,
+                onDaily = onDaily,
+                onClaimReward = {
                     sfx.play(Sfx.COIN)
                     if (ui.hapticsEnabled) {
                         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -236,7 +219,7 @@ private fun CompactResource(
 }
 
 @Composable
-private fun WorkshopHero(
+internal fun WorkshopHero(
     level: Int,
     levelInfo: com.steamforge.game.progression.LevelInfo,
     animationsEnabled: Boolean,
@@ -251,8 +234,22 @@ private fun WorkshopHero(
     val normalizedStage = coreStage.coerceIn(0, 4)
     val normalizedPressure = pressureStage.coerceIn(0, 4)
     val normalizedPress = gearPressStage.coerceIn(0, 4)
+    val heroShape = RoundedCornerShape(20.dp)
+
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(heroShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Panel.copy(alpha = 0.76f),
+                        Recess.copy(alpha = 0.94f),
+                    ),
+                ),
+            )
+            .border(1.dp, BrassDark.copy(alpha = 0.42f), heroShape)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
@@ -261,28 +258,36 @@ private fun WorkshopHero(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "УРОВЕНЬ МАСТЕРСКОЙ",
-                    style = MaterialTheme.typography.labelMedium,
+                    "ГЛАВНЫЙ УЗЕЛ",
+                    style = MaterialTheme.typography.labelSmall,
                     color = TextMuted,
                 )
                 Text(
-                    "МЕХАНИЧЕСКОЕ ЯДРО · $coreStageLabel",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (normalizedStage >= 3) accent else BrassBright,
+                    "МЕХАНИЧЕСКОЕ ЯДРО",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextWarm,
                     maxLines = 1,
                 )
             }
+            WorkshopStageBadge(
+                label = coreStageLabel,
+                active = normalizedStage >= 3,
+                accent = accent,
+            )
+            Spacer(Modifier.width(8.dp))
             Text(
-                level.toString(),
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextWarm,
+                "УР. $level",
+                style = MaterialTheme.typography.titleMedium,
+                color = BrassBright,
+                maxLines = 1,
             )
         }
 
+        Spacer(Modifier.height(4.dp))
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(204.dp),
+                .height(214.dp),
             contentAlignment = Alignment.Center,
         ) {
             WorkshopScene(
@@ -294,25 +299,56 @@ private fun WorkshopHero(
             )
             Box(
                 Modifier
-                    .size(82.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Recess.copy(alpha = 0.90f))
+                    .size(112.dp)
+                    .clip(CircleShape)
+                    .background(Recess.copy(alpha = 0.88f))
                     .border(
-                        1.dp,
+                        2.dp,
                         (if (normalizedStage >= 3) accent else BrassDark)
-                            .copy(alpha = if (normalizedStage == 0) 0.32f else 0.62f),
-                        RoundedCornerShape(26.dp),
+                            .copy(alpha = if (normalizedStage == 0) 0.42f else 0.76f),
+                        CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "CORE",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (normalizedStage >= 3) accent else TextMuted,
-                )
+                Box(
+                    Modifier
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .border(
+                            1.dp,
+                            (if (normalizedStage >= 3) accent else Brass)
+                                .copy(alpha = if (normalizedStage >= 3) 0.44f else 0.24f),
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "CORE",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (normalizedStage >= 3) accent else TextWarm,
+                        )
+                        Text(
+                            coreStageLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (normalizedStage >= 3) accent else TextMuted,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MachineStageIndicator("ЯДРО", normalizedStage, accent, Modifier.weight(1f))
+            MachineStageIndicator("ГЕН.", normalizedPressure, accent, Modifier.weight(1f))
+            MachineStageIndicator("ПРЕСС", normalizedPress, accent, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(9.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -346,84 +382,56 @@ private fun WorkshopHero(
 }
 
 @Composable
-private fun MechanismUpgradeSelector(
-    mechanisms: List<WorkshopMechanismUi>,
-    onUpgrade: (com.steamforge.game.progression.WorkshopMechanism) -> Unit,
+private fun WorkshopStageBadge(
+    label: String,
+    active: Boolean,
+    accent: Color,
 ) {
-    val shape = RoundedCornerShape(13.dp)
-    Column(
+    val shape = RoundedCornerShape(9.dp)
+    Text(
+        text = label,
         modifier = Modifier
-            .fillMaxWidth()
             .clip(shape)
-            .background(Panel.copy(alpha = 0.44f))
-            .border(1.dp, BrassDark.copy(alpha = 0.34f), shape)
-            .padding(horizontal = 8.dp, vertical = 7.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("ВОССТАНОВЛЕНИЕ ЦЕХА", style = MaterialTheme.typography.labelMedium, color = TextWarm)
-            Spacer(Modifier.weight(1f))
-            Text("ВЫБЕРИТЕ УЗЕЛ", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-        }
-        Spacer(Modifier.height(5.dp))
-        mechanisms.forEachIndexed { index, mechanism ->
-            MechanismUpgradeRow(mechanism, onUpgrade = { onUpgrade(mechanism.mechanism) })
-            if (index != mechanisms.lastIndex) Spacer(Modifier.height(5.dp))
-        }
-    }
+            .background((if (active) accent else BrassDark).copy(alpha = if (active) 0.12f else 0.20f))
+            .border(
+                1.dp,
+                (if (active) accent else BrassDark).copy(alpha = if (active) 0.34f else 0.26f),
+                shape,
+            )
+            .padding(horizontal = 7.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = if (active) accent else BrassBright,
+        maxLines = 1,
+    )
 }
 
 @Composable
-private fun MechanismUpgradeRow(
-    mechanism: WorkshopMechanismUi,
-    onUpgrade: () -> Unit,
+private fun MachineStageIndicator(
+    label: String,
+    stage: Int,
+    accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    val maxed = mechanism.nextCost == null
-    val enabled = !maxed && mechanism.canUpgrade
-    val accent = when {
-        maxed -> TealGlow
-        enabled -> BrassBright
-        else -> TextMuted
-    }
-    val action = when {
-        maxed -> "ГОТОВО"
-        enabled -> "УЛУЧШИТЬ · ⚙ ${mechanism.nextCost}"
-        else -> "НУЖНО ⚙ ${mechanism.nextCost}"
-    }
-    val shape = RoundedCornerShape(10.dp)
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(shape)
-            .background(Recess.copy(alpha = 0.62f))
-            .border(1.dp, accent.copy(alpha = if (enabled || maxed) 0.28f else 0.12f), shape)
-            .clickable(enabled = enabled, onClick = onUpgrade)
-            .padding(horizontal = 10.dp)
-            .semantics {
-                role = Role.Button
-                contentDescription = "${mechanism.mechanism.title}: ${mechanism.stageLabel}. $action"
-            },
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                mechanism.mechanism.shortTitle,
-                style = MaterialTheme.typography.labelMedium,
-                color = TextWarm,
-                maxLines = 1,
-            )
-            Text(
-                mechanism.stageLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (mechanism.stage >= 3) TealGlow else TextMuted,
-                maxLines = 1,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(action, style = MaterialTheme.typography.labelSmall, color = accent, maxLines = 1)
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(
+                    if (stage >= 3) accent.copy(alpha = 0.88f)
+                    else BrassDark.copy(alpha = 0.46f + stage * 0.10f),
+                ),
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            "$label $stage/4",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (stage >= 3) TextWarm else TextMuted,
+            maxLines = 1,
+        )
     }
 }
 
@@ -720,63 +728,5 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGear(
             }
         }
         drawCircle(color = color, radius = radius * 0.82f, center = center, style = Stroke(width = radius * 0.18f))
-    }
-}
-
-@Composable
-private fun WorkshopMetaRow(
-    badge: String,
-    title: String,
-    subtitle: String,
-    actionLabel: String,
-    accent: Color,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(13.dp)
-    val longBadge = badge.length > 2
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(66.dp)
-            .clip(shape)
-            .background(Panel.copy(alpha = 0.58f))
-            .border(1.dp, accent.copy(alpha = if (enabled) 0.24f else 0.12f), shape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 11.dp)
-            .semantics {
-                role = Role.Button
-                contentDescription = "$title. $subtitle. $actionLabel"
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(if (longBadge) 42.dp else 36.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Recess.copy(alpha = 0.62f))
-                .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(9.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                badge,
-                style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
-                color = accent,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = TextWarm, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            actionLabel,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (enabled) accent else TextMuted,
-            maxLines = 1,
-        )
     }
 }

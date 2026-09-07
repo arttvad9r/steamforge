@@ -1,6 +1,5 @@
 package com.steamforge.game.ui.game
 
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.Tile
@@ -43,22 +42,13 @@ class GameViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private class RecordingAnalytics : Analytics {
-        val events = mutableListOf<Pair<String, Map<String, Any?>>>()
-        override fun logEvent(name: String, params: Map<String, Any?>) {
-            events += name to params
-        }
-    }
-
     private fun vm(
         repo: FakeDataRepo = FakeDataRepo(),
-        analytics: RecordingAnalytics = RecordingAnalytics(),
         daily: Boolean = false,
         seed: Long = 42L,
         dailyChallenge: DailyChallenge? = null,
     ): GameViewModel = GameViewModel(
         repo = repo,
-        analytics = analytics,
         cfg = ProgressionConfig(),
         dailyMode = daily,
         dailyProvider = { dailyChallenge ?: DailyChallenges.forEpochDay(LocalDay.todayEpochDay()) },
@@ -72,8 +62,7 @@ class GameViewModelTest {
         repeat(maxMoves) { i -> onMove(moves[i % moves.size]) }
     }
 
-    /** Full board with exactly one legal merge. LEFT merges the leading 2+2, spawn fills the gap,
-     * and the resulting board has no adjacent equal tiles, so Game Over is deterministic. */
+    /** Full board with exactly one legal merge. LEFT deterministically reaches Game Over. */
     private fun finishingSavedGame(seed: Long = 17L): SavedGame {
         val levels = listOf(
             1, 1, 3, 4,
@@ -265,17 +254,17 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `analytics events fired for real finish`() = runTest(dispatcher) {
-        val analytics = RecordingAnalytics()
+    fun `real finish persists result and progression`() = runTest(dispatcher) {
         val repo = FakeDataRepo(initialGame = finishingSavedGame(seed = 17L))
-        val model = vm(repo = repo, analytics = analytics, seed = 17L)
+        val model = vm(repo = repo, seed = 17L)
         advanceUntilIdle()
 
         model.onMove(Move.LEFT)
         advanceUntilIdle()
 
         assertTrue(model.ui.value.finished)
-        assertTrue(analytics.events.any { it.first == "game_finished" })
+        assertEquals(1, repo.currentProgress.stats.gamesPlayed)
+        assertNotNull(repo.currentFinished)
     }
 
     @Test
@@ -327,9 +316,8 @@ class GameViewModelTest {
 
     @Test
     fun `restart resets finish guard and allows next game moves`() = runTest(dispatcher) {
-        val analytics = RecordingAnalytics()
         val repo = FakeDataRepo(initialGame = finishingSavedGame(seed = 123L))
-        val model = vm(repo, analytics = analytics, seed = 123L)
+        val model = vm(repo, seed = 123L)
         advanceUntilIdle()
 
         model.onMove(Move.LEFT)
@@ -340,8 +328,6 @@ class GameViewModelTest {
         model.restart()
         advanceUntilIdle()
         assertFalse(model.ui.value.finished)
-        // Restoring an existing saved session does not emit game_started; restart starts one new session.
-        assertEquals(1, analytics.events.count { it.first == "game_started" })
 
         var acceptedMove = false
         for (move in listOf(Move.LEFT, Move.UP, Move.RIGHT, Move.DOWN)) {

@@ -1,6 +1,5 @@
 package com.steamforge.game.ui.game
 
-import com.steamforge.game.analytics.Analytics
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.Move
 import com.steamforge.game.core.Tile
@@ -37,13 +36,8 @@ class GameStateConsistencyTest {
         Dispatchers.resetMain()
     }
 
-    private object NoopAnalytics : Analytics {
-        override fun logEvent(name: String, params: Map<String, Any?>) = Unit
-    }
-
     private fun vm(repo: FakeDataRepo, seed: Long = 42L) = GameViewModel(
         repo = repo,
-        analytics = NoopAnalytics,
         seedProvider = { seed },
         savedGameProvider = { repo.currentGame },
     )

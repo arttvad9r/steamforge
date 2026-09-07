@@ -1,5 +1,4 @@
 import java.util.Base64
-import java.util.Properties
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
@@ -39,11 +38,6 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
-val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
-
 val generateLauncherIcon = tasks.register<GenerateLauncherIconTask>("generateLauncherIcon") {
     parts.from(fileTree("src/main/icon-assets") {
         include("steamforge-launcher-*.b64")
@@ -62,33 +56,16 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "APPMETRICA_API_KEY", prop("steamforge.appmetricaApiKey", ""))
-        buildConfigField("String", "PRIVACY_POLICY_URL", prop("steamforge.privacyPolicyUrl", ""))
         buildConfigField("String", "REMOTE_CONFIG_URL", prop("steamforge.remoteConfigUrl", ""))
     }
 
     buildTypes {
-        debug {
-            // AdsManager намеренно игнорирует production IDs в debug и всегда использует demo units.
-            buildConfigField("String", "REWARDED_AD_UNIT_ID", "\"\"")
-            buildConfigField("String", "INTERSTITIAL_AD_UNIT_ID", "\"\"")
-        }
         release {
+            // Minified development-quality variant used to catch R8/resource-shrinking issues.
+            // No production/store signing configuration is kept in the active project.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "REWARDED_AD_UNIT_ID", prop("steamforge.rewardedAdUnitId", ""))
-            buildConfigField("String", "INTERSTITIAL_AD_UNIT_ID", prop("steamforge.interstitialAdUnitId", ""))
-
-            val storeFilePath = keystoreProps.getProperty("storeFile")
-            if (storeFilePath != null) {
-                signingConfig = signingConfigs.create("release") {
-                    storeFile = rootProject.file(storeFilePath)
-                    storePassword = keystoreProps.getProperty("storePassword")
-                    keyAlias = keystoreProps.getProperty("keyAlias")
-                    keyPassword = keystoreProps.getProperty("keyPassword")
-                }
-            }
         }
         create("benchmark") {
             initWith(getByName("release"))
@@ -139,8 +116,6 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.serialization.json)
-  implementation(libs.appmetrica.analytics)
-  implementation(libs.yandex.mobileads)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
@@ -167,6 +142,6 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
-  // Macrobenchmark-only helper; production release dependency graph is unchanged.
+  // Macrobenchmark-only helper; the app runtime dependency graph is unchanged.
   add("benchmarkImplementation", libs.androidx.profileinstaller)
 }

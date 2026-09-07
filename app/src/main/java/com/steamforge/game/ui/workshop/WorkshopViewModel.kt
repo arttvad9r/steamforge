@@ -2,11 +2,6 @@ package com.steamforge.game.ui.workshop
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.steamforge.game.analytics.Analytics
-import com.steamforge.game.analytics.AnalyticsEvent
-import com.steamforge.game.analytics.AnalyticsEvents
-import com.steamforge.game.analytics.NoopAnalytics
-import com.steamforge.game.analytics.log
 import com.steamforge.game.config.LocalDefaultRemoteConfigProvider
 import com.steamforge.game.config.RemoteConfigProvider
 import com.steamforge.game.data.DataRepo
@@ -67,7 +62,6 @@ class WorkshopViewModel(
     private val cfg: ProgressionConfig = ProgressionConfig(),
     private val remoteConfigProvider: RemoteConfigProvider = LocalDefaultRemoteConfigProvider(),
     private val today: () -> Long = { LocalDay.todayEpochDay() },
-    private val analytics: Analytics = NoopAnalytics(),
 ) : ViewModel() {
 
     val ui: StateFlow<WorkshopUiState> = combine(
@@ -134,36 +128,9 @@ class WorkshopViewModel(
     fun upgradeMechanism(mechanism: WorkshopMechanism) {
         viewModelScope.launch {
             val workshopCfg = remoteConfigProvider.snapshot.value.config.toProgressionConfig(cfg)
-            var upgradeEvent: AnalyticsEvent? = null
-            var economyEvent: AnalyticsEvent? = null
             repo.updateProgress { p ->
-                val fromStage = WorkshopProgression.mechanismStage(p, mechanism, workshopCfg)
-                val cost = WorkshopProgression.mechanismUpgradeCost(fromStage, workshopCfg)
-                val updated = WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
-                val toStage = WorkshopProgression.mechanismStage(updated, mechanism, workshopCfg)
-                if (toStage > fromStage && cost != null) {
-                    upgradeEvent = AnalyticsEvents.workshopUpgrade(
-                        mechanism = mechanism.name,
-                        fromStage = fromStage,
-                        toStage = toStage,
-                        partsSpent = cost,
-                    )
-                    val spentParts = (
-                        p.workshopParts.coerceAtLeast(0) - updated.workshopParts.coerceAtLeast(0)
-                    ).coerceAtLeast(0)
-                    if (spentParts > 0) {
-                        economyEvent = AnalyticsEvents.resourceSpent(
-                            resourceType = "workshop_parts",
-                            source = "workshop_upgrade",
-                            amount = spentParts,
-                            balanceAfter = updated.workshopParts,
-                        )
-                    }
-                }
-                updated
+                WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
             }
-            upgradeEvent?.let { analytics.log(it) }
-            economyEvent?.let { analytics.log(it) }
         }
     }
 
@@ -171,7 +138,6 @@ class WorkshopViewModel(
 
     fun claimDailyReward() {
         viewModelScope.launch {
-            var workshopPartsEvent: AnalyticsEvent? = null
             repo.updateProgress { p ->
                 val todayDay = today()
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
@@ -189,15 +155,7 @@ class WorkshopViewModel(
                     if (workshopParts > 0) add(Reward.WorkshopParts(workshopParts))
                     if (rewardDay == cycle) add(Reward.CosmeticUnlock("gold_gauge"))
                 }
-                val (rewarded, receipt) = RewardSystem.apply(p, rewards)
-                if (receipt.workshopParts > 0) {
-                    workshopPartsEvent = AnalyticsEvents.resourceEarned(
-                        resourceType = "workshop_parts",
-                        source = "daily_reward",
-                        amount = receipt.workshopParts,
-                        balanceAfter = rewarded.workshopParts,
-                    )
-                }
+                val (rewarded, _) = RewardSystem.apply(p, rewards)
                 rewarded.copy(
                     dailyRewardDay = todayDay,
                     dailyRewardStreak = nextStreak,
@@ -210,7 +168,6 @@ class WorkshopViewModel(
                     ),
                 )
             }
-            workshopPartsEvent?.let { analytics.log(it) }
         }
     }
 }

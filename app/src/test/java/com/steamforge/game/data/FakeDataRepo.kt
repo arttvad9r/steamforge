@@ -57,17 +57,6 @@ class FakeDataRepo(
         currentGame = null
     }
 
-    override suspend fun claimDoubleReward(gameResultId: String, gems: Int): Boolean {
-        val record = currentFinished ?: return false
-        if (gems <= 0 || record.id != gameResultId || record.rewardedClaimed) return false
-        currentFinished = record.copy(rewardedClaimed = true)
-        currentProgress = currentProgress.copy(
-            gems = currentProgress.gems + gems,
-            stats = currentProgress.stats.copy(gemsEarned = currentProgress.stats.gemsEarned + gems),
-        )
-        return true
-    }
-
     override suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean {
         val p = currentProgress
         if (p.dailyChallengeDay == day && p.dailyChallengeDone) return false
@@ -97,7 +86,6 @@ class FakeDataRepo(
             soundEnabled = p.soundEnabled,
             hapticsEnabled = p.hapticsEnabled,
             animationsEnabled = p.animationsEnabled,
-            analyticsConsent = p.analyticsConsent,
         )
         currentGame = null
         currentFinished = null

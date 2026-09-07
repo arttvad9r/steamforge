@@ -57,7 +57,7 @@ assert_text_absent() {
   local label="$2"
   dump_ui "$label"
   if grep -Fqi "$needle" /tmp/accessibility-window.xml; then
-    echo "Unexpected first-session text found: $needle" >&2
+    echo "Unexpected text found: $needle" >&2
     cat /tmp/accessibility-window.xml >&2 || true
     return 1
   fi
@@ -124,8 +124,6 @@ for node in root.iter('node'):
     resolved.append((resolved_node, bounds))
 
 assert resolved, f'clickable control not found: {needle}'
-# Prefer the smallest matching touch target so a broad clickable container cannot hide
-# a too-small child control.
 node, bounds = min(
     resolved,
     key=lambda item: (item[1][2] - item[1][0]) * (item[1][3] - item[1][1]),
@@ -323,12 +321,10 @@ assert math.isclose(expected, actual, rel_tol=0, abs_tol=0.01), (expected, actua
 PY
 
 launch_app
-wait_for_text 'ПРИВАТНОСТЬ' '00-privacy'
-if grep -Fqi 'ОТКЛЮЧИТЬ' /tmp/accessibility-window.xml; then
-  assert_control 'ОТКЛЮЧИТЬ' '00-disable-target'
-  tap_control 'ОТКЛЮЧИТЬ' '00-disable-analytics'
-fi
 wait_for_text 'MECHANICAL 2048' '01-home'
+assert_text_absent 'ПРИВАТНОСТЬ' '01-home-no-consent'
+assert_text_absent 'AppMetrica' '01-home-no-appmetrica'
+assert_text_absent 'реклама' '01-home-no-ads'
 
 # Fresh Home: only the core CTA and settings are expected before meaningful gameplay progress.
 assert_control 'Настройки' '02-home-settings'
@@ -351,6 +347,8 @@ wait_for_game '10-game'
 assert_control 'ОТМЕНА' '11-game-undo'
 assert_control 'КЛЮЧ' '12-game-wrench'
 assert_game_tile_inside_display '13-game'
+assert_text_absent 'видео' '13-game-no-video'
+assert_text_absent 'УДВОИТЬ ГЕМЫ' '13-game-no-rewarded'
 capture '14-game-large-font'
 
-echo 'Accessibility UI OK: first-session Home/Game remain reachable at font scale 1.3; critical controls are >=48dp and inside the display.'
+echo 'Accessibility UI OK: tracking-free Home/Game remain reachable at font scale 1.3; critical controls are >=48dp and inside the display.'

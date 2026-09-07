@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,10 +41,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +72,29 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    HomeContent(
+        ui = ui,
+        onPlay = onPlay,
+        onWorkshop = onWorkshop,
+        onContracts = onContracts,
+        onDaily = onDaily,
+        onAchievements = onAchievements,
+        onSettings = onSettings,
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun HomeContent(
+    ui: HomeUiState,
+    onPlay: () -> Unit,
+    onWorkshop: () -> Unit,
+    onContracts: () -> Unit,
+    onDaily: () -> Unit,
+    onAchievements: () -> Unit,
+    onSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val compactHeader = LocalConfiguration.current.screenWidthDp < 390
     val visibility = ui.featureVisibility
 
@@ -140,7 +158,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(6.dp))
             }
 
-            HomeCoreScene()
+            HomeCoreScene(expanded = !visibility.showWorkshop)
             Text(
                 "СОБЕРИТЕ МЕХАНИЧЕСКОЕ ЯДРО",
                 modifier = Modifier.fillMaxWidth(),
@@ -170,46 +188,23 @@ fun HomeScreen(
                 icon = "▶",
             )
 
-            if (visibility.showWorkshop) {
-                Spacer(Modifier.height(10.dp))
-                HomeEntryCard(
-                    icon = "⚒",
-                    title = "Мастерская",
-                    subtitle = "Ядро · LV ${ui.workshopLevel} · серия ${ui.dailyRewardStreak}",
-                    onClick = onWorkshop,
-                    modifier = Modifier.fillMaxWidth(),
-                    accent = TealGlow,
-                )
-            }
-            if (visibility.showContracts) {
-                Spacer(Modifier.height(7.dp))
-                HomeEntryCard(
-                    icon = "≡",
-                    title = "Контракты",
-                    subtitle = "3 задания сегодня · награды за игру",
-                    onClick = onContracts,
-                    modifier = Modifier.fillMaxWidth(),
-                    accent = TextWarm,
-                )
-            }
-            if (visibility.showDaily) {
-                Spacer(Modifier.height(7.dp))
-                HomeEntryCard(
-                    icon = if (ui.dailyDone) "✓" else "2048",
-                    title = "Испытание дня",
-                    subtitle = if (ui.dailyDone) "Выполнено" else "Новая задача на сегодня",
-                    onClick = onDaily,
-                    modifier = Modifier.fillMaxWidth(),
-                    accent = if (ui.dailyDone) TealGlow else BrassBright,
-                )
-            }
+            HomeNavigationDeck(
+                visibility = visibility,
+                workshopLevel = ui.workshopLevel,
+                dailyRewardStreak = ui.dailyRewardStreak,
+                dailyDone = ui.dailyDone,
+                onWorkshop = onWorkshop,
+                onContracts = onContracts,
+                onDaily = onDaily,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(18.dp))
         }
     }
 }
 
 @Composable
-private fun HomeCoreScene() {
+private fun HomeCoreScene(expanded: Boolean) {
     val transition = rememberInfiniteTransition(label = "home-core")
     val angle by transition.animateFloat(
         initialValue = 0f,
@@ -217,44 +212,69 @@ private fun HomeCoreScene() {
         animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
         label = "home-core-angle",
     )
+    val sceneHeight = if (expanded) 310.dp else 184.dp
+    val reactorSize = if (expanded) 132.dp else 96.dp
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(184.dp),
+            .height(sceneHeight),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val c = center
             val unit = size.minDimension
-            drawCircle(TealGlow.copy(alpha = 0.055f), unit * 0.48f, c)
-            drawCircle(Brass.copy(alpha = 0.045f), unit * 0.37f, c)
-            drawHomeGear(c, unit * 0.27f, angle, Brass.copy(alpha = 0.62f))
+            drawCircle(TealGlow.copy(alpha = if (expanded) 0.045f else 0.040f), unit * 0.49f, c)
+            drawCircle(Brass.copy(alpha = 0.040f), unit * 0.38f, c)
+            drawHomeGear(c, unit * 0.27f, angle, Brass.copy(alpha = 0.54f))
             drawHomeGear(
-                Offset(size.width * 0.68f, size.height * 0.66f),
+                Offset(size.width * 0.69f, size.height * 0.65f),
                 unit * 0.105f,
                 -angle * 1.4f,
-                Copper.copy(alpha = 0.66f),
+                Copper.copy(alpha = 0.58f),
             )
             drawHomeGear(
-                Offset(size.width * 0.34f, size.height * 0.39f),
+                Offset(size.width * 0.33f, size.height * 0.39f),
                 unit * 0.075f,
                 angle * 1.8f,
-                BrassDark.copy(alpha = 0.74f),
+                BrassDark.copy(alpha = 0.68f),
             )
-            drawCircle(TealGlow.copy(alpha = 0.26f), unit * 0.18f, c, style = Stroke(3.dp.toPx()))
+            drawCircle(BrassDark.copy(alpha = 0.72f), unit * 0.205f, c, style = Stroke(2.dp.toPx()))
+            drawCircle(TealGlow.copy(alpha = 0.20f), unit * 0.176f, c, style = Stroke(2.dp.toPx()))
         }
         Box(
             modifier = Modifier
-                .size(90.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Brush.radialGradient(listOf(TealSurface.copy(alpha = 0.74f), Recess)))
-                .border(1.dp, Brass.copy(alpha = 0.58f), RoundedCornerShape(28.dp)),
+                .size(reactorSize)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            TealSurface.copy(alpha = 0.72f),
+                            PanelRaised.copy(alpha = 0.94f),
+                            Recess,
+                        ),
+                    ),
+                )
+                .border(2.dp, BrassDark.copy(alpha = 0.92f), CircleShape)
+                .padding(8.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("2048", style = MaterialTheme.typography.headlineSmall, color = BrassBright)
-                Text("CORE", style = MaterialTheme.typography.labelSmall, color = TealGlow)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(Brush.radialGradient(listOf(TealGlow.copy(alpha = 0.10f), Recess)))
+                    .border(1.dp, Brass.copy(alpha = 0.66f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "2048",
+                        style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
+                        color = BrassBright,
+                    )
+                    Text("CORE", style = MaterialTheme.typography.labelSmall, color = TealGlow)
+                }
             }
         }
     }
@@ -325,62 +345,5 @@ private fun HomeMetric(
     ) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
         Text(value, style = MaterialTheme.typography.titleMedium, color = accent, maxLines = 1)
-    }
-}
-
-@Composable
-private fun HomeEntryCard(
-    icon: String,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    accent: Color = TealGlow,
-) {
-    val shape = RoundedCornerShape(12.dp)
-    val longBadge = icon.length > 2
-    Row(
-        modifier = modifier
-            .height(58.dp)
-            .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        PanelRaised.copy(alpha = 0.50f),
-                        Panel.copy(alpha = 0.66f),
-                    ),
-                ),
-            )
-            .border(1.dp, accent.copy(alpha = 0.18f), shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp)
-            .semantics {
-                role = Role.Button
-                contentDescription = "$title. $subtitle"
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(if (longBadge) 42.dp else 34.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Recess.copy(alpha = 0.50f))
-                .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(9.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                icon,
-                style = if (longBadge) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
-                color = accent,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
-        Spacer(Modifier.width(9.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = TextWarm, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 1)
-        }
-        Text("›", style = MaterialTheme.typography.titleLarge, color = accent.copy(alpha = 0.72f))
     }
 }

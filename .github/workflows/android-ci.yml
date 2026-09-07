@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - fix/release-hardening
     paths-ignore:
       - 'docs/**'
       - 'README.md'
@@ -48,39 +47,29 @@ jobs:
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-      - name: Verify release tooling and privacy guard
+      - name: Verify development tooling and no-tracking guard
         shell: bash
         run: |
-          bash -n tools/build-rustore-release.sh
           bash -n tools/check-android-16kb.sh
-          bash -n tools/check-release-aab.sh
+          bash -n tools/check-no-tracking.sh
+          bash tools/check-no-tracking.sh
           python3 - <<'PY'
           import re
-          import xml.etree.ElementTree as ET
           from pathlib import Path
 
-          android = '{http://schemas.android.com/apk/res/android}'
-          root = ET.parse('app/src/main/AndroidManifest.xml').getroot()
-          matches = [
-              node for node in root.findall('./application/meta-data')
-              if node.get(android + 'name') == 'com.yandex.mobile.ads.AUTOMATIC_SDK_INITIALIZATION'
-          ]
-          if len(matches) != 1 or matches[0].get(android + 'value') != 'false':
-              raise SystemExit('Yandex Mobile Ads automatic initialization must stay disabled')
-
           tracked_gradle = Path('gradle.properties').read_text(encoding='utf-8')
-          sensitive = (
+          obsolete = (
               'steamforge.appmetricaApiKey',
               'steamforge.privacyPolicyUrl',
               'steamforge.rewardedAdUnitId',
               'steamforge.interstitialAdUnitId',
           )
           leaked = [
-              key for key in sensitive
+              key for key in obsolete
               if re.search(rf'^\s*{re.escape(key)}\s*=', tracked_gradle, re.MULTILINE)
           ]
           if leaked:
-              raise SystemExit('Production properties must not be committed: ' + ', '.join(leaked))
+              raise SystemExit('Obsolete tracking/advertising properties must not be committed: ' + ', '.join(leaked))
           PY
 
       - name: Verify debug and release code
@@ -89,11 +78,5 @@ jobs:
       - name: Verify Macrobenchmark harness compiles
         run: ./gradlew :app:assembleBenchmark :macrobenchmark:assembleBenchmark --stacktrace --no-daemon
 
-      - name: Verify 16 KB release APK
+      - name: Verify 16 KB minified APK
         run: bash tools/check-android-16kb.sh
-
-      - name: Build release app bundle
-        run: ./gradlew bundleRelease --stacktrace --no-daemon
-
-      - name: Validate release app bundle
-        run: bash tools/check-release-aab.sh
