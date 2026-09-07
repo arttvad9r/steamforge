@@ -1,12 +1,9 @@
 package com.steamforge.game.ui.home
 
 import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.theme.SteamforgeTheme
@@ -66,13 +63,11 @@ class HomeUnlockedVisualTest {
         composeRule.onNodeWithContentDescription("Коллекция").fetchSemanticsNode()
         composeRule.waitForIdle()
 
-        val output = File(
-            InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
-            SCREENSHOT_FILE,
-        )
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val output = File(instrumentation.targetContext.cacheDir, SCREENSHOT_FILE)
         FileOutputStream(output).use { stream ->
-            val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
-                .compress(Bitmap.CompressFormat.PNG, 100, stream)
+            val screenshot = instrumentation.uiAutomation.takeScreenshot()
+            val written = screenshot.compress(Bitmap.CompressFormat.PNG, 100, stream)
             assertTrue("Unlocked Home screenshot compression failed", written)
         }
         assertTrue("Unlocked Home screenshot was not written", output.length() > 0L)
