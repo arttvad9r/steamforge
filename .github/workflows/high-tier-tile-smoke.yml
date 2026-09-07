@@ -9,6 +9,7 @@ on:
       - 'app/src/main/java/com/steamforge/game/ui/game/**'
       - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/game/DailyObjectiveVisualTest.kt'
       - '.github/workflows/high-tier-tile-smoke.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'app/src/main/java/com/steamforge/game/ui/game/**'
       - 'app/src/androidTest/java/com/steamforge/game/HighTierBoardReadabilityTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/BoardSwipeInputTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/game/DailyObjectiveVisualTest.kt'
       - '.github/workflows/high-tier-tile-smoke.yml'
   workflow_dispatch:
 
@@ -136,6 +138,27 @@ jobs:
           print(f'high-tier-board.png: {len(data)} bytes')
           PY
 
+      - name: Verify and capture Daily objective states
+        shell: bash
+        run: |
+          set -euo pipefail
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.ui.game.DailyObjectiveVisualTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee daily-objective-instrumentation.txt
+          grep -F 'OK (2 tests)' daily-objective-instrumentation.txt
+          adb exec-out run-as com.steamforge.game cat cache/daily-objective-active.png > daily-objective-active.png
+          adb exec-out run-as com.steamforge.game cat cache/daily-objective-complete.png > daily-objective-complete.png
+          test -s daily-objective-active.png
+          test -s daily-objective-complete.png
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('daily-objective-active.png', 'daily-objective-complete.png'):
+              data = Path(name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+              print(f'{name}: {len(data)} bytes')
+          PY
+
       - name: Upload board diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -144,6 +167,9 @@ jobs:
           path: |
             high-tier-board.png
             high-tier-instrumentation.txt
+            daily-objective-active.png
+            daily-objective-complete.png
+            daily-objective-instrumentation.txt
             board-input-instrumentation.txt
             emulator.log
           if-no-files-found: warn
@@ -160,3 +186,5 @@ jobs:
           cat board-input-instrumentation.txt || true
           echo '=== high-tier instrumentation ==='
           cat high-tier-instrumentation.txt || true
+          echo '=== Daily objective instrumentation ==='
+          cat daily-objective-instrumentation.txt || true
