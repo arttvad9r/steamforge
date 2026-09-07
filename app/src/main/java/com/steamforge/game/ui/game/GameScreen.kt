@@ -250,7 +250,7 @@ fun GameScreen(
                                 Text(
                                     if (ui.daily != null) "ИСПЫТАНИЕ ДНЯ" else "МЕХАНИЧЕСКОЕ ЯДРО",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted,
+                                    color = if (ui.daily != null) BrassBright else TextMuted,
                                     maxLines = 1,
                                     softWrap = false,
                                 )
@@ -275,15 +275,11 @@ fun GameScreen(
                                 overdriveRemaining = ui.overdriveRemaining,
                             )
                             ui.daily?.let { daily ->
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    dailyGoalText(daily) + if (ui.dailySatisfied) " — выполнено" else "",
-                                    modifier = Modifier.fillMaxWidth(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (ui.dailySatisfied) TealGlow else TextMuted,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    softWrap = false,
+                                Spacer(Modifier.height(5.dp))
+                                DailyObjectiveStrip(
+                                    daily = daily,
+                                    satisfied = ui.dailySatisfied,
+                                    compact = true,
                                 )
                             }
                         }
@@ -355,7 +351,7 @@ fun GameScreen(
                             if (ui.daily != null) "ИСПЫТАНИЕ ДНЯ" else "МЕХАНИЧЕСКОЕ ЯДРО",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWarm,
+                            color = if (ui.daily != null) BrassBright else TextWarm,
                             maxLines = 1,
                             softWrap = false,
                         )
@@ -478,14 +474,10 @@ private fun GameplayStatusStrip(
             overdriveRemaining = overdriveRemaining,
         )
         if (daily != null) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                dailyGoalText(daily) + if (dailySatisfied) " · выполнено" else "",
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (dailySatisfied) TealGlow else TextWarm,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
+            Spacer(Modifier.height(5.dp))
+            DailyObjectiveStrip(
+                daily = daily,
+                satisfied = dailySatisfied,
             )
         }
     }
