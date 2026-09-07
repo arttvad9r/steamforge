@@ -72,8 +72,8 @@ jobs:
               raise SystemExit('Obsolete tracking/advertising properties must not be committed: ' + ', '.join(leaked))
           PY
 
-      - name: Verify debug and minified code
-        run: ./gradlew :weekly-core:test :weekly-protocol:test :weekly-server-core:test :weekly-server-postgres:test :weekly-server-ktor:test testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
+      - name: Verify debug and release code
+        run: ./gradlew :weekly-core:test :weekly-protocol:test :weekly-server-core:test :weekly-server-postgres:test :weekly-server-ktor:test :weekly-server-auth:test testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease --stacktrace --no-daemon
 
       - name: Verify Macrobenchmark harness compiles
         run: ./gradlew :app:assembleBenchmark :macrobenchmark:assembleBenchmark --stacktrace --no-daemon
