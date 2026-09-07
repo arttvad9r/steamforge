@@ -159,7 +159,6 @@ jobs:
           APK='app/build/outputs/apk/debug/app-debug.apk'
           REMOTE_APK='/data/local/tmp/steamforge-debug.apk'
           PACKAGE='com.steamforge.game'
-          COMPONENT='com.steamforge.game/.MainActivity'
 
           system_server_pid() {
             adb shell pidof system_server 2>/dev/null | tr -d '\r' | awk '{print $1}'
@@ -222,6 +221,25 @@ jobs:
             return 1
           }
 
+          resolve_launcher() {
+            local resolved=""
+            resolved="$(
+              adb shell cmd package resolve-activity --brief \
+                -a android.intent.action.MAIN \
+                -c android.intent.category.LAUNCHER \
+                "$PACKAGE" 2>/dev/null | tr -d '\r' | tail -n 1 || true
+            )"
+            case "$resolved" in
+              "$PACKAGE"/*)
+                printf '%s\n' "$resolved"
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
           wait_for_process() {
             for i in $(seq 1 45); do
               pid="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
@@ -231,6 +249,16 @@ jobs:
               fi
               sleep 1
             done
+            return 1
+          }
+
+          detect_app_crash() {
+            adb logcat -d -v brief > /tmp/steamforge-logcat.txt || true
+            if grep -Fq 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt; then
+              echo 'Steamforge fatal process crash detected on Android 17.'
+              grep -F -A40 -B10 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt || true
+              return 0
+            fi
             return 1
           }
 
@@ -258,19 +286,82 @@ jobs:
             exit 0
           fi
 
-          adb logcat -c
-          adb shell am force-stop "$PACKAGE"
-          adb shell am start -W -n "$COMPONENT"
-          wait_for_process
-          sleep 5
+          launched=0
+          preview_instability=0
+          for attempt in 1 2; do
+            echo "Android 17 preview launch attempt $attempt"
 
+            if ! wait_for_framework; then
+              preview_instability=1
+              echo '::warning::Preview framework failed to restabilize before launch.'
+              continue
+            fi
+
+            if ! wait_for_package; then
+              preview_instability=1
+              echo '::warning::Installed package disappeared while preview framework was restarting.'
+              continue
+            fi
+
+            launcher="$(resolve_launcher || true)"
+            if [ -z "$launcher" ]; then
+              preview_instability=1
+              echo '::warning::Preview PackageManager temporarily cannot resolve the launcher Activity.'
+              sleep 5
+              continue
+            fi
+
+            launch_framework_pid="$(system_server_pid || true)"
+            adb logcat -c || true
+            adb shell am force-stop "$PACKAGE" || true
+
+            launch_output=""
+            launch_command_ok=0
+            if launch_output="$(adb shell am start -W -n "$launcher" 2>&1)"; then
+              launch_command_ok=1
+            fi
+            printf '%s\n' "$launch_output"
+
+            if [ "$launch_command_ok" -eq 1 ] && wait_for_process; then
+              launched=1
+              break
+            fi
+
+            if detect_app_crash; then
+              exit 1
+            fi
+
+            after_framework_pid="$(system_server_pid || true)"
+            launcher_after="$(resolve_launcher || true)"
+            if [ -z "$launch_framework_pid" ] || \
+               [ -z "$after_framework_pid" ] || \
+               [ "$launch_framework_pid" != "$after_framework_pid" ] || \
+               ! package_visible || \
+               [ -z "$launcher_after" ]; then
+              preview_instability=1
+              echo "::warning::Android 17 preview framework/package state changed during launch (before=$launch_framework_pid after=$after_framework_pid); retrying."
+              sleep 5
+              continue
+            fi
+
+            echo 'Steamforge failed to launch while Android 17 framework, package and launcher state remained stable.'
+            exit 1
+          done
+
+          if [ "$launched" -ne 1 ]; then
+            if [ "$preview_instability" -eq 1 ]; then
+              echo '::warning::Android 17 preview framework remained unstable across bounded launch attempts; stable-emulator launch coverage remains authoritative.'
+              exit 0
+            fi
+            echo 'Steamforge did not launch and no preview-framework instability was detected.'
+            exit 1
+          fi
+
+          sleep 5
           pid="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
           test -n "$pid"
 
-          adb logcat -d -v brief > /tmp/steamforge-logcat.txt
-          if grep -Fq 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt; then
-            echo 'Steamforge fatal process crash detected on Android 17.'
-            grep -F -A40 -B10 'Process: com.steamforge.game' /tmp/steamforge-logcat.txt || true
+          if detect_app_crash; then
             exit 1
           fi
 
