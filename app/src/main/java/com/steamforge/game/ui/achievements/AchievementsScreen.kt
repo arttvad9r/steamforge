@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +52,23 @@ fun AchievementsScreen(
     modifier: Modifier = Modifier,
 ) {
     val achievementItems by vm.ui.collectAsStateWithLifecycle()
+    AchievementsContent(
+        achievementItems = achievementItems,
+        onBack = onBack,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun AchievementsContent(
+    achievementItems: List<AchievementUi>,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val unlocked = achievementItems.count { it.unlocked }
+    val inProgress = achievementItems.count { item ->
+        !item.unlocked && !item.def.hidden && item.def.maxProgress > 1 && item.progress > 0
+    }
 
     SteamBackdrop(modifier) {
         Column(
@@ -80,26 +98,38 @@ fun AchievementsScreen(
             }
             Spacer(Modifier.height(12.dp))
 
-            CollectionSummary(unlocked = unlocked, total = achievementItems.size)
+            CollectionSummary(
+                unlocked = unlocked,
+                total = achievementItems.size,
+                inProgress = inProgress,
+            )
             Spacer(Modifier.height(12.dp))
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .navigationBarsPadding(),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(achievementItems, key = { it.def.id }) { item ->
-                    AchievementRow(item)
-                }
-                item { Spacer(Modifier.height(20.dp)) }
+                Text("РЕЕСТР ДОСТИЖЕНИЙ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${achievementItems.size} знаков",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
             }
+            Spacer(Modifier.height(7.dp))
+
+            AchievementRegistry(
+                achievementItems = achievementItems,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
 @Composable
-private fun CollectionSummary(unlocked: Int, total: Int) {
+private fun CollectionSummary(unlocked: Int, total: Int, inProgress: Int) {
     val shape = RoundedCornerShape(13.dp)
     Column(
         modifier = Modifier
@@ -109,14 +139,18 @@ private fun CollectionSummary(unlocked: Int, total: Int) {
             .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics {
-                contentDescription = "Коллекция: открыто $unlocked из $total достижений"
+                contentDescription = "Коллекция: открыто $unlocked из $total достижений, в работе $inProgress"
             },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("ПРОГРЕСС КОЛЛЕКЦИИ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
                 Text(
-                    if (total > 0 && unlocked >= total) "Коллекция собрана" else "Открывайте достижения в обычной игре",
+                    when {
+                        total > 0 && unlocked >= total -> "Коллекция собрана"
+                        inProgress > 0 -> "В работе: $inProgress"
+                        else -> "Открывайте достижения в обычной игре"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                 )
@@ -134,86 +168,133 @@ private fun CollectionSummary(unlocked: Int, total: Int) {
 }
 
 @Composable
-private fun AchievementRow(item: AchievementUi) {
+private fun AchievementRegistry(
+    achievementItems: List<AchievementUi>,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    LazyColumn(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.42f))
+            .border(1.dp, Color.White.copy(alpha = 0.055f), shape),
+    ) {
+        itemsIndexed(
+            items = achievementItems,
+            key = { _, item -> item.def.id },
+        ) { index, item ->
+            AchievementRegistryRow(item)
+            if (index != achievementItems.lastIndex) RegistryDivider()
+        }
+        item { Spacer(Modifier.height(5.dp)) }
+    }
+}
+
+@Composable
+private fun AchievementRegistryRow(item: AchievementUi) {
     val unlocked = item.unlocked
     val hidden = item.def.hidden && !unlocked
+    val inProgress = !unlocked && !hidden && item.def.maxProgress > 1 && item.progress > 0
     val iconText = achievementIcon(item.def.id, hidden)
-    val shape = RoundedCornerShape(13.dp)
-    val accent = if (unlocked) TealGlow else BrassBright
+    val title = if (hidden) "Скрытое достижение" else item.def.title
+    val description = if (hidden) "Условие откроется после выполнения" else item.def.description
+    val stateLabel = when {
+        unlocked -> "ОТКРЫТО"
+        hidden -> "СКРЫТО"
+        inProgress -> "В РАБОТЕ"
+        else -> "ЦЕЛЬ"
+    }
+    val stateDescription = when {
+        unlocked -> "разблокировано"
+        hidden -> "скрыто"
+        inProgress -> "в прогрессе ${item.progress} из ${item.def.maxProgress}"
+        else -> "заблокировано"
+    }
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(Panel.copy(alpha = if (unlocked) 0.58f else 0.42f))
-            .border(
-                1.dp,
-                accent.copy(alpha = if (unlocked) 0.28f else 0.10f),
-                shape,
-            )
+            .heightIn(min = 76.dp)
             .padding(horizontal = 11.dp, vertical = 10.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "${if (hidden) "Скрытое достижение" else item.def.title}: ${if (unlocked) "разблокировано" else "заблокировано"}"
+                contentDescription = "$title: $stateDescription. Награда ${item.def.gemReward} гемов"
             },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AchievementBadge(iconText, unlocked)
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (hidden) "Скрытое достижение" else item.def.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (unlocked) TextWarm else TextWarm.copy(alpha = 0.78f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (hidden) "Условие откроется после выполнения" else item.def.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!unlocked && item.def.maxProgress > 1) {
-                    Spacer(Modifier.height(7.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProgressLine(item.progress, item.def.maxProgress, Modifier.weight(1f))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "${item.progress}/${item.def.maxProgress}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted,
-                            maxLines = 1,
-                        )
-                    }
-                }
-                if (item.unlockDate != null) {
-                    Spacer(Modifier.height(4.dp))
+        AchievementBadge(iconText, unlocked)
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (unlocked) TextWarm else TextWarm.copy(alpha = if (hidden) 0.58f else 0.78f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted.copy(alpha = if (hidden) 0.72f else 1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!unlocked && !hidden && item.def.maxProgress > 1) {
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ProgressLine(item.progress, item.def.maxProgress, Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        "Открыто ${item.unlockDate}",
-                        color = TealGlow,
+                        "${item.progress}/${item.def.maxProgress}",
                         style = MaterialTheme.typography.labelSmall,
+                        color = if (inProgress) BrassBright else TextMuted,
+                        maxLines = 1,
                     )
                 }
             }
-            Spacer(Modifier.width(9.dp))
-            Column(horizontalAlignment = Alignment.End) {
+            if (item.unlockDate != null) {
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    "◆ ${item.def.gemReward}",
-                    color = if (unlocked) TealGlow else TextMuted,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                )
-                Text(
-                    if (unlocked) "ОТКРЫТО" else "НАГРАДА",
-                    color = if (unlocked) TealGlow.copy(alpha = 0.76f) else TextMuted,
+                    "Открыто ${item.unlockDate}",
+                    color = TealGlow,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
                 )
             }
         }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "◆ ${item.def.gemReward}",
+                color = if (unlocked) TealGlow else if (inProgress) BrassBright else TextMuted,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                stateLabel,
+                color = when {
+                    unlocked -> TealGlow.copy(alpha = 0.82f)
+                    inProgress -> BrassBright.copy(alpha = 0.78f)
+                    else -> TextMuted
+                },
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
+        }
     }
+}
+
+@Composable
+private fun RegistryDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(Color.White.copy(alpha = 0.045f)),
+    )
 }
 
 @Composable

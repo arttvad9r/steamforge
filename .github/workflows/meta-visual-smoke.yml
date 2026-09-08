@@ -5,11 +5,13 @@ on:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/ui/achievements/**'
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
       - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/ui/profile/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/achievements/AchievementsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/profile/ProfileVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
@@ -17,11 +19,13 @@ on:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/ui/achievements/**'
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
       - 'app/src/main/java/com/steamforge/game/ui/home/**'
       - 'app/src/main/java/com/steamforge/game/ui/profile/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/achievements/AchievementsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/profile/ProfileVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
@@ -138,13 +142,21 @@ jobs:
             | tee profile-visual-instrumentation.txt
           grep -F 'OK (1 test)' profile-visual-instrumentation.txt
 
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.ui.achievements.AchievementsVisualTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee achievements-visual-instrumentation.txt
+          grep -F 'OK (1 test)' achievements-visual-instrumentation.txt
+
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
           adb exec-out run-as com.steamforge.game cat cache/profile-ledger.png > profile-ledger.png
+          adb exec-out run-as com.steamforge.game cat cache/achievements-registry.png > achievements-registry.png
           test -s contracts-task-list.png
           test -s profile-ledger.png
+          test -s achievements-registry.png
           python3 - <<'PY'
           from pathlib import Path
-          for name in ('contracts-task-list.png', 'profile-ledger.png'):
+          for name in ('contracts-task-list.png', 'profile-ledger.png', 'achievements-registry.png'):
               data = Path(name).read_bytes()
               assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
               print(f'{name}: {len(data)} bytes')
@@ -158,9 +170,11 @@ jobs:
           path: |
             contracts-task-list.png
             profile-ledger.png
+            achievements-registry.png
             contracts-visual-instrumentation.txt
             home-visual-instrumentation.txt
             profile-visual-instrumentation.txt
+            achievements-visual-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -178,3 +192,5 @@ jobs:
           cat home-visual-instrumentation.txt || true
           echo '=== Profile instrumentation ==='
           cat profile-visual-instrumentation.txt || true
+          echo '=== Achievements instrumentation ==='
+          cat achievements-visual-instrumentation.txt || true
