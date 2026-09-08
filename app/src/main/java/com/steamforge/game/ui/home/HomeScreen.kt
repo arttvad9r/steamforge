@@ -67,7 +67,7 @@ fun HomeScreen(
     onWorkshop: () -> Unit,
     onContracts: () -> Unit,
     onDaily: () -> Unit,
-    onAchievements: () -> Unit,
+    onCollection: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -78,7 +78,7 @@ fun HomeScreen(
         onWorkshop = onWorkshop,
         onContracts = onContracts,
         onDaily = onDaily,
-        onAchievements = onAchievements,
+        onCollection = onCollection,
         onSettings = onSettings,
         modifier = modifier,
     )
@@ -91,7 +91,7 @@ internal fun HomeContent(
     onWorkshop: () -> Unit,
     onContracts: () -> Unit,
     onDaily: () -> Unit,
-    onAchievements: () -> Unit,
+    onCollection: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -119,7 +119,7 @@ internal fun HomeContent(
                     BrassRoundButton(
                         symbol = "▣",
                         description = "Коллекция",
-                        onClick = onAchievements,
+                        onClick = onCollection,
                         modifier = Modifier.align(Alignment.CenterStart),
                     )
                 }

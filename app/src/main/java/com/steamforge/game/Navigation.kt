@@ -19,6 +19,8 @@ import com.steamforge.game.progression.DailyChallenges
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.ui.achievements.AchievementsScreen
 import com.steamforge.game.ui.achievements.AchievementsViewModel
+import com.steamforge.game.ui.blueprints.BlueprintsScreen
+import com.steamforge.game.ui.blueprints.BlueprintsViewModel
 import com.steamforge.game.ui.contracts.ContractsScreen
 import com.steamforge.game.ui.contracts.ContractsViewModel
 import com.steamforge.game.ui.game.GameViewModel
@@ -38,6 +40,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object Home : NavKey
 @Serializable data object Workshop : NavKey
+@Serializable data object Blueprints : NavKey
 @Serializable data object Contracts : NavKey
 @Serializable data class Game(val mode: GameRunMode = GameRunMode.NORMAL) : NavKey
 @Serializable data object Profile : NavKey
@@ -74,7 +77,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onWorkshop = { backStack.add(Workshop) },
                     onContracts = { backStack.add(Contracts) },
                     onDaily = { backStack.add(Game(GameRunMode.DAILY)) },
-                    onAchievements = { backStack.add(Profile) },
+                    onCollection = { backStack.add(Blueprints) },
                     onSettings = { backStack.add(Settings) },
                 )
             }
@@ -93,6 +96,10 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onAchievements = { backStack.add(Achievements) },
                     onSettings = { backStack.add(Settings) },
                 )
+            }
+            entry<Blueprints> {
+                val vm: BlueprintsViewModel = viewModel { BlueprintsViewModel(container.repo) }
+                BlueprintsScreen(vm = vm, onBack = { back() })
             }
             entry<Contracts> {
                 val vm: ContractsViewModel = viewModel {
