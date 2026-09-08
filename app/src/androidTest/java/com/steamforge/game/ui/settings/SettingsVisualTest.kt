@@ -1,15 +1,13 @@
-package com.steamforge.game.ui.blueprints
+package com.steamforge.game.ui.settings
 
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.steamforge.game.progression.BlueprintCollections
 import com.steamforge.game.theme.SteamforgeTheme
 import java.io.File
 import java.io.FileOutputStream
@@ -19,33 +17,35 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class BlueprintsVisualTest {
+class SettingsVisualTest {
+
     @get:Rule
     val composeRule = createComposeRule()
 
     @Test
-    fun collectionSurfaceShowsPersistedSteamEnginePieces() {
-        val pieces = BlueprintCollections.steamEngine.pieces
+    fun settingsRendersGameControlsAndDestructiveDataAction() {
         composeRule.setContent {
             SteamforgeTheme {
-                BlueprintsContent(
-                    ui = BlueprintsUiState(
-                        loaded = true,
-                        ownedPieceIds = pieces.take(3).map { it.id }.toSet(),
-                        steamEngineOwned = 3,
-                        steamEngineTotal = pieces.size,
-                        steamEngineComplete = false,
-                        animationsEnabled = false,
+                SettingsContent(
+                    ui = SettingsUiState(
+                        soundEnabled = true,
+                        hapticsEnabled = false,
+                        animationsEnabled = true,
                     ),
                     onBack = {},
+                    onSoundChange = {},
+                    onHapticsChange = {},
+                    onAnimationsChange = {},
+                    onReset = {},
                 )
             }
         }
 
-        composeRule.onNodeWithContentDescription("Чертёж Steam Engine: собрано 3 из 6 частей").fetchSemanticsNode()
-        composeRule.onNodeWithContentDescription("Детали Steam Engine: собрано 3 из 6").fetchSemanticsNode()
-        composeRule.onNodeWithText("Котёл").fetchSemanticsNode()
-        composeRule.onNodeWithText("Манометр").fetchSemanticsNode()
+        composeRule.onNodeWithText("Настройки").fetchSemanticsNode()
+        composeRule.onNodeWithText("Звуковые эффекты").fetchSemanticsNode()
+        composeRule.onNodeWithText("Виброотклик на действия").fetchSemanticsNode()
+        composeRule.onNodeWithText("Визуальные эффекты и движение").fetchSemanticsNode()
+        composeRule.onNodeWithText("СБРОСИТЬ ПРОГРЕСС").fetchSemanticsNode()
         composeRule.waitForIdle()
 
         val output = File(
@@ -55,16 +55,16 @@ class BlueprintsVisualTest {
         FileOutputStream(output).use { stream ->
             val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
                 .compress(Bitmap.CompressFormat.PNG, 100, stream)
-            assertTrue("Blueprints screenshot compression failed", written)
+            assertTrue("Settings screenshot compression failed", written)
         }
         assertTrue(
-            "Blueprints screenshot looks blank or incomplete: ${output.length()} bytes",
+            "Settings screenshot looks blank or incomplete: ${output.length()} bytes",
             output.length() > MIN_SCREENSHOT_BYTES,
         )
     }
 
     private companion object {
-        const val SCREENSHOT_FILE = "blueprints-catalog.png"
+        const val SCREENSHOT_FILE = "settings-controls.png"
         const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }

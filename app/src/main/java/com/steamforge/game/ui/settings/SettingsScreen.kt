@@ -60,51 +60,15 @@ fun SettingsScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     var confirmReset by remember { mutableStateOf(false) }
 
-    SteamBackdrop(modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .wrapContentWidth(Alignment.CenterHorizontally)
-                .widthIn(max = 560.dp)
-                .padding(horizontal = 16.dp)
-                .navigationBarsPadding(),
-        ) {
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BrassRoundButton("←", "Назад", onBack)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("Настройки", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
-                    Text("Параметры игры", style = MaterialTheme.typography.labelMedium, color = TextMuted)
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-
-            SettingsGroupTitle("ИГРА")
-            Spacer(Modifier.height(6.dp))
-            SteamPanel(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            ) {
-                SettingToggleRow("♪", "Звук", "Звуковые эффекты", ui.soundEnabled, vm::setSound)
-                SettingDivider()
-                SettingToggleRow("▣", "Вибрация", "Виброотклик на действия", ui.hapticsEnabled, vm::setHaptics)
-                SettingDivider()
-                SettingToggleRow("⚙", "Анимации", "Визуальные эффекты и движение", ui.animationsEnabled, vm::setAnimations)
-            }
-
-            Spacer(Modifier.height(18.dp))
-            SettingsGroupTitle("ДАННЫЕ")
-            Spacer(Modifier.height(6.dp))
-            DangerSection(onReset = { confirmReset = true })
-            Spacer(Modifier.height(24.dp))
-        }
-    }
+    SettingsContent(
+        ui = ui,
+        onBack = onBack,
+        onSoundChange = vm::setSound,
+        onHapticsChange = vm::setHaptics,
+        onAnimationsChange = vm::setAnimations,
+        onReset = { confirmReset = true },
+        modifier = modifier,
+    )
 
     if (confirmReset) {
         SteamDecisionDialog(
@@ -142,6 +106,63 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+internal fun SettingsContent(
+    ui: SettingsUiState,
+    onBack: () -> Unit,
+    onSoundChange: (Boolean) -> Unit,
+    onHapticsChange: (Boolean) -> Unit,
+    onAnimationsChange: (Boolean) -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SteamBackdrop(modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 560.dp)
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding(),
+        ) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BrassRoundButton("←", "Назад", onBack)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("Настройки", style = MaterialTheme.typography.headlineSmall, color = TextWarm)
+                    Text("Параметры игры", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+
+            SettingsGroupTitle("ИГРА")
+            Spacer(Modifier.height(6.dp))
+            SteamPanel(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                SettingToggleRow("♪", "Звук", "Звуковые эффекты", ui.soundEnabled, onSoundChange)
+                SettingDivider()
+                SettingToggleRow("▣", "Вибрация", "Виброотклик на действия", ui.hapticsEnabled, onHapticsChange)
+                SettingDivider()
+                SettingToggleRow("⚙", "Анимации", "Визуальные эффекты и движение", ui.animationsEnabled, onAnimationsChange)
+            }
+
+            Spacer(Modifier.height(18.dp))
+            SettingsGroupTitle("ДАННЫЕ")
+            Spacer(Modifier.height(6.dp))
+            DangerSection(onReset = onReset)
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
