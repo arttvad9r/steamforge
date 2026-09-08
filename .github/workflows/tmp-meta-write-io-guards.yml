@@ -1,0 +1,67 @@
+name: Temporary Meta Write IO Guards
+
+on:
+  push:
+    branches:
+      - fix/meta-write-io-guards
+
+permissions:
+  contents: write
+
+jobs:
+  regression:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Add regression tests and prove current failures
+        run: |
+          python3 tools/patch_meta_write_io_guards.py test
+          git diff --check
+          ./gradlew --no-daemon :app:compileDebugUnitTestKotlin
+          set +e
+          ./gradlew --no-daemon testDebugUnitTest \
+            --tests '*ContractsPersistenceIoTest*' \
+            --tests '*WorkshopPersistenceIoTest*'
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'Expected current meta write persistence tests to fail before guards'
+            exit 1
+          fi
+          contracts='app/build/test-results/testDebugUnitTest/TEST-com.steamforge.game.ui.contracts.ContractsPersistenceIoTest.xml'
+          workshop='app/build/test-results/testDebugUnitTest/TEST-com.steamforge.game.ui.workshop.WorkshopPersistenceIoTest.xml'
+          test -s "$contracts"
+          test -s "$workshop"
+          grep -q 'IOException' "$contracts"
+          grep -q 'ENOSPC contracts' "$contracts"
+          grep -q 'IOException' "$workshop"
+          grep -q 'ENOSPC workshop' "$workshop"
+
+      - name: Apply guards and verify regressions pass
+        run: |
+          python3 tools/patch_meta_write_io_guards.py fix
+          git diff --check
+          ./gradlew --no-daemon testDebugUnitTest \
+            --tests '*ContractsPersistenceIoTest*' \
+            --tests '*WorkshopPersistenceIoTest*'
+
+      - name: Commit source and regression tests
+        run: |
+          git config user.name steamforge-ci
+          git config user.email steamforge-ci@users.noreply.github.com
+          git add \
+            app/src/main/java/com/steamforge/game/ui/contracts/ContractsViewModel.kt \
+            app/src/main/java/com/steamforge/game/ui/workshop/WorkshopViewModel.kt \
+            app/src/test/java/com/steamforge/game/ui/contracts/ContractsPersistenceIoTest.kt \
+            app/src/test/java/com/steamforge/game/ui/workshop/WorkshopPersistenceIoTest.kt
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit'
+            exit 1
+          fi
+          git commit -m 'Guard Contracts and Workshop persistence writes'
+          git push origin HEAD:fix/meta-write-io-guards
