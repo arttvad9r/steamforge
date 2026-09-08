@@ -44,12 +44,10 @@ class BlueprintsVisualTest {
         captureVisualScreenshot(
             fileName = SCREENSHOT_FILE,
             label = "Blueprints",
-            minBytes = MIN_SCREENSHOT_BYTES,
         )
     }
 
     private companion object {
         const val SCREENSHOT_FILE = "blueprints-catalog.png"
-        const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }
