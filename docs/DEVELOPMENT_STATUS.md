@@ -59,13 +59,13 @@ Merged app/meta passes:
 - #182 — visible Workshop restoration/world change across mechanism stages;
 - #183 — dedicated Blueprints catalog for the persisted Steam Engine collection;
 - #184 — Home respects the animation setting and stays static when animations are disabled.
+- #188 — Settings has dedicated production visual-regression coverage, including blank-capture rejection.
 
 Still unfinished / requires acceptance:
 
 - physical-device swipe confidence and input-latency tuning;
 - subjective SFX/haptic balance during real play;
 - long-session high-tier tile readability beyond static smoke captures;
-- dedicated Settings visual-regression coverage and final utility-surface consistency;
 - final whole-app atmosphere vs gameplay-cleanliness acceptance;
 - Blueprint catalog breadth is intentionally still small: one Steam Engine collection. Expand only when new collections have a clear visible Workshop/world payoff.
 
@@ -117,6 +117,8 @@ Automated coverage includes:
 - offline startup/gameplay/autosave/recreation;
 - low-storage save failure/recovery;
 - terminal finish retry/idempotency;
+- Daily Challenge claim retry/idempotency across transient and ambiguous I/O failures (#190);
+- obsolete Contracts-specific save/finish repository API variants removed after normal transactions absorbed that accounting (#189);
 - gesture touchSlop / one-command-per-gesture;
 - high-tier tile checks;
 - expanded/portrait/compact-landscape geometry;
@@ -163,7 +165,7 @@ Use small behavior-preserving extractions when they remove duplication or reduce
 ## Active priority order
 
 1. Close physical-device core-feel/readability/audio/accessibility acceptance in #185.
-2. Complete Settings visual-regression coverage and final whole-app consistency acceptance.
+2. Complete final whole-app consistency acceptance.
 3. Continue targeted `GameViewModel`/session orchestration cleanup only where it reduces concrete duplication or risk.
 4. Evolve Blueprint collections only when tied to visible Workshop/world changes.
 5. Preserve the existing `RewardSystem` as the single positive-reward path.

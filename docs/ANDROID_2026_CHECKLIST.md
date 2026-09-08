@@ -46,6 +46,7 @@
 - [x] Terminal finish persistence is retryable/idempotent.
 - [x] Short terminal writes no longer flash a blocking save modal; slow/failing writes retain visible feedback and retry (#181).
 - [x] Daily/contract reward claims are protected against duplicate application.
+- [x] Daily Challenge claim retries transient I/O and remains idempotent when a write may already have committed (#190).
 - [x] Lifecycle smoke covers recreation, Home/background, force-stop relaunch, screen-off/wake and offline continuation.
 - [ ] Keep these checks green through gameplay/visual refactors.
 - [ ] Repeat representative lifecycle checks on a physical device before declaring game-readiness (#185).
@@ -75,8 +76,9 @@ Source of truth: `docs/VISUAL_BIBLE.md`.
 - [x] Movement/merge/spawn/Overdrive visual sequencing has an automated baseline (#179).
 - [x] Home, Workshop, Contracts/Daily, Profile, Achievements and Blueprints have focused visual-system passes (#172–176, #182–184).
 - [x] Workshop progression creates visible world/restoration changes (#182).
+- [x] Settings has dedicated production visual-regression coverage with suspiciously blank captures rejected (#188).
 - [ ] Validate tile readability across high-tier values during long real sessions (#185).
-- [ ] Add dedicated Settings visual-regression coverage and complete final utility-surface consistency.
+- [ ] Complete final utility-surface/whole-app consistency acceptance.
 - [ ] Complete final whole-app atmosphere vs gameplay-cleanliness acceptance.
 - [ ] Avoid chibi/mobile-cartoon drift and photoreal drift.
 
