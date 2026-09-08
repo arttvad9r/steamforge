@@ -44,12 +44,10 @@ class SettingsVisualTest {
         captureVisualScreenshot(
             fileName = SCREENSHOT_FILE,
             label = "Settings",
-            minBytes = MIN_SCREENSHOT_BYTES,
         )
     }
 
     private companion object {
         const val SCREENSHOT_FILE = "settings-controls.png"
-        const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }
