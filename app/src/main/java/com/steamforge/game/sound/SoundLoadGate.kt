@@ -18,7 +18,11 @@ internal class SoundLoadGate {
 
     @Synchronized
     fun request(sampleId: Int, playback: PendingSoundPlayback): PendingSoundPlayback? {
-        if (sampleId in loadedSampleIds) return playback
+        if (sampleId in loadedSampleIds) {
+            // A newer request that can play now supersedes any older request still waiting for a different sample.
+            pending = null
+            return playback
+        }
         pending = sampleId to playback
         return null
     }
