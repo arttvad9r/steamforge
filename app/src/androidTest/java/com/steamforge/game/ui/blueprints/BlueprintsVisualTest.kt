@@ -1,19 +1,12 @@
 package com.steamforge.game.ui.blueprints
 
-import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.progression.BlueprintCollections
+import com.steamforge.game.testing.captureVisualScreenshot
 import com.steamforge.game.theme.SteamforgeTheme
-import java.io.File
-import java.io.FileOutputStream
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,23 +41,13 @@ class BlueprintsVisualTest {
         composeRule.onNodeWithText("Манометр").fetchSemanticsNode()
         composeRule.waitForIdle()
 
-        val output = File(
-            InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
-            SCREENSHOT_FILE,
-        )
-        FileOutputStream(output).use { stream ->
-            val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
-                .compress(Bitmap.CompressFormat.PNG, 100, stream)
-            assertTrue("Blueprints screenshot compression failed", written)
-        }
-        assertTrue(
-            "Blueprints screenshot looks blank or incomplete: ${output.length()} bytes",
-            output.length() > MIN_SCREENSHOT_BYTES,
+        captureVisualScreenshot(
+            fileName = SCREENSHOT_FILE,
+            label = "Blueprints",
         )
     }
 
     private companion object {
         const val SCREENSHOT_FILE = "blueprints-catalog.png"
-        const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }

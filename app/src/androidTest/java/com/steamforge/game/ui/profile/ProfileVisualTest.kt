@@ -1,19 +1,12 @@
 package com.steamforge.game.ui.profile
 
-import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.progression.PermanentProfileSnapshot
+import com.steamforge.game.testing.captureVisualScreenshot
 import com.steamforge.game.theme.SteamforgeTheme
-import java.io.File
-import java.io.FileOutputStream
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,16 +57,10 @@ class ProfileVisualTest {
         composeRule.onNodeWithContentDescription("Достижения. Открыто 8").fetchSemanticsNode()
         composeRule.waitForIdle()
 
-        val output = File(
-            InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
-            SCREENSHOT_FILE,
+        captureVisualScreenshot(
+            fileName = SCREENSHOT_FILE,
+            label = "Profile",
         )
-        FileOutputStream(output).use { stream ->
-            val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
-                .compress(Bitmap.CompressFormat.PNG, 100, stream)
-            assertTrue("Profile screenshot compression failed", written)
-        }
-        assertTrue("Profile screenshot was not written", output.length() > 0L)
     }
 
     private companion object {
