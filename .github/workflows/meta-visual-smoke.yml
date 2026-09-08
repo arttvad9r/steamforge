@@ -7,9 +7,11 @@ on:
     paths:
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
       - 'app/src/main/java/com/steamforge/game/ui/home/**'
+      - 'app/src/main/java/com/steamforge/game/ui/profile/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/profile/ProfileVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
   pull_request:
     branches:
@@ -17,9 +19,11 @@ on:
     paths:
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
       - 'app/src/main/java/com/steamforge/game/ui/home/**'
+      - 'app/src/main/java/com/steamforge/game/ui/profile/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/ui/profile/ProfileVisualTest.kt'
       - '.github/workflows/meta-visual-smoke.yml'
   workflow_dispatch:
 
@@ -128,14 +132,22 @@ jobs:
             | tee home-visual-instrumentation.txt
           grep -F 'OK (1 test)' home-visual-instrumentation.txt
 
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.ui.profile.ProfileVisualTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee profile-visual-instrumentation.txt
+          grep -F 'OK (1 test)' profile-visual-instrumentation.txt
+
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
+          adb exec-out run-as com.steamforge.game cat cache/profile-ledger.png > profile-ledger.png
           test -s contracts-task-list.png
+          test -s profile-ledger.png
           python3 - <<'PY'
           from pathlib import Path
-          name = 'contracts-task-list.png'
-          data = Path(name).read_bytes()
-          assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
-          print(f'{name}: {len(data)} bytes')
+          for name in ('contracts-task-list.png', 'profile-ledger.png'):
+              data = Path(name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n'), f'{name} is not a PNG'
+              print(f'{name}: {len(data)} bytes')
           PY
 
       - name: Upload meta diagnostics
@@ -145,8 +157,10 @@ jobs:
           name: steamforge-meta-visual
           path: |
             contracts-task-list.png
+            profile-ledger.png
             contracts-visual-instrumentation.txt
             home-visual-instrumentation.txt
+            profile-visual-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -162,3 +176,5 @@ jobs:
           cat contracts-visual-instrumentation.txt || true
           echo '=== Home instrumentation ==='
           cat home-visual-instrumentation.txt || true
+          echo '=== Profile instrumentation ==='
+          cat profile-visual-instrumentation.txt || true

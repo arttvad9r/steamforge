@@ -55,8 +55,21 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val profile = ui.profile
+    ProfileContent(
+        profile = ui.profile,
+        onBack = onBack,
+        onAchievements = onAchievements,
+        modifier = modifier,
+    )
+}
 
+@Composable
+fun ProfileContent(
+    profile: PermanentProfileSnapshot,
+    onBack: () -> Unit,
+    onAchievements: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SteamBackdrop(modifier) {
         Column(
             modifier = Modifier
@@ -87,38 +100,12 @@ fun ProfileScreen(
             Spacer(Modifier.height(12.dp))
 
             ProfileHero(profile)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(13.dp))
 
-            Text("СТАТИСТИКА", style = MaterialTheme.typography.labelLarge, color = BrassBright)
+            Text("ИСТОРИЯ ПАРТИЙ", style = MaterialTheme.typography.labelLarge, color = BrassBright)
             Spacer(Modifier.height(7.dp))
-            StatPair(
-                leftLabel = "ПАРТИЙ",
-                leftValue = grouped(profile.gamesPlayed.toLong()),
-                rightLabel = "ВСЕГО ОЧКОВ",
-                rightValue = grouped(profile.totalScore),
-            )
-            Spacer(Modifier.height(7.dp))
-            StatPair(
-                leftLabel = "РЕКОРД",
-                leftValue = grouped(profile.bestScore.toLong()),
-                rightLabel = "ЛУЧШАЯ ДЕТАЛЬ",
-                rightValue = if (profile.highestTile > 0) grouped(profile.highestTile.toLong()) else "—",
-            )
-            Spacer(Modifier.height(7.dp))
-            StatPair(
-                leftLabel = "ОБЪЕДИНЕНИЙ",
-                leftValue = grouped(profile.totalMerges.toLong()),
-                rightLabel = "МАКС. КОМБО",
-                rightValue = if (profile.largestCombo > 0) "×${profile.largestCombo}" else "—",
-            )
-            Spacer(Modifier.height(7.dp))
-            ProfileStatCard(
-                label = "ЛУЧШАЯ ЕЖЕДНЕВНАЯ СЕРИЯ",
-                value = if (profile.highestDailyStreak > 0) "${profile.highestDailyStreak} дн." else "—",
-                modifier = Modifier.fillMaxWidth(),
-                accent = TealGlow,
-            )
-            Spacer(Modifier.height(12.dp))
+            ProfileLedger(profile)
+            Spacer(Modifier.height(13.dp))
 
             Text("ПОСТОЯННЫЙ ПРОГРЕСС", style = MaterialTheme.typography.labelLarge, color = BrassBright)
             Spacer(Modifier.height(7.dp))
@@ -133,7 +120,7 @@ fun ProfileScreen(
 @Composable
 private fun ProfileHero(profile: PermanentProfileSnapshot) {
     val shape = RoundedCornerShape(14.dp)
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
@@ -141,41 +128,107 @@ private fun ProfileHero(profile: PermanentProfileSnapshot) {
             .border(1.dp, Brass.copy(alpha = 0.24f), shape)
             .padding(horizontal = 13.dp, vertical = 12.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "Профиль мастерской: уровень ${profile.level}, рекорд ${profile.bestScore}"
+                contentDescription = "Профиль мастерской: уровень ${profile.level}, рекорд ${profile.bestScore}, " +
+                    "лучшая деталь ${profile.highestTile}"
             },
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .width(58.dp)
-                .height(58.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Recess)
-                .border(1.dp, TealGlow.copy(alpha = 0.32f), RoundedCornerShape(18.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("⚙", style = MaterialTheme.typography.headlineSmall, color = BrassBright)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .width(58.dp)
+                    .height(58.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Recess)
+                    .border(1.dp, TealGlow.copy(alpha = 0.32f), RoundedCornerShape(18.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("⚙", style = MaterialTheme.typography.headlineSmall, color = BrassBright)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("МАСТЕР STEAMFORGE", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+                Text(
+                    "Уровень ${profile.level} · ${grouped(profile.gamesPlayed.toLong())} партий",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 2,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text("РЕКОРД", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                Text(grouped(profile.bestScore.toLong()), style = MaterialTheme.typography.titleLarge, color = BrassBright)
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("МАСТЕР STEAMFORGE", style = MaterialTheme.typography.titleMedium, color = TextWarm)
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.045f)))
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("ЛУЧШАЯ ДЕТАЛЬ", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = TextMuted)
             Text(
-                "${profile.gamesPlayed} партий · ${profile.collectionsCompleted}/${profile.collectionsTotal} коллекций",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted,
-                maxLines = 2,
+                if (profile.highestTile > 0) grouped(profile.highestTile.toLong()) else "—",
+                style = MaterialTheme.typography.titleMedium,
+                color = TealGlow,
             )
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text("РЕКОРД", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-            Text(grouped(profile.bestScore.toLong()), style = MaterialTheme.typography.titleLarge, color = BrassBright)
         }
     }
 }
 
 @Composable
-private fun StatPair(
+private fun ProfileLedger(profile: PermanentProfileSnapshot) {
+    val shape = RoundedCornerShape(13.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Panel.copy(alpha = 0.46f))
+            .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        LedgerPair(
+            leftLabel = "ПАРТИЙ",
+            leftValue = grouped(profile.gamesPlayed.toLong()),
+            rightLabel = "ВСЕГО ОЧКОВ",
+            rightValue = grouped(profile.totalScore),
+        )
+        LedgerDivider()
+        LedgerPair(
+            leftLabel = "ОБЪЕДИНЕНИЙ",
+            leftValue = grouped(profile.totalMerges.toLong()),
+            rightLabel = "МАКС. КОМБО",
+            rightValue = if (profile.largestCombo > 0) "×${profile.largestCombo}" else "—",
+        )
+        LedgerDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .padding(vertical = 8.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "ЛУЧШАЯ ЕЖЕДНЕВНАЯ СЕРИЯ: ${dailyStreak(profile.highestDailyStreak)}"
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "ЛУЧШАЯ ЕЖЕДНЕВНАЯ СЕРИЯ",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted,
+                maxLines = 2,
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                dailyStreak(profile.highestDailyStreak),
+                style = MaterialTheme.typography.titleMedium,
+                color = TealGlow,
+                textAlign = TextAlign.End,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LedgerPair(
     leftLabel: String,
     leftValue: String,
     rightLabel: String,
@@ -183,35 +236,49 @@ private fun StatPair(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        ProfileStatCard(leftLabel, leftValue, Modifier.weight(1f))
-        ProfileStatCard(rightLabel, rightValue, Modifier.weight(1f))
+        LedgerMetric(leftLabel, leftValue, Modifier.weight(1f))
+        LedgerMetric(rightLabel, rightValue, Modifier.weight(1f), alignEnd = true)
     }
 }
 
 @Composable
-private fun ProfileStatCard(
+private fun LedgerMetric(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    accent: Color = TextWarm,
+    alignEnd: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = modifier
-            .heightIn(min = 72.dp)
-            .clip(shape)
-            .background(Panel.copy(alpha = 0.46f))
-            .border(1.dp, Color.White.copy(alpha = 0.055f), shape)
-            .padding(horizontal = 11.dp, vertical = 9.dp)
+            .heightIn(min = 62.dp)
+            .padding(vertical = 8.dp)
             .semantics(mergeDescendants = true) { contentDescription = "$label: $value" },
+        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = TextMuted, maxLines = 2)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted,
+            textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+            maxLines = 2,
+        )
         Spacer(Modifier.height(2.dp))
-        Text(value, style = MaterialTheme.typography.titleLarge, color = accent, maxLines = 1)
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            color = TextWarm,
+            textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+            maxLines = 1,
+        )
     }
+}
+
+@Composable
+private fun LedgerDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.04f)))
 }
 
 @Composable
@@ -243,25 +310,31 @@ private fun PermanentProgressCard(profile: PermanentProfileSnapshot) {
 
 @Composable
 private fun ProgressRow(label: String, value: String, fraction: Float) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = TextWarm)
-        Text(value, style = MaterialTheme.typography.labelMedium, color = TealGlow, textAlign = TextAlign.End)
-    }
-    Spacer(Modifier.height(6.dp))
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(7.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Recess),
+    Column(
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$label: $value"
+        },
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = TextWarm)
+            Text(value, style = MaterialTheme.typography.labelMedium, color = TealGlow, textAlign = TextAlign.End)
+        }
+        Spacer(Modifier.height(6.dp))
         Box(
             Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .fillMaxWidth()
                 .height(7.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(TealGlow.copy(alpha = 0.72f)),
-        )
+                .background(Recess),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(TealGlow.copy(alpha = 0.72f)),
+            )
+        }
     }
 }
 
@@ -292,6 +365,8 @@ private fun AchievementsEntry(unlocked: Int, onClick: () -> Unit) {
         Text("›", style = MaterialTheme.typography.titleLarge, color = BrassBright)
     }
 }
+
+private fun dailyStreak(value: Int): String = if (value > 0) "$value дн." else "—"
 
 private fun grouped(value: Long): String {
     val safe = value.coerceAtLeast(0L).toString()
