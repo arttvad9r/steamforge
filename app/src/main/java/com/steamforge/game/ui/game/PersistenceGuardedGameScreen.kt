@@ -16,7 +16,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +37,9 @@ import com.steamforge.game.theme.TextMuted
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamDecisionDialog
+import kotlinx.coroutines.delay
+
+private const val TERMINAL_WRITE_DIALOG_DELAY_MS = 350L
 
 internal enum class FirstRunOnboardingPhase {
     NONE,
@@ -53,6 +60,12 @@ internal fun firstRunOnboardingPhase(
     return FirstRunOnboardingPhase.NONE
 }
 
+internal fun terminalPersistenceDialogVisible(
+    inProgress: Boolean,
+    failed: Boolean,
+    delayElapsed: Boolean,
+): Boolean = failed || (inProgress && delayElapsed)
+
 @Composable
 fun PersistenceGuardedGameScreen(
     vm: GameViewModel,
@@ -63,6 +76,7 @@ fun PersistenceGuardedGameScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val terminalWritePending = ui.finishPersistenceInProgress || ui.finishPersistenceFailed
+    var terminalWriteDelayElapsed by remember { mutableStateOf(false) }
     val onboardingPhase = firstRunOnboardingPhase(
         isFirstGame = isFirstGame,
         moves = ui.state.moves,
@@ -70,6 +84,19 @@ fun PersistenceGuardedGameScreen(
         finished = ui.finished,
         removingMode = ui.removingMode,
     )
+
+    LaunchedEffect(ui.finishPersistenceInProgress, ui.finishPersistenceFailed) {
+        when {
+            ui.finishPersistenceFailed -> terminalWriteDelayElapsed = true
+            ui.finishPersistenceInProgress -> {
+                terminalWriteDelayElapsed = false
+                delay(TERMINAL_WRITE_DIALOG_DELAY_MS)
+                terminalWriteDelayElapsed = vm.ui.value.finishPersistenceInProgress &&
+                    !vm.ui.value.finishPersistenceFailed
+            }
+            else -> terminalWriteDelayElapsed = false
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compactLandscape = maxWidth > maxHeight && maxHeight < 600.dp
@@ -97,7 +124,13 @@ fun PersistenceGuardedGameScreen(
         }
     }
 
-    if (terminalWritePending) {
+    if (
+        terminalPersistenceDialogVisible(
+            inProgress = ui.finishPersistenceInProgress,
+            failed = ui.finishPersistenceFailed,
+            delayElapsed = terminalWriteDelayElapsed,
+        )
+    ) {
         SteamDecisionDialog(
             title = if (ui.finishPersistenceFailed) "РЕЗУЛЬТАТ НЕ СОХРАНЁН" else "СОХРАНЯЕМ РЕЗУЛЬТАТ",
             onDismissRequest = { },
