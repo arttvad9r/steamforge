@@ -14,6 +14,7 @@ import com.steamforge.game.progression.RewardSystem
 import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
 import com.steamforge.game.progression.continuingDailyRewardStreak
+import java.io.IOException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -125,48 +126,54 @@ class WorkshopViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorkshopUiState())
 
-    fun upgradeMechanism(mechanism: WorkshopMechanism) {
-        viewModelScope.launch {
-            val workshopCfg = remoteConfigProvider.snapshot.value.config.toProgressionConfig(cfg)
-            repo.updateProgress { p ->
-                WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
-            }
+    fun upgradeMechanism(mechanism: WorkshopMechanism) = launchPersistenceWrite {
+        val workshopCfg = remoteConfigProvider.snapshot.value.config.toProgressionConfig(cfg)
+        repo.updateProgress { p ->
+            WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
         }
     }
 
     fun upgradeCore() = upgradeMechanism(WorkshopMechanism.CORE)
 
-    fun claimDailyReward() {
-        viewModelScope.launch {
-            repo.updateProgress { p ->
-                val todayDay = today()
-                if (p.dailyRewardDay == todayDay) return@updateProgress p
-                val continuingStreak = continuingDailyRewardStreak(
-                    lastClaimDay = p.dailyRewardDay,
-                    storedStreak = p.dailyRewardStreak,
-                    today = todayDay,
-                )
-                val nextStreak = continuingStreak + 1
-                val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
-                val rewardDay = ((nextStreak - 1) % cycle) + 1
-                val rewards = buildList<Reward> {
-                    add(Reward.Gems(cfg.dailyRewardGems(rewardDay)))
-                    val workshopParts = cfg.dailyRewardWorkshopParts.coerceAtLeast(0)
-                    if (workshopParts > 0) add(Reward.WorkshopParts(workshopParts))
-                    if (rewardDay == cycle) add(Reward.CosmeticUnlock("gold_gauge"))
-                }
-                val (rewarded, _) = RewardSystem.apply(p, rewards)
-                rewarded.copy(
-                    dailyRewardDay = todayDay,
-                    dailyRewardStreak = nextStreak,
-                    stats = rewarded.stats.copy(
-                        highestDailyStreak = maxOf(
-                            rewarded.stats.highestDailyStreak,
-                            p.dailyRewardStreak,
-                            nextStreak,
-                        ),
+    fun claimDailyReward() = launchPersistenceWrite {
+        repo.updateProgress { p ->
+            val todayDay = today()
+            if (p.dailyRewardDay == todayDay) return@updateProgress p
+            val continuingStreak = continuingDailyRewardStreak(
+                lastClaimDay = p.dailyRewardDay,
+                storedStreak = p.dailyRewardStreak,
+                today = todayDay,
+            )
+            val nextStreak = continuingStreak + 1
+            val cycle = cfg.dailyRewardCycle.coerceAtLeast(1)
+            val rewardDay = ((nextStreak - 1) % cycle) + 1
+            val rewards = buildList<Reward> {
+                add(Reward.Gems(cfg.dailyRewardGems(rewardDay)))
+                val workshopParts = cfg.dailyRewardWorkshopParts.coerceAtLeast(0)
+                if (workshopParts > 0) add(Reward.WorkshopParts(workshopParts))
+                if (rewardDay == cycle) add(Reward.CosmeticUnlock("gold_gauge"))
+            }
+            val (rewarded, _) = RewardSystem.apply(p, rewards)
+            rewarded.copy(
+                dailyRewardDay = todayDay,
+                dailyRewardStreak = nextStreak,
+                stats = rewarded.stats.copy(
+                    highestDailyStreak = maxOf(
+                        rewarded.stats.highestDailyStreak,
+                        p.dailyRewardStreak,
+                        nextStreak,
                     ),
-                )
+                ),
+            )
+        }
+    }
+
+    private fun launchPersistenceWrite(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (_: IOException) {
+                // Keep the last durable state; the action remains available for a later retry.
             }
         }
     }

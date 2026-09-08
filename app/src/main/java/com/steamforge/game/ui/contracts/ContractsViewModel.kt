@@ -12,6 +12,7 @@ import com.steamforge.game.progression.ContractType
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.scaledWorkshopParts
+import java.io.IOException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -138,29 +139,37 @@ class ContractsViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ContractsUiState())
 
-    fun claim(contractId: String) {
+    fun claim(contractId: String) = launchPersistenceWrite {
+        val day = today()
+        val rewardMultiplier = remoteConfigProvider.snapshot.value.config
+            .sanitized()
+            .contractRewardMultiplier
+
+        repo.updateProgress { progress ->
+            val ledger = DailyContracts.normalized(progress.contracts, day)
+            val blueprintAvailable = !BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
+            val contract = DailyContracts.forEpochDay(day, blueprintAvailable)
+                .firstOrNull { it.id == contractId }
+                ?: return@updateProgress progress
+            if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) {
+                return@updateProgress progress
+            }
+
+            DailyContracts.claim(
+                progress = progress,
+                day = day,
+                contractId = contractId,
+                workshopPartsMultiplier = rewardMultiplier,
+            )
+        }
+    }
+
+    private fun launchPersistenceWrite(block: suspend () -> Unit) {
         viewModelScope.launch {
-            val day = today()
-            val rewardMultiplier = remoteConfigProvider.snapshot.value.config
-                .sanitized()
-                .contractRewardMultiplier
-
-            repo.updateProgress { progress ->
-                val ledger = DailyContracts.normalized(progress.contracts, day)
-                val blueprintAvailable = !BlueprintCollections.isSteamEngineComplete(progress.blueprintPieces)
-                val contract = DailyContracts.forEpochDay(day, blueprintAvailable)
-                    .firstOrNull { it.id == contractId }
-                    ?: return@updateProgress progress
-                if (contract.id in ledger.claimedIds || !DailyContracts.isComplete(contract, ledger)) {
-                    return@updateProgress progress
-                }
-
-                DailyContracts.claim(
-                    progress = progress,
-                    day = day,
-                    contractId = contractId,
-                    workshopPartsMultiplier = rewardMultiplier,
-                )
+            try {
+                block()
+            } catch (_: IOException) {
+                // Keep the last durable state; the claim remains available for a later retry.
             }
         }
     }
