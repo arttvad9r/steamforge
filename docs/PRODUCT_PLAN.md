@@ -55,6 +55,9 @@ Already implemented/current:
 - gameplay visual passes #156–158: premium materials, reduced chrome and expanded portrait/tablet board;
 - focused meta visual passes across Contracts/Daily, Home, Profile, Achievements, Workshop and Blueprints (#172–176, #182–184);
 - Home stops continuous core animation when the Animations setting is disabled (#184);
+- Settings has dedicated production visual-regression coverage with blank-capture rejection (#188);
+- historical Contracts-specific save/finish persistence APIs were removed after normal transactions absorbed that accounting (#189);
+- Daily Challenge reward claims retry transient I/O while preserving idempotency across ambiguous commit outcomes (#190);
 - advertising SDK/runtime completely removed;
 - AppMetrica/user analytics SDK/runtime completely removed;
 - analytics/ad consent and Settings surfaces removed;
@@ -191,7 +194,7 @@ Create/reuse one coherent system for:
 
 Avoid adding permanent bottom navigation or decorative frames to gameplay if they weaken board dominance.
 
-**Status:** focused passes are merged for Home, Workshop, Blueprints, Contracts/Daily, Profile and Achievements. Settings already uses the shared components but still needs dedicated visual-regression coverage and final whole-app acceptance.
+**Status:** focused passes are merged for Home, Workshop, Blueprints, Contracts/Daily, Profile and Achievements. Settings uses the shared components and now has dedicated production visual-regression coverage (#188); final whole-app acceptance remains open.
 
 ### Phase 4 — Workshop presentation v2
 
@@ -227,7 +230,7 @@ GameViewModel
 └─ UI state + user intents
 ```
 
-No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier. Prefer small behavior-preserving extractions that remove demonstrated duplication or risk.
+No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier. Prefer small behavior-preserving extractions that remove demonstrated duplication or risk. Historical Contracts-specific save/finish repository API variants were removed in #189 after their behavior moved into the normal transactions.
 
 ### Phase 6 — Reward layer consolidation
 
@@ -246,7 +249,7 @@ Current reward domain includes Workshop Parts, Gems, Blueprint Pieces and cosmet
 Before expanding progression systems:
 
 - keep future positive grants on `RewardSystem` where that improves consistency;
-- keep claim/source idempotency in repository transactions;
+- keep claim/source idempotency in repository transactions; Daily Challenge now also retries transient/ambiguous persistence I/O without double-granting (#190);
 - do not introduce parallel reward-application paths;
 - extend the existing reward domain only when a current product feature requires it.
 
