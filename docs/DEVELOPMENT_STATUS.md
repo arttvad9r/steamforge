@@ -26,6 +26,7 @@ Implemented:
 - Contracts;
 - Workshop progression;
 - Blueprint Collection foundation;
+- authoritative `RewardSystem` for positive gameplay/meta rewards;
 - achievements;
 - offline-safe core behavior.
 
@@ -133,7 +134,7 @@ Do not perform a broad architecture rewrite before it is needed by current gamep
 3. Whole-app visual system consistency.
 4. Workshop visible restoration/meta presentation.
 5. Targeted architecture cleanup where it reduces friction for the above work.
-6. Universal reward layer and richer meta systems.
+6. Consolidate remaining reward call sites on the existing `RewardSystem`, then evolve richer meta systems.
 7. Weekly/LiveOps/social only later.
 
 ## Explicitly deferred
