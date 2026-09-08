@@ -43,6 +43,7 @@ Already implemented/current:
 - Daily Challenge / daily reward;
 - Contracts and initial Blueprint Collection;
 - Workshop Parts / return-loop slices;
+- authoritative `RewardSystem` for Workshop Parts, Gems, Blueprint Pieces and cosmetic unlocks;
 - offline-safe Remote Config foundation;
 - deterministic Weekly/replay/ranking foundations in separate modules;
 - Android CI, lifecycle, accessibility, adaptive-window, 16 KiB and performance diagnostics;
@@ -207,9 +208,9 @@ GameViewModel
 
 No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier.
 
-### Phase 6 — Universal Reward layer
+### Phase 6 — Reward layer consolidation
 
-Create one authoritative reward application path before expanding progression systems.
+The authoritative positive-reward application path already exists:
 
 ```text
 source
@@ -219,7 +220,12 @@ source
 → presentation
 ```
 
-Initial reward domain may include current soft resources, Workshop Parts, Blueprint Pieces and cosmetic unlocks.
+Current reward domain includes Workshop Parts, Gems, Blueprint Pieces and cosmetic unlocks. Before expanding progression systems:
+
+- route any remaining direct positive grants through `RewardSystem` where that improves consistency;
+- keep claim/source idempotency in repository transactions;
+- do not introduce parallel reward-application paths;
+- extend the existing reward domain only when a current product feature requires it.
 
 ### Phase 7 — Contracts / Blueprints evolution
 
