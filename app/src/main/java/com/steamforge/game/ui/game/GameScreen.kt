@@ -98,12 +98,14 @@ import com.steamforge.game.ui.components.SteamBackdrop
 import com.steamforge.game.ui.components.SteamButton
 import com.steamforge.game.ui.components.SteamButtonStyle
 import com.steamforge.game.ui.components.SteamPanel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 private const val MOVE_MS = 110
 private const val POP_MS = 140
 private const val SPAWN_MS = 130
+private val TURN_SETTLE_MS = MOVE_MS + maxOf(POP_MS, SPAWN_MS)
 
 @Composable
 fun GameScreen(
@@ -118,12 +120,50 @@ fun GameScreen(
     var prevOverdrive by remember { mutableIntStateOf(0) }
     var prevFinished by remember { mutableStateOf(false) }
     var prevWon by remember { mutableStateOf(false) }
+    var winOverlayReady by remember { mutableStateOf(false) }
+    var turnAnimating by remember { mutableStateOf(false) }
+    val moveRequests = remember(vm) { Channel<Move>(capacity = Channel.CONFLATED) }
+
+    LaunchedEffect(vm, ui.animationsActive) {
+        if (!ui.animationsActive) {
+            while (moveRequests.tryReceive().isSuccess) {
+                // Drop animation-era buffered input when motion is disabled.
+            }
+            turnAnimating = false
+            return@LaunchedEffect
+        }
+        try {
+            for (move in moveRequests) {
+                val beforeMoves = vm.ui.value.state.moves
+                vm.onMove(move)
+                if (vm.ui.value.state.moves != beforeMoves) {
+                    turnAnimating = true
+                    delay(TURN_SETTLE_MS.toLong())
+                    turnAnimating = false
+                }
+            }
+        } finally {
+            turnAnimating = false
+        }
+    }
+
+    val requestMove: (Move) -> Unit = remember(vm, ui.animationsActive, moveRequests) {
+        { move ->
+            if (ui.animationsActive) {
+                moveRequests.trySend(move)
+                Unit
+            } else {
+                vm.onMove(move)
+            }
+        }
+    }
 
     fun performGameplayHaptic(feedbackConstant: Int) {
         if (ui.hapticsEnabled) ViewCompat.performHapticFeedback(view, feedbackConstant)
     }
 
     fun undoWithFeedback() {
+        if (turnAnimating) return
         val beforeUndo = vm.ui.value.state
         vm.undo()
         if (vm.ui.value.state != beforeUndo) {
@@ -135,6 +175,7 @@ fun GameScreen(
     LaunchedEffect(ui.lastResult) {
         val res = ui.lastResult ?: return@LaunchedEffect
         if (res.merges.isNotEmpty()) {
+            if (ui.animationsActive) delay(MOVE_MS.toLong())
             val maxLevel = res.merges.maxOf { it.tile.level }
             val feedback = mergeFeedbackProfile(maxLevel, res.merges.size)
             sfx.play(
@@ -152,6 +193,7 @@ fun GameScreen(
     }
     LaunchedEffect(ui.overdriveRemaining) {
         if (ui.overdriveRemaining > 0 && prevOverdrive == 0) {
+            if (ui.animationsActive) delay(MOVE_MS.toLong())
             sfx.play(Sfx.OVERDRIVE)
             performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
         }
@@ -164,11 +206,27 @@ fun GameScreen(
         }
         prevFinished = ui.finished
     }
-    LaunchedEffect(ui.winCelebrated) {
-        if (ui.winCelebrated && !prevWon) {
+    LaunchedEffect(
+        ui.winCelebrated,
+        ui.winBannerShown,
+        ui.animationsActive,
+        ui.finishPersistenceInProgress,
+    ) {
+        if (!ui.winCelebrated || ui.winBannerShown || ui.finishPersistenceInProgress) {
+            winOverlayReady = false
+            prevWon = ui.winCelebrated
+            return@LaunchedEffect
+        }
+        if (!prevWon) {
+            if (ui.animationsActive) delay(TURN_SETTLE_MS.toLong())
+            if (vm.ui.value.finished) {
+                prevWon = true
+                return@LaunchedEffect
+            }
             sfx.play(Sfx.WIN)
             performGameplayHaptic(HapticFeedbackConstantsCompat.CONFIRM)
         }
+        winOverlayReady = true
         prevWon = ui.winCelebrated
     }
 
@@ -188,10 +246,10 @@ fun GameScreen(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> vm.onMove(Move.LEFT)
-                    Key.DirectionRight -> vm.onMove(Move.RIGHT)
-                    Key.DirectionUp -> vm.onMove(Move.UP)
-                    Key.DirectionDown -> vm.onMove(Move.DOWN)
+                    Key.DirectionLeft -> requestMove(Move.LEFT)
+                    Key.DirectionRight -> requestMove(Move.RIGHT)
+                    Key.DirectionUp -> requestMove(Move.UP)
+                    Key.DirectionDown -> requestMove(Move.DOWN)
                     else -> return@onPreviewKeyEvent false
                 }
                 true
@@ -223,7 +281,7 @@ fun GameScreen(
                             removingMode = ui.removingMode,
                             canRemove = vm::canRemoveTile,
                             onTileClick = vm::removeTile,
-                            onSwipe = vm::onMove,
+                            onSwipe = requestMove,
                             modifier = Modifier.size(boardSize),
                         )
                     }
@@ -305,14 +363,14 @@ fun GameScreen(
                                 ToolButton(
                                     symbol = "↶",
                                     label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
-                                    active = ui.canUndo && !ui.finished,
+                                    active = ui.canUndo && !ui.finished && !turnAnimating,
                                     onClick = ::undoWithFeedback,
                                     modifier = Modifier.weight(1f),
                                 )
                                 ToolButton(
                                     symbol = "⚒",
                                     label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
-                                    active = !ui.finished,
+                                    active = !ui.finished && !turnAnimating,
                                     selected = ui.removingMode,
                                     onClick = vm::toggleRemovingMode,
                                     modifier = Modifier.weight(1f),
@@ -376,7 +434,7 @@ fun GameScreen(
                         removingMode = ui.removingMode,
                         canRemove = vm::canRemoveTile,
                         onTileClick = vm::removeTile,
-                        onSwipe = vm::onMove,
+                        onSwipe = requestMove,
                         modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -402,14 +460,14 @@ fun GameScreen(
                         ToolButton(
                             symbol = "↶",
                             label = if (ui.freeUndosLeft > 0) "ОТМЕНА ${ui.freeUndosLeft}" else "ОТМЕНА ◆5",
-                            active = ui.canUndo && !ui.finished,
+                            active = ui.canUndo && !ui.finished && !turnAnimating,
                             onClick = ::undoWithFeedback,
                             modifier = Modifier.weight(1f),
                         )
                         ToolButton(
                             symbol = "⚒",
                             label = if (ui.removingMode) "ВЫБЕРИ ПЛИТКУ" else "КЛЮЧ ◆10",
-                            active = !ui.finished,
+                            active = !ui.finished && !turnAnimating,
                             selected = ui.removingMode,
                             onClick = vm::toggleRemovingMode,
                             modifier = Modifier.weight(1f),
@@ -426,7 +484,7 @@ fun GameScreen(
             onRestart = vm::restart,
             onExit = ::leave,
         )
-    } else if (ui.winCelebrated && !ui.winBannerShown) {
+    } else if (ui.winCelebrated && !ui.winBannerShown && winOverlayReady) {
         CoreOnlineOverlay(onContinue = vm::markWinBannerShown, onExit = ::leave)
     }
 }
