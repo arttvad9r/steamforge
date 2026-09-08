@@ -44,6 +44,7 @@ data class HomeUiState(
     val dailyDone: Boolean = false,
     val dailyRewardStreak: Int = 0,
     val hasSavedRun: Boolean = false,
+    val animationsEnabled: Boolean = true,
     val featureVisibility: HomeFeatureVisibility = HomeFeatureVisibility(),
 )
 
@@ -68,6 +69,7 @@ class HomeViewModel(
                 today = todayDay,
             ),
             hasSavedRun = savedGame != null,
+            animationsEnabled = progress.animationsEnabled,
             featureVisibility = homeFeatureVisibility(
                 gamesPlayed = progress.stats.gamesPlayed,
                 activeRunMerges = savedGame?.mergesTotal ?: 0,
