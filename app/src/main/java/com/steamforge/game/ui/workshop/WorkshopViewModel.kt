@@ -14,6 +14,7 @@ import com.steamforge.game.progression.RewardSystem
 import com.steamforge.game.progression.WorkshopMechanism
 import com.steamforge.game.progression.WorkshopProgression
 import com.steamforge.game.progression.continuingDailyRewardStreak
+import java.io.IOException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -126,7 +127,7 @@ class WorkshopViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorkshopUiState())
 
     fun upgradeMechanism(mechanism: WorkshopMechanism) {
-        viewModelScope.launch {
+        launchPersistenceWrite {
             val workshopCfg = remoteConfigProvider.snapshot.value.config.toProgressionConfig(cfg)
             repo.updateProgress { p ->
                 WorkshopProgression.upgradeMechanism(p, mechanism, workshopCfg)
@@ -137,7 +138,7 @@ class WorkshopViewModel(
     fun upgradeCore() = upgradeMechanism(WorkshopMechanism.CORE)
 
     fun claimDailyReward() {
-        viewModelScope.launch {
+        launchPersistenceWrite {
             repo.updateProgress { p ->
                 val todayDay = today()
                 if (p.dailyRewardDay == todayDay) return@updateProgress p
@@ -167,6 +168,16 @@ class WorkshopViewModel(
                         ),
                     ),
                 )
+            }
+        }
+    }
+
+    private fun launchPersistenceWrite(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (_: IOException) {
+                // Keep the last durable state visible; a later user action can retry the write.
             }
         }
     }
