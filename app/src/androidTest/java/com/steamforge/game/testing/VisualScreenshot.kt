@@ -1,8 +1,11 @@
 package com.steamforge.game.testing
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertTrue
@@ -13,9 +16,7 @@ internal fun captureVisualScreenshot(
 ) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     instrumentation.waitForIdleSync()
-    val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot()) {
-        "$label screenshot capture returned null"
-    }
+    val screenshot = captureResumedActivityWindow()
     val output = File(instrumentation.targetContext.cacheDir, fileName)
     try {
         assertScreenshotHasVisualContent(screenshot, label)
@@ -27,6 +28,26 @@ internal fun captureVisualScreenshot(
         screenshot.recycle()
     }
     assertTrue("$label screenshot was not written", output.length() > 0L)
+}
+
+private fun captureResumedActivityWindow(): Bitmap {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    var screenshot: Bitmap? = null
+    instrumentation.runOnMainSync {
+        val activity = requireNotNull(
+            ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED)
+                .singleOrNull(),
+        ) { "Expected exactly one resumed activity for visual capture" }
+        val decor = activity.window.decorView
+        require(decor.width > 0 && decor.height > 0) {
+            "Visual capture decor has invalid size ${decor.width}x${decor.height}"
+        }
+        screenshot = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888).also { bitmap ->
+            decor.draw(Canvas(bitmap))
+        }
+    }
+    return requireNotNull(screenshot) { "Visual capture did not produce a bitmap" }
 }
 
 private fun assertScreenshotHasVisualContent(bitmap: Bitmap, label: String) {
