@@ -116,24 +116,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         }
     }
 
-    override suspend fun saveGameWithContractProgress(state: SavedGame, day: Long) {
-        context.dataStore.edit { prefs ->
-            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val runSeed = state.seed
-            prefs[Keys.game] = GameSaveCodec.encode(state)
-            if (runSeed == null) return@edit
-
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                snapshot = contractSnapshot(base, state, previousSaved),
-            )
-            writeProgress(prefs, updated)
-        }
-    }
-
     override suspend fun clearGame() {
         context.dataStore.edit { it.remove(Keys.game) }
     }
@@ -167,41 +149,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 baseProgress
             }
             val (updated, effects) = finisher(base)
-            prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
-            prefs.remove(Keys.game)
-            writeProgress(prefs, updated)
-        }
-    }
-
-    override suspend fun applyGameFinishWithContractProgress(
-        record: FinishedGameRecord,
-        summary: GameSummary,
-        day: Long,
-        runSeed: Long,
-        finisher: (PlayerProgress) -> Pair<PlayerProgress, com.steamforge.game.progression.FinishEffects>,
-    ) {
-        context.dataStore.edit { prefs ->
-            val existingFinished = prefs[Keys.finishedGame]?.let(FinishedGameCodec::decode)
-            if (existingFinished?.id == record.id) {
-                prefs.remove(Keys.game)
-                return@edit
-            }
-
-            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val finalSaved = GameSaveCodec.decode(record.state)
-            val finalSnapshot = if (finalSaved?.seed == runSeed) {
-                contractSnapshot(base, finalSaved, previousSaved)
-            } else {
-                ContractCounters.fromSummary(summary)
-            }
-            val withContracts = DailyContracts.recordFinishedRun(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                snapshot = finalSnapshot,
-            )
-            val (updated, effects) = finisher(withContracts)
             prefs[Keys.finishedGame] = FinishedGameCodec.encode(record.withEffects(effects))
             prefs.remove(Keys.game)
             writeProgress(prefs, updated)
