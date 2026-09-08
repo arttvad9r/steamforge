@@ -17,14 +17,16 @@ class SoundLoadGateTest {
     }
 
     @Test
-    fun `pending request coalesces to latest playback`() {
+    fun `pending request coalesces to latest feedback across samples`() {
         val gate = SoundLoadGate()
         val first = PendingSoundPlayback(volume = 0.5f, rate = 1f)
         val latest = PendingSoundPlayback(volume = 1f, rate = 1.075f)
 
         assertNull(gate.request(sampleId = 3, playback = first))
-        assertNull(gate.request(sampleId = 3, playback = latest))
-        assertEquals(latest, gate.markLoaded(sampleId = 3, successful = true))
+        assertNull(gate.request(sampleId = 5, playback = latest))
+
+        assertNull(gate.markLoaded(sampleId = 3, successful = true))
+        assertEquals(latest, gate.markLoaded(sampleId = 5, successful = true))
     }
 
     @Test
