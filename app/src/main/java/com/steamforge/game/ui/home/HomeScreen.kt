@@ -158,7 +158,10 @@ internal fun HomeContent(
                 Spacer(Modifier.height(6.dp))
             }
 
-            HomeCoreScene(expanded = !visibility.showWorkshop)
+            HomeCoreScene(
+                expanded = !visibility.showWorkshop,
+                animationsEnabled = ui.animationsEnabled,
+            )
             Text(
                 "СОБЕРИТЕ МЕХАНИЧЕСКОЕ ЯДРО",
                 modifier = Modifier.fillMaxWidth(),
@@ -204,14 +207,22 @@ internal fun HomeContent(
 }
 
 @Composable
-private fun HomeCoreScene(expanded: Boolean) {
-    val transition = rememberInfiniteTransition(label = "home-core")
-    val angle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "home-core-angle",
-    )
+private fun HomeCoreScene(
+    expanded: Boolean,
+    animationsEnabled: Boolean,
+) {
+    val angle = if (animationsEnabled) {
+        val transition = rememberInfiniteTransition(label = "home-core")
+        val animated by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Restart),
+            label = "home-core-angle",
+        )
+        animated
+    } else {
+        0f
+    }
     val sceneHeight = if (expanded) 310.dp else 184.dp
     val reactorSize = if (expanded) 132.dp else 96.dp
 
