@@ -30,6 +30,19 @@ class SoundLoadGateTest {
     }
 
     @Test
+    fun `ready newer sample clears older pending feedback`() {
+        val gate = SoundLoadGate()
+        val stale = PendingSoundPlayback(volume = 0.5f, rate = 1f)
+        val latest = PendingSoundPlayback(volume = 1f, rate = 1.05f)
+
+        assertNull(gate.markLoaded(sampleId = 5, successful = true))
+        assertNull(gate.request(sampleId = 3, playback = stale))
+        assertEquals(latest, gate.request(sampleId = 5, playback = latest))
+
+        assertNull(gate.markLoaded(sampleId = 3, successful = true))
+    }
+
+    @Test
     fun `failed load and pending clear never replay stale feedback`() {
         val gate = SoundLoadGate()
         val playback = PendingSoundPlayback(volume = 1f, rate = 1f)
