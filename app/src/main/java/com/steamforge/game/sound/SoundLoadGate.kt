@@ -9,38 +9,39 @@ internal data class PendingSoundPlayback(
 /**
  * Keeps SoundPool's asynchronous loading boundary out of gameplay code.
  *
- * Requests for an already loaded sample are returned immediately. Requests that arrive while a sample is still
- * loading are coalesced to the latest request for that sample and returned from [markLoaded] once loading succeeds.
+ * Requests for an already loaded sample are returned immediately. While samples are still loading, only the latest
+ * gameplay feedback is retained globally so a slow cold start can never build an obsolete audio backlog.
  */
 internal class SoundLoadGate {
     private val loadedSampleIds = mutableSetOf<Int>()
-    private val pendingBySampleId = mutableMapOf<Int, PendingSoundPlayback>()
+    private var pending: Pair<Int, PendingSoundPlayback>? = null
 
     @Synchronized
     fun request(sampleId: Int, playback: PendingSoundPlayback): PendingSoundPlayback? {
         if (sampleId in loadedSampleIds) return playback
-        pendingBySampleId[sampleId] = playback
+        pending = sampleId to playback
         return null
     }
 
     @Synchronized
     fun markLoaded(sampleId: Int, successful: Boolean): PendingSoundPlayback? {
         if (!successful) {
-            pendingBySampleId.remove(sampleId)
+            if (pending?.first == sampleId) pending = null
             return null
         }
         loadedSampleIds += sampleId
-        return pendingBySampleId.remove(sampleId)
+        if (pending?.first != sampleId) return null
+        return pending?.second.also { pending = null }
     }
 
     @Synchronized
     fun clearPending() {
-        pendingBySampleId.clear()
+        pending = null
     }
 
     @Synchronized
     fun clear() {
-        pendingBySampleId.clear()
+        pending = null
         loadedSampleIds.clear()
     }
 }
