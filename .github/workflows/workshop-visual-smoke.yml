@@ -114,13 +114,15 @@ jobs:
             -e class com.steamforge.game.WorkshopBlueprintVisualTest \
             com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
             | tee workshop-visual-instrumentation.txt
-          grep -F 'OK (4 tests)' workshop-visual-instrumentation.txt
+          grep -F 'OK (5 tests)' workshop-visual-instrumentation.txt
           adb exec-out run-as com.steamforge.game cat cache/workshop-blueprint.png > workshop-blueprint.png
           adb exec-out run-as com.steamforge.game cat cache/workshop-hero.png > workshop-hero.png
+          adb exec-out run-as com.steamforge.game cat cache/workshop-restoration.png > workshop-restoration.png
           adb exec-out run-as com.steamforge.game cat cache/workshop-upgrades.png > workshop-upgrades.png
           adb exec-out run-as com.steamforge.game cat cache/workshop-meta-dock.png > workshop-meta-dock.png
           test -s workshop-blueprint.png
           test -s workshop-hero.png
+          test -s workshop-restoration.png
           test -s workshop-upgrades.png
           test -s workshop-meta-dock.png
           python3 - <<'PY'
@@ -128,6 +130,7 @@ jobs:
           for name in (
               'workshop-blueprint.png',
               'workshop-hero.png',
+              'workshop-restoration.png',
               'workshop-upgrades.png',
               'workshop-meta-dock.png',
           ):
@@ -144,6 +147,7 @@ jobs:
           path: |
             workshop-blueprint.png
             workshop-hero.png
+            workshop-restoration.png
             workshop-upgrades.png
             workshop-meta-dock.png
             workshop-visual-instrumentation.txt

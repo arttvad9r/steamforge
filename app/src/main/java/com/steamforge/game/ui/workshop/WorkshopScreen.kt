@@ -481,6 +481,7 @@ private fun WorkshopScene(
     gearPressStage: Int,
 ) {
     val machineryActive = coreStage >= 3 || pressureStage >= 3 || gearPressStage >= 3
+    val restorationUnits = (coreStage + pressureStage + gearPressStage).coerceIn(0, 12)
     val angle = if (animationsEnabled && machineryActive) {
         val transition = rememberInfiniteTransition(label = "gears")
         val animated by transition.animateFloat(
@@ -501,6 +502,159 @@ private fun WorkshopScene(
     ) {
         val c = center
         val min = size.minDimension
+        val restoration = restorationUnits / 12f
+        val bayTop = size.height * 0.17f
+        val bayBottom = size.height * 0.84f
+        val leftRail = size.width * 0.055f
+        val rightRail = size.width * 0.945f
+        val frame = BrassDark.copy(alpha = 0.20f + restoration * 0.28f)
+
+        // The machine now lives inside a persistent workshop bay rather than floating on a card.
+        // These structural elements are deliberately static; progression reveals/restores them without
+        // adding a continuous animation workload.
+        drawLine(frame, Offset(leftRail, bayTop), Offset(leftRail, bayBottom), 4.dp.toPx(), StrokeCap.Round)
+        drawLine(frame, Offset(rightRail, bayTop), Offset(rightRail, bayBottom), 4.dp.toPx(), StrokeCap.Round)
+        drawLine(frame, Offset(leftRail, bayTop), Offset(rightRail, bayTop), 3.dp.toPx(), StrokeCap.Round)
+        drawLine(
+            BrassDark.copy(alpha = 0.18f + restoration * 0.24f),
+            Offset(size.width * 0.08f, bayBottom),
+            Offset(size.width * 0.92f, bayBottom),
+            5.dp.toPx(),
+            StrokeCap.Round,
+        )
+        drawLine(
+            Color.Black.copy(alpha = 0.34f),
+            Offset(size.width * 0.10f, size.height * 0.89f),
+            Offset(size.width * 0.90f, size.height * 0.89f),
+            5.dp.toPx(),
+            StrokeCap.Round,
+        )
+
+        // Overhead work lights come online with the core and make the whole bay feel restored.
+        val lightsOn = coreStage >= 3
+        listOf(0.35f, 0.65f).forEach { xFraction ->
+            val lamp = Offset(size.width * xFraction, size.height * 0.205f)
+            drawLine(
+                frame,
+                Offset(lamp.x, bayTop),
+                Offset(lamp.x, lamp.y - min * 0.025f),
+                3.dp.toPx(),
+                StrokeCap.Round,
+            )
+            if (lightsOn) {
+                drawCircle(BrassBright.copy(alpha = 0.055f), radius = min * 0.12f, center = lamp)
+            }
+            drawCircle(
+                (if (lightsOn) BrassBright else BrassDark).copy(alpha = if (lightsOn) 0.72f else 0.38f),
+                radius = min * 0.025f,
+                center = lamp,
+            )
+        }
+
+        // The central pedestal is rebuilt first; broken states leave loose hardware on the floor.
+        if (coreStage >= 1) {
+            drawLine(
+                Brass.copy(alpha = 0.30f + coreStage * 0.08f),
+                Offset(c.x, size.height * 0.65f),
+                Offset(c.x, bayBottom),
+                7.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                BrassDark.copy(alpha = 0.58f),
+                Offset(c.x - min * 0.13f, bayBottom),
+                Offset(c.x + min * 0.13f, bayBottom),
+                7.dp.toPx(),
+                StrokeCap.Round,
+            )
+        } else {
+            drawLine(
+                Copper.copy(alpha = 0.38f),
+                Offset(size.width * 0.29f, size.height * 0.80f),
+                Offset(size.width * 0.38f, size.height * 0.84f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                BrassDark.copy(alpha = 0.52f),
+                Offset(size.width * 0.63f, size.height * 0.83f),
+                Offset(size.width * 0.70f, size.height * 0.78f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+
+        // Generator service pipe grows from an incomplete wall feed into a connected copper line.
+        val generatorService = Offset(size.width * 0.14f, size.height * 0.55f)
+        if (pressureStage >= 1) {
+            val pipe = Copper.copy(alpha = 0.28f + pressureStage * 0.10f)
+            drawLine(
+                pipe,
+                Offset(leftRail, size.height * 0.31f),
+                Offset(size.width * 0.14f, size.height * 0.31f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                pipe,
+                Offset(size.width * 0.14f, size.height * 0.31f),
+                Offset(generatorService.x, generatorService.y - min * 0.11f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (pressureStage >= 2) {
+            drawLine(
+                Copper.copy(alpha = 0.52f),
+                Offset(generatorService.x, generatorService.y - min * 0.11f),
+                Offset(generatorService.x, generatorService.y - min * 0.085f),
+                5.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (pressureStage >= 3) {
+            drawCircle(accent.copy(alpha = 0.56f), radius = min * 0.014f, center = Offset(size.width * 0.14f, size.height * 0.31f))
+        }
+
+        // The press gains its own structural/power feed as its restoration stage advances.
+        val pressService = Offset(size.width * 0.86f, size.height * 0.55f)
+        if (gearPressStage >= 1) {
+            drawLine(
+                Brass.copy(alpha = 0.24f + gearPressStage * 0.08f),
+                Offset(rightRail, size.height * 0.29f),
+                Offset(size.width * 0.86f, size.height * 0.29f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+            drawLine(
+                Brass.copy(alpha = 0.24f + gearPressStage * 0.08f),
+                Offset(size.width * 0.86f, size.height * 0.29f),
+                Offset(pressService.x, pressService.y - min * 0.12f),
+                4.dp.toPx(),
+                StrokeCap.Round,
+            )
+        }
+        if (gearPressStage >= 3) {
+            drawCircle(accent.copy(alpha = 0.52f), radius = min * 0.014f, center = Offset(size.width * 0.86f, size.height * 0.29f))
+        }
+
+        // A three-part power bus visually joins the rebuilt machines; each segment only lights when
+        // its corresponding mechanism is operational.
+        val busY = size.height * 0.84f
+        if (pressureStage >= 3) {
+            drawLine(accent.copy(alpha = 0.34f), Offset(size.width * 0.12f, busY), Offset(size.width * 0.36f, busY), 3.dp.toPx(), StrokeCap.Round)
+        }
+        if (coreStage >= 3) {
+            drawLine(accent.copy(alpha = 0.40f), Offset(size.width * 0.36f, busY), Offset(size.width * 0.64f, busY), 3.dp.toPx(), StrokeCap.Round)
+        }
+        if (gearPressStage >= 3) {
+            drawLine(accent.copy(alpha = 0.34f), Offset(size.width * 0.64f, busY), Offset(size.width * 0.88f, busY), 3.dp.toPx(), StrokeCap.Round)
+        }
+        if (restorationUnits >= 11) {
+            listOf(0.20f, 0.50f, 0.80f).forEach { xFraction ->
+                drawCircle(accent.copy(alpha = 0.70f), radius = min * 0.012f, center = Offset(size.width * xFraction, busY))
+            }
+        }
 
         drawCircle(Brass.copy(alpha = 0.045f + coreStage * 0.012f), radius = min * 0.44f, center = c)
 

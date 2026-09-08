@@ -110,6 +110,55 @@ class WorkshopBlueprintVisualTest {
     }
 
     @Test
+    fun machineryHeroMakesRestorationVisibleAcrossStages() {
+        composeRule.setContent {
+            SteamforgeTheme {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Background)
+                        .padding(18.dp),
+                ) {
+                    WorkshopHero(
+                        level = 1,
+                        levelInfo = LevelInfo(level = 1, xpIntoLevel = 0, xpToNext = 120),
+                        animationsEnabled = false,
+                        accent = TealGlow,
+                        gamesPlayed = 1,
+                        bestScore = 1_024,
+                        coreStage = 0,
+                        coreStageLabel = "СЛОМАНО",
+                        pressureStage = 0,
+                        gearPressStage = 0,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    WorkshopHero(
+                        level = 12,
+                        levelInfo = LevelInfo(level = 12, xpIntoLevel = 420, xpToNext = 600),
+                        animationsEnabled = false,
+                        accent = TealGlow,
+                        gamesPlayed = 84,
+                        bestScore = 131_072,
+                        coreStage = 4,
+                        coreStageLabel = "УСИЛЕНО",
+                        pressureStage = 4,
+                        gearPressStage = 4,
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            "Цех мастерской. Ядро: стадия 0. Генератор: стадия 0. Пресс: стадия 0",
+        ).fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription(
+            "Цех мастерской. Ядро: стадия 4. Генератор: стадия 4. Пресс: стадия 4",
+        ).fetchSemanticsNode()
+        composeRule.waitForIdle()
+        saveRootScreenshot(RESTORATION_SCREENSHOT_FILE, "Workshop restoration states")
+    }
+
+    @Test
     fun upgradeBaysRenderDistinctMechanismStates() {
         composeRule.setContent {
             SteamforgeTheme {
@@ -211,6 +260,7 @@ class WorkshopBlueprintVisualTest {
     private companion object {
         const val BLUEPRINT_SCREENSHOT_FILE = "workshop-blueprint.png"
         const val HERO_SCREENSHOT_FILE = "workshop-hero.png"
+        const val RESTORATION_SCREENSHOT_FILE = "workshop-restoration.png"
         const val UPGRADES_SCREENSHOT_FILE = "workshop-upgrades.png"
         const val META_DOCK_SCREENSHOT_FILE = "workshop-meta-dock.png"
     }
