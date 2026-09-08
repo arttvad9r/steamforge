@@ -44,20 +44,24 @@
 - [x] Deterministic RNG position is persisted.
 - [x] Save format remains backward-readable.
 - [x] Terminal finish persistence is retryable/idempotent.
+- [x] Short terminal writes no longer flash a blocking save modal; slow/failing writes retain visible feedback and retry (#181).
 - [x] Daily/contract reward claims are protected against duplicate application.
 - [x] Lifecycle smoke covers recreation, Home/background, force-stop relaunch, screen-off/wake and offline continuation.
 - [ ] Keep these checks green through gameplay/visual refactors.
+- [ ] Repeat representative lifecycle checks on a physical device before declaring game-readiness (#185).
 
 ## Input / gameplay UI
 
 - [x] Touch swipe input.
 - [x] Keyboard arrows in gameplay.
+- [x] One latest direction is buffered while an animated visual turn settles (#179).
+- [x] Undo/Wrench cannot rewrite the board mid-turn while animations are settling (#179).
 - [x] Compact-landscape handling.
 - [x] Expanded portrait/tablet board scaling.
 - [x] Key custom controls have semantics/content descriptions.
 - [x] Accessibility UI smoke checks font scale 1.3 and critical clickable geometry.
-- [ ] Continue tuning swipe confidence/input latency from real gameplay use.
-- [ ] Manually spot-check TalkBack/large text when major UI structure changes.
+- [ ] Tune swipe confidence/input latency from real physical-device play (#185).
+- [ ] Manually spot-check TalkBack/large text after the current whole-app visual pass (#185).
 - [ ] Keep safe-area/system-inset behavior correct across target form factors.
 
 ## Visual quality
@@ -68,10 +72,12 @@ Source of truth: `docs/VISUAL_BIBLE.md`.
 - [x] Premium material tile pass exists.
 - [x] Gameplay chrome has been reduced.
 - [x] Expanded portrait/tablet board scaling exists.
-- [ ] Validate tile readability across all high-tier values.
-- [ ] Improve movement/merge/spawn/Overdrive visual sequencing.
-- [ ] Bring Home and meta screens into one coherent material/typography/component system.
-- [ ] Keep decorative workshop machinery away from critical gameplay space.
+- [x] Movement/merge/spawn/Overdrive visual sequencing has an automated baseline (#179).
+- [x] Home, Workshop, Contracts/Daily, Profile, Achievements and Blueprints have focused visual-system passes (#172–176, #182–184).
+- [x] Workshop progression creates visible world/restoration changes (#182).
+- [ ] Validate tile readability across high-tier values during long real sessions (#185).
+- [ ] Add dedicated Settings visual-regression coverage and complete final utility-surface consistency.
+- [ ] Complete final whole-app atmosphere vs gameplay-cleanliness acceptance.
 - [ ] Avoid chibi/mobile-cartoon drift and photoreal drift.
 
 ## Performance
@@ -80,9 +86,30 @@ For this puzzle the target is stable response/frame pacing and low input latency
 
 - [x] Macrobenchmark harness exists.
 - [x] Hosted frame-timing diagnostic exists.
-- [ ] Measure after significant animation/material/VFX changes.
-- [ ] Ensure menus/backgrounds do not retain unnecessary continuous animation workload.
+- [x] Home does not create its infinite gear transition when Animations is disabled (#184).
+- [ ] Measure after significant future animation/material/VFX changes.
+- [ ] Continue checking menus/backgrounds for unnecessary continuous animation workload.
 - [ ] Add graphics-quality tiers only if measurements justify them.
+
+## Reward / progression invariant
+
+- [x] Game-finish positive rewards use `RewardSystem`.
+- [x] Daily Challenge positive rewards use `RewardSystem`.
+- [x] Contract positive rewards use `RewardSystem`.
+- [x] Daily Reward Gems / Workshop Parts / cosmetic unlock use `RewardSystem`.
+- [ ] Keep future positive grants on this path instead of adding parallel reward mutation logic.
+
+## Manual game-readiness gate
+
+Issue #185 tracks the checks that hosted emulator CI cannot close honestly:
+
+- physical swipe confidence and latency;
+- long-session high-tier readability;
+- SFX/haptic balance and fatigue;
+- physical lifecycle restore;
+- TalkBack / large-text / gesture-inset spot checks.
+
+Do not mark those items complete from screenshot or hosted-emulator success alone.
 
 ## Weekly/backend boundary
 
@@ -106,3 +133,4 @@ Before merging a substantial gameplay or visual change:
 6. Frame timing diagnostic reviewed if animation/VFX/material workload increased.
 7. No-tracking guard green.
 8. Visual result checked against `VISUAL_BIBLE.md`, not against historical store/publication concepts.
+9. Physical-device acceptance items remain tracked separately in #185.

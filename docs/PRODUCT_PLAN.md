@@ -35,25 +35,38 @@ Already implemented/current:
 - autosave/process-death restore and backward-readable save format;
 - save write format v6 without analytics/correlation identifiers;
 - swipe + keyboard gameplay input;
+- turn-sequenced animated input with one latest buffered direction (#179);
 - movement/merge feedback, SFX and haptics;
+- cold-start SFX load reliability (#177);
 - Steam Pressure / Overdrive;
-- Undo and Wrench;
-- Workshop progression;
+- Undo and Wrench, including visual-turn lockout while sequencing settles (#179);
+- terminal-save presentation that keeps short persistence out of the final-move presentation (#181);
+- Workshop progression with visible restoration/world changes (#182);
 - achievements;
 - Daily Challenge / daily reward;
-- Contracts and initial Blueprint Collection;
+- Contracts;
+- dedicated Blueprints route/catalog for the persisted Steam Engine collection (#183);
 - Workshop Parts / return-loop slices;
 - authoritative `RewardSystem` for Workshop Parts, Gems, Blueprint Pieces and cosmetic unlocks;
+- current game-finish, Daily Challenge, Contracts and Daily Reward positive grants already use `RewardSystem`;
 - offline-safe Remote Config foundation;
 - deterministic Weekly/replay/ranking foundations in separate modules;
-- Android CI, lifecycle, accessibility, adaptive-window, 16 KiB and performance diagnostics;
+- Android CI, lifecycle, accessibility, adaptive-window, high-tier, 16 KiB and performance diagnostics;
 - gameplay visual passes #156–158: premium materials, reduced chrome and expanded portrait/tablet board;
+- focused meta visual passes across Contracts/Daily, Home, Profile, Achievements, Workshop and Blueprints (#172–176, #182–184);
+- Home stops continuous core animation when the Animations setting is disabled (#184);
 - advertising SDK/runtime completely removed;
 - AppMetrica/user analytics SDK/runtime completely removed;
 - analytics/ad consent and Settings surfaces removed;
 - no-tracking CI guard.
 
 Weekly remains hidden from normal player navigation. It is not a near-term priority while the core and visual layer are still being raised to target quality.
+
+### Current acceptance boundary
+
+Automated gameplay/visual/lifecycle baselines are substantially stronger than the original roadmap state, but they do not replace physical-device acceptance. Issue #185 is the remaining manual game-readiness gate for swipe feel/latency, long-session high-tier readability, SFX/haptic balance, physical lifecycle restore and TalkBack/large-text spot checks.
+
+The current Blueprint catalog intentionally contains only the Steam Engine collection. Do not add breadth merely to fill a screen; new collections should create or explain visible Workshop/world progression.
 
 ## 3. Product principles
 
@@ -97,7 +110,7 @@ These are current product constraints, not temporary feature flags.
 - no release-candidate publication checklist;
 - keep only engineering checks that directly protect the game: tests, lint, debug/minified build, lifecycle, accessibility, adaptive layout, performance, 16 KiB compatibility and no-tracking.
 
-**Done when:** the repository and roadmap no longer direct work toward publishing the unfinished game.
+**Status:** current active line follows this boundary.
 
 ### Phase 1 — Core game feel
 
@@ -124,6 +137,8 @@ Quality gates:
 - animation never makes board state ambiguous;
 - interaction remains clear on compact and expanded layouts.
 
+**Status:** the automated sequencing/SFX/terminal-persistence baseline is implemented in #177, #179 and #181. Physical touch feel and subjective audio/haptics remain open in #185.
+
 ### Phase 2 — Gameplay visual target
 
 Use `docs/VISUAL_BIBLE.md` and approved project references as the source of truth.
@@ -146,6 +161,8 @@ Work order:
 10. high-tier tiles and long-session readability.
 
 Do not reproduce concept screens pixel-for-pixel. Preserve their art direction while improving gameplay hierarchy where necessary.
+
+**Status:** automated board/material/adaptive/high-tier baselines exist. Long-session high-tier readability on a real device remains an acceptance item in #185.
 
 ### Phase 3 — Whole-app visual system
 
@@ -174,11 +191,13 @@ Create/reuse one coherent system for:
 
 Avoid adding permanent bottom navigation or decorative frames to gameplay if they weaken board dominance.
 
+**Status:** focused passes are merged for Home, Workshop, Blueprints, Contracts/Daily, Profile and Achievements. Settings already uses the shared components but still needs dedicated visual-regression coverage and final whole-app acceptance.
+
 ### Phase 4 — Workshop presentation v2
 
-Only after the visual system is stable, make Workshop progression visibly meaningful.
+Make Workshop progression visibly meaningful without turning it into a second game.
 
-Start small:
+Target:
 
 - one workshop zone;
 - 3–5 machines/objects;
@@ -188,6 +207,8 @@ Start small:
 - no extra currencies unless clearly necessary.
 
 The goal is visible permanent trace from play, not a spreadsheet of levels.
+
+**Status:** the current three mechanisms now produce visible bay/restoration changes in #182. Add further world breadth only if it strengthens the play → restoration loop.
 
 ### Phase 5 — Session orchestration cleanup
 
@@ -206,7 +227,7 @@ GameViewModel
 └─ UI state + user intents
 ```
 
-No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier.
+No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier. Prefer small behavior-preserving extractions that remove demonstrated duplication or risk.
 
 ### Phase 6 — Reward layer consolidation
 
@@ -220,9 +241,11 @@ source
 → presentation
 ```
 
-Current reward domain includes Workshop Parts, Gems, Blueprint Pieces and cosmetic unlocks. Before expanding progression systems:
+Current reward domain includes Workshop Parts, Gems, Blueprint Pieces and cosmetic unlocks. Current major positive-grant paths already use it: game finish, Daily Challenge, Contracts and Daily Reward.
 
-- route any remaining direct positive grants through `RewardSystem` where that improves consistency;
+Before expanding progression systems:
+
+- keep future positive grants on `RewardSystem` where that improves consistency;
 - keep claim/source idempotency in repository transactions;
 - do not introduce parallel reward-application paths;
 - extend the existing reward domain only when a current product feature requires it.
@@ -231,7 +254,7 @@ Current reward domain includes Workshop Parts, Gems, Blueprint Pieces and cosmet
 
 Keep contracts data-driven and fed by gameplay-domain events. Keep collections tied to visible workshop/world changes.
 
-Do not branch core 2048 rules for individual meta features.
+Do not branch core 2048 rules for individual meta features. The current single Steam Engine collection is acceptable until another collection has a concrete permanent-world payoff.
 
 ### Phase 8 — Storage boundary review
 
@@ -251,6 +274,8 @@ Only after core + visual + Workshop quality are established:
 - forgiving streak/comeback presentation;
 - no punitive energy/lives gating.
 
+Existing Daily/Contracts/Workshop reward slices already provide the current return-loop baseline. Do not expand this before #185 and final whole-app acceptance are closed.
+
 ### Phase 10 — Weekly/backend later
 
 The existing replay/server foundation may remain in the repository, but further production identity/deployment/client integration is deferred. Do not expose Weekly UI until the base game and visual/meta experience justify expanding this surface.
@@ -258,67 +283,3 @@ The existing replay/server foundation may remain in the repository, but further 
 ### Phase 11 — LiveOps/social/monetization only after a new explicit product decision
 
 Do not build these merely because historical branches contain foundations for them. Reassess only after the core game, visual presentation and Workshop/meta loop are strong.
-
-Advertising remains prohibited.
-
-## 5. Explicitly out of scope now
-
-- any app-store publication plan;
-- store listing assets/workflows;
-- signing/upload/moderation work;
-- release-candidate publication checklists;
-- advertising of any kind;
-- AppMetrica/user behavioral analytics;
-- ad-driven rewards / Remove Ads;
-- energy/lives gating;
-- gacha economy;
-- Season Pass / multiple passes;
-- real-time PvP / guild wars;
-- unrelated minigames;
-- architecture rewrites that do not improve current game/visual work.
-
-## 6. Development quality gates
-
-### Core
-
-- deterministic rules tested;
-- save/restore correct;
-- responsive input;
-- stable move/merge sequencing;
-- no state duplication/loss.
-
-### Visual
-
-- board is visually dominant;
-- tiles remain readable through high tiers;
-- materials look intentional at phone scale;
-- animation communicates state rather than masking it;
-- adaptive layouts remain coherent;
-- accessibility geometry stays acceptable;
-- style stays inside the Visual Bible.
-
-### Privacy/runtime
-
-- no advertising SDK/config/UI/runtime;
-- no AppMetrica/user analytics SDK/config/UI/runtime;
-- no-tracking guard green;
-- network services explicit, bounded and unrelated to behavioral tracking.
-
-### Architecture
-
-- game core remains Android-independent;
-- UI does not own persistence rules;
-- meta systems consume gameplay-domain outcomes rather than fork engine rules;
-- new abstractions must solve a demonstrated problem.
-
-## 7. Working rule
-
-For every proposed task ask:
-
-1. Does it improve the actual game or its visual quality now?
-2. Does it make the board/gameplay clearer, more satisfying or more premium?
-3. Is there an existing standard solution before inventing a custom one?
-4. Does it preserve save/replay/reliability invariants?
-5. Is it premature infrastructure for a feature/publication step we are not doing yet?
-
-If the answer to #5 is yes, defer it.
