@@ -96,6 +96,7 @@ class GameViewModel(
         sessionSeed ?: if (runMode == GameRunMode.NORMAL) seedProvider() else 0L,
     )
     private var dailyCompletedToday = false
+    private var dailyClaimInFlight = false
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
@@ -277,7 +278,7 @@ class GameViewModel(
         }
         undoSnapshot = snapshot
 
-        if (daily != null && !_ui.value.dailySatisfied) checkDailyGoal(result.state)
+        if (daily != null && !dailyCompletedToday) checkDailyGoal(result.state)
         if (result.state.status == GameStatus.GAME_OVER) finishGame() else persistGame()
     }
 
@@ -441,14 +442,36 @@ class GameViewModel(
         )
         if (!satisfied) return
         _ui.update { it.copy(dailySatisfied = true) }
+        if (dailyCompletedToday || dailyClaimInFlight) return
+
+        dailyClaimInFlight = true
         val today = LocalDay.todayEpochDay()
         writesScope.launch {
-            val granted = repo.claimDailyChallenge(
-                day = today,
-                rewardGems = challenge.rewardGems,
-                bonusXp = challenge.bonusXp,
-            )
-            if (granted) dailyCompletedToday = true
+            try {
+                for (attempt in 0 until 2) {
+                    try {
+                        val granted = repo.claimDailyChallenge(
+                            day = today,
+                            rewardGems = challenge.rewardGems,
+                            bonusXp = challenge.bonusXp,
+                        )
+                        if (granted) {
+                            dailyCompletedToday = true
+                            return@launch
+                        }
+
+                        val persisted = runCatching { repo.progress.first() }.getOrNull()
+                        if (persisted?.dailyChallengeDay == today && persisted.dailyChallengeDone) {
+                            dailyCompletedToday = true
+                        }
+                        return@launch
+                    } catch (_: IOException) {
+                        if (attempt == 1) return@launch
+                    }
+                }
+            } finally {
+                dailyClaimInFlight = false
+            }
         }
     }
 
