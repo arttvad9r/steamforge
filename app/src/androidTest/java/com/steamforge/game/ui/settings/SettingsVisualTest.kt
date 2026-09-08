@@ -1,8 +1,11 @@
 package com.steamforge.game.ui.settings
 
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.theme.SteamforgeTheme
@@ -50,8 +53,8 @@ class SettingsVisualTest {
             SCREENSHOT_FILE,
         )
         FileOutputStream(output).use { stream ->
-            val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            val written = screenshot.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
+                .compress(Bitmap.CompressFormat.PNG, 100, stream)
             assertTrue("Settings screenshot compression failed", written)
         }
         assertTrue("Settings screenshot was not written", output.length() > 0L)
