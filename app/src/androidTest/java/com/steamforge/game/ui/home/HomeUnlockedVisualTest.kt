@@ -3,8 +3,10 @@ package com.steamforge.game.ui.home
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.steamforge.game.theme.SteamforgeTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +19,7 @@ class HomeUnlockedVisualTest {
 
     @Test
     fun unlockedHomeRendersPrimaryPlayAndSecondaryNavigationDeck() {
+        val collectionOpened = booleanArrayOf(false)
         composeRule.setContent {
             SteamforgeTheme {
                 HomeContent(
@@ -41,7 +44,7 @@ class HomeUnlockedVisualTest {
                     onWorkshop = {},
                     onContracts = {},
                     onDaily = {},
-                    onAchievements = {},
+                    onCollection = { collectionOpened[0] = true },
                     onSettings = {},
                 )
             }
@@ -56,6 +59,8 @@ class HomeUnlockedVisualTest {
             "Испытание дня. Новая задача на сегодня",
         ).fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Коллекция").fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription("Коллекция").performClick()
         composeRule.waitForIdle()
+        assertTrue("Collection control did not invoke collection navigation", collectionOpened[0])
     }
 }
