@@ -490,18 +490,10 @@ class GameViewModel(
             score = summary.score,
             maxTileLevel = summary.maxTileLevel,
             state = GameSaveCodec.encode(
-                SavedGame(
-                    state = s.state,
-                    seed = sessionSeed,
-                    pressure = s.pressure,
-                    overdriveRemaining = s.overdriveRemaining,
-                    freeUndosLeft = s.freeUndosLeft,
+                buildSavedGameSnapshot(
+                    ui = s,
+                    sessionSeed = sessionSeed,
                     rngDraws = rng.draws,
-                    mergesTotal = s.mergesTotal,
-                    maxMergesInOneMove = s.maxMergesInOneMove,
-                    overdrivesSession = s.overdrivesSession,
-                    undosSession = s.undosSession,
-                    highMergesSession = s.highMergesSession,
                 ),
             ),
         )
@@ -578,18 +570,10 @@ class GameViewModel(
     private fun persistGame() {
         if (!policy.persistActiveRun || finishStarted) return
         val s = _ui.value
-        val snapshot = SavedGame(
-            state = s.state,
-            seed = sessionSeed,
-            pressure = s.pressure,
-            overdriveRemaining = s.overdriveRemaining,
-            freeUndosLeft = s.freeUndosLeft,
+        val snapshot = buildSavedGameSnapshot(
+            ui = s,
+            sessionSeed = sessionSeed,
             rngDraws = rng.draws,
-            mergesTotal = s.mergesTotal,
-            maxMergesInOneMove = s.maxMergesInOneMove,
-            overdrivesSession = s.overdrivesSession,
-            undosSession = s.undosSession,
-            highMergesSession = s.highMergesSession,
         )
         writesScope.launch {
             try {
