@@ -22,10 +22,15 @@ Implemented:
 - Steam Pressure / Overdrive;
 - Undo and Wrench;
 - movement/merge feedback, SFX and haptics;
+- cold-start SFX load gating so early gameplay feedback is not silently lost (#177);
+- turn-sequenced visual input with one latest buffered direction while animations are active (#179);
+- Undo/Wrench lockout while a visual turn is settling (#179);
+- merge/Overdrive/win feedback aligned with the visible turn rather than raw state mutation (#179);
+- terminal-result persistence presentation that avoids flashing a save modal for short writes while retaining retry/failure handling (#181);
 - Daily Challenge / daily rewards;
 - Contracts;
 - Workshop progression;
-- Blueprint Collection foundation;
+- Blueprint Collection foundation and a dedicated Blueprints catalog route;
 - authoritative `RewardSystem` for positive gameplay/meta rewards;
 - achievements;
 - offline-safe core behavior.
@@ -40,17 +45,31 @@ Merged gameplay passes:
 
 - #156 — premium tile/material system and calmer background/panel treatment;
 - #157 — reduced gameplay chrome and clutter;
-- #158 — larger gameplay column/board on expanded portrait/tablet layouts.
+- #158 — larger gameplay column/board on expanded portrait/tablet layouts;
+- #179 — movement/merge/spawn turn sequencing and feedback timing baseline;
+- #181 — calmer terminal-save presentation over the final board state.
 
-Still unfinished:
+Merged app/meta passes:
 
-- final movement/merge/spawn visual sequencing;
-- high-tier tile polish/readability across long play;
-- full typography/component consistency;
-- Home visual pass;
-- Workshop presentation with visible restoration/world change;
-- Blueprints/Contracts/Profile/Settings alignment to one visual system;
-- final balance of atmosphere vs gameplay cleanliness.
+- #172 — Contracts as an industrial task list;
+- #173 — Daily objective strip in gameplay;
+- #174 — unlocked Home navigation deck;
+- #175 — Profile permanent-stat ledger;
+- #176 — Achievements collection registry;
+- #182 — visible Workshop restoration/world change across mechanism stages;
+- #183 — dedicated Blueprints catalog for the persisted Steam Engine collection;
+- #184 — Home respects the animation setting and stays static when animations are disabled.
+
+Still unfinished / requires acceptance:
+
+- physical-device swipe confidence and input-latency tuning;
+- subjective SFX/haptic balance during real play;
+- long-session high-tier tile readability beyond static smoke captures;
+- dedicated Settings visual-regression coverage and final utility-surface consistency;
+- final whole-app atmosphere vs gameplay-cleanliness acceptance;
+- Blueprint catalog breadth is intentionally still small: one Steam Engine collection. Expand only when new collections have a clear visible Workshop/world payoff.
+
+Physical-device acceptance is tracked in #185. Automated green checks are necessary but do not close those tactile/readability items by themselves.
 
 ## Current technical foundation
 
@@ -100,9 +119,23 @@ Automated coverage includes:
 - terminal finish retry/idempotency;
 - gesture touchSlop / one-command-per-gesture;
 - high-tier tile checks;
-- expanded/portrait/compact-landscape geometry.
+- expanded/portrait/compact-landscape geometry;
+- hosted frame-timing diagnostics.
 
-These checks should remain green through gameplay and visual refactors.
+These checks should remain green through gameplay and visual refactors. Physical-device lifecycle/accessibility spot checks remain part of #185.
+
+## Reward application status
+
+Current positive-grant paths use the existing `RewardSystem`:
+
+- game-finish Workshop Parts and level/achievement Gems;
+- Daily Challenge Gems and achievement Gems;
+- Contracts Workshop Parts / Blueprint Pieces;
+- Daily Reward Gems / Workshop Parts / cosmetic unlock.
+
+Spending paths such as Undo, Wrench and Workshop upgrades are not positive rewards and intentionally remain outside `RewardSystem`.
+
+Do not create a second reward-application layer.
 
 ## Weekly/backend status
 
@@ -121,21 +154,20 @@ Weekly remains hidden from normal navigation. Further identity/deployment/client
 
 Known but not immediately dominant:
 
-- `GameViewModel` owns too much session/persistence/progression orchestration;
+- `GameViewModel` still owns broad session/persistence/progression orchestration;
 - shared `GameEngine` lives historically under `:weekly-core`;
 - Preferences DataStore may become insufficient if reward/history/event data grows substantially.
 
-Do not perform a broad architecture rewrite before it is needed by current gameplay/visual work.
+Use small behavior-preserving extractions when they remove duplication or reduce current friction. Do not perform a broad architecture rewrite before it is needed.
 
 ## Active priority order
 
-1. Core interaction feel and movement/merge feedback.
-2. Gameplay visual quality to the Visual Bible target.
-3. Whole-app visual system consistency.
-4. Workshop visible restoration/meta presentation.
-5. Targeted architecture cleanup where it reduces friction for the above work.
-6. Consolidate remaining reward call sites on the existing `RewardSystem`, then evolve richer meta systems.
-7. Weekly/LiveOps/social only later.
+1. Close physical-device core-feel/readability/audio/accessibility acceptance in #185.
+2. Complete Settings visual-regression coverage and final whole-app consistency acceptance.
+3. Continue targeted `GameViewModel`/session orchestration cleanup only where it reduces concrete duplication or risk.
+4. Evolve Blueprint collections only when tied to visible Workshop/world changes.
+5. Preserve the existing `RewardSystem` as the single positive-reward path.
+6. Weekly/LiveOps/social only later.
 
 ## Explicitly deferred
 
