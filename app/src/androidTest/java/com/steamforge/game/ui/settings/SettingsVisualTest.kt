@@ -57,10 +57,14 @@ class SettingsVisualTest {
                 .compress(Bitmap.CompressFormat.PNG, 100, stream)
             assertTrue("Settings screenshot compression failed", written)
         }
-        assertTrue("Settings screenshot was not written", output.length() > 0L)
+        assertTrue(
+            "Settings screenshot looks blank or incomplete: ${output.length()} bytes",
+            output.length() > MIN_SCREENSHOT_BYTES,
+        )
     }
 
     private companion object {
         const val SCREENSHOT_FILE = "settings-controls.png"
+        const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }

@@ -57,10 +57,14 @@ class BlueprintsVisualTest {
                 .compress(Bitmap.CompressFormat.PNG, 100, stream)
             assertTrue("Blueprints screenshot compression failed", written)
         }
-        assertTrue("Blueprints screenshot was not written", output.length() > 0L)
+        assertTrue(
+            "Blueprints screenshot looks blank or incomplete: ${output.length()} bytes",
+            output.length() > MIN_SCREENSHOT_BYTES,
+        )
     }
 
     private companion object {
         const val SCREENSHOT_FILE = "blueprints-catalog.png"
+        const val MIN_SCREENSHOT_BYTES = 50_000L
     }
 }
