@@ -415,6 +415,8 @@ class GameViewModel(
                 finished = false,
                 effects = null,
                 freeUndosLeft = if (policy.allowUndo) cfg.freeUndosPerGame else 0,
+                dailySatisfied = dailyMode && dailyCompletedToday,
+                winCelebrated = false,
                 winBannerShown = false,
                 lastResult = null,
                 previousTiles = emptyList(),
@@ -423,7 +425,6 @@ class GameViewModel(
                 overdrivesSession = 0,
                 undosSession = 0,
                 highMergesSession = 0,
-                dailySatisfied = dailyMode && dailyCompletedToday,
                 finishPersistenceInProgress = false,
                 finishPersistenceFailed = false,
             )
