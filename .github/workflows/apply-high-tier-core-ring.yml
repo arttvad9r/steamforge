@@ -1,0 +1,57 @@
+name: Apply High Tier Core Ring Patch
+
+on:
+  push:
+    branches:
+      - polish/high-tier-core-ring
+
+permissions:
+  contents: write
+
+jobs:
+  patch-renderer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace filled high-tier disc with rare core ring
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt')
+          text = path.read_text()
+          old = '''            if (tile.level >= 9) {
+              drawCircle(
+                  TealGlow.copy(alpha = if (colors.glow) 0.11f else 0.045f),
+                  radius = size.minDimension * 0.31f,
+                  center = Offset(size.width / 2f, size.height / 2f),
+              )
+          }
+'''
+          new = '''            if (tile.level >= 11) {
+              drawCircle(
+                  TealGlow.copy(alpha = if (tile.level >= 12) 0.18f else 0.14f),
+                  radius = size.minDimension * 0.31f,
+                  center = Offset(size.width / 2f, size.height / 2f),
+                  style = androidx.compose.ui.graphics.drawscope.Stroke(1.25.dp.toPx()),
+              )
+          }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one high-tier accent block, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Commit renderer change
+        shell: bash
+        run: |
+          git config user.name 'steamforge-ci'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/steamforge/game/ui/game/GameScreen.kt
+          git diff --cached --check
+          git commit -m 'Reduce high-tier core ornament'
+          git push origin HEAD:polish/high-tier-core-ring
