@@ -874,11 +874,12 @@ private fun TileView(
             val bevelSide = Color.White.copy(alpha = 0.045f)
             val bevelShadow = Color.Black.copy(alpha = 0.28f)
 
-            if (tile.level >= 9) {
+            if (tile.level >= 11) {
                 drawCircle(
-                    TealGlow.copy(alpha = if (colors.glow) 0.11f else 0.045f),
+                    TealGlow.copy(alpha = if (tile.level >= 12) 0.18f else 0.14f),
                     radius = size.minDimension * 0.31f,
                     center = Offset(size.width / 2f, size.height / 2f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(1.25.dp.toPx()),
                 )
             }
 
