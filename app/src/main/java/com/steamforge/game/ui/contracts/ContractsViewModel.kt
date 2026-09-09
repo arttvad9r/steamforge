@@ -12,6 +12,7 @@ import com.steamforge.game.progression.ContractType
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.scaledWorkshopParts
+import java.io.IOException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -139,7 +140,7 @@ class ContractsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ContractsUiState())
 
     fun claim(contractId: String) {
-        viewModelScope.launch {
+        launchPersistenceWrite {
             val day = today()
             val rewardMultiplier = remoteConfigProvider.snapshot.value.config
                 .sanitized()
@@ -161,6 +162,16 @@ class ContractsViewModel(
                     contractId = contractId,
                     workshopPartsMultiplier = rewardMultiplier,
                 )
+            }
+        }
+    }
+
+    private fun launchPersistenceWrite(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (_: IOException) {
+                // Keep the last durable state visible; a later user action can retry the write.
             }
         }
     }
