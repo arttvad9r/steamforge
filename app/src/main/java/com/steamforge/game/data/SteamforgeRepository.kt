@@ -15,7 +15,6 @@ import com.steamforge.game.progression.ContractCounters
 import com.steamforge.game.progression.ContractLedger
 import com.steamforge.game.progression.DailyContracts
 import com.steamforge.game.progression.GameEvent
-import com.steamforge.game.progression.GameSummary
 import com.steamforge.game.progression.LocalDay
 import com.steamforge.game.progression.PlayerProgress
 import com.steamforge.game.progression.PlayerStats
@@ -179,18 +178,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
                 Reward.Gems(rewardGems),
                 Reward.Gems(unlocked.sumOf { it.gemReward }),
             )
-            writeProgress(prefs, updated)
-            granted = true
-        }
-        return granted
-    }
-
-    override suspend fun claimContract(day: Long, contractId: String): Boolean {
-        var granted = false
-        context.dataStore.edit { prefs ->
-            val progress = mapProgress(prefs)
-            val updated = DailyContracts.claim(progress, day, contractId)
-            if (updated == progress) return@edit
             writeProgress(prefs, updated)
             granted = true
         }
@@ -388,17 +375,6 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         madeTilesByLevel = madeTilesByLevel,
     )
 
-    private fun SavedGame.toSummary(daily: Boolean): GameSummary = GameSummary(
-        score = state.score,
-        maxTileLevel = state.maxLevel,
-        moves = state.moves,
-        merges = mergesTotal,
-        maxMergesInOneMove = maxMergesInOneMove,
-        overdrives = overdrivesSession,
-        undos = undosSession,
-        won = state.won,
-        daily = daily,
-    )
 }
 
 /**

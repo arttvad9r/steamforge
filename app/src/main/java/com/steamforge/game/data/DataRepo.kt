@@ -25,9 +25,6 @@ interface DataRepo {
     /** Атомарная награда за daily challenge: true только один раз для epochDay. */
     suspend fun claimDailyChallenge(day: Long, rewardGems: Int, bonusXp: Int): Boolean
 
-    /** Атомарная награда за daily contract. */
-    suspend fun claimContract(day: Long, contractId: String): Boolean = false
-
     /** Overlay результата обработан (выход/новая партия) — запись больше не нужна. */
     suspend fun clearFinishedGame()
 
