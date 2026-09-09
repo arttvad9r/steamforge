@@ -510,33 +510,28 @@ class GameViewModel(
 
         writesScope.launch {
             try {
-                for (attempt in 0 until 2) {
-                    try {
-                        repo.clearFinishedGame()
-                        pendingFinishedResultDismissal = null
-                        when (action) {
-                            FinishedResultDismissalAction.RESTART -> newGameInternal()
-                            FinishedResultDismissalAction.EXIT -> {
-                                _ui.update {
-                                    it.copy(
-                                        finishPersistenceInProgress = false,
-                                        finishPersistenceFailed = false,
-                                        exitAfterPersistenceReady = true,
-                                    )
-                                }
-                            }
-                        }
-                        return@launch
-                    } catch (_: IOException) {
-                        if (attempt == 1) {
-                            _ui.update {
-                                it.copy(
-                                    finishPersistenceInProgress = false,
-                                    finishPersistenceFailed = true,
-                                    exitAfterPersistenceReady = false,
-                                )
-                            }
-                            return@launch
+                val persistence = retryIoOnce { repo.clearFinishedGame() }
+                if (persistence.isFailure) {
+                    _ui.update {
+                        it.copy(
+                            finishPersistenceInProgress = false,
+                            finishPersistenceFailed = true,
+                            exitAfterPersistenceReady = false,
+                        )
+                    }
+                    return@launch
+                }
+
+                pendingFinishedResultDismissal = null
+                when (action) {
+                    FinishedResultDismissalAction.RESTART -> newGameInternal()
+                    FinishedResultDismissalAction.EXIT -> {
+                        _ui.update {
+                            it.copy(
+                                finishPersistenceInProgress = false,
+                                finishPersistenceFailed = false,
+                                exitAfterPersistenceReady = true,
+                            )
                         }
                     }
                 }
@@ -557,23 +552,16 @@ class GameViewModel(
         val operationId = UUID.randomUUID().toString()
         writesScope.launch {
             try {
-                for (attempt in 0 until 2) {
-                    try {
-                        if (
-                            repo.applyPaidTool(
-                                operationId = operationId,
-                                expectedGems = expectedGems,
-                                gemCost = gemCost,
-                                activeGame = activeGame,
-                            )
-                        ) {
-                            onCommitted()
-                        }
-                        return@launch
-                    } catch (_: IOException) {
-                        if (attempt == 1) return@launch
-                    }
+                val persistence = retryIoOnce {
+                    repo.applyPaidTool(
+                        operationId = operationId,
+                        expectedGems = expectedGems,
+                        gemCost = gemCost,
+                        activeGame = activeGame,
+                    )
                 }
+                if (persistence.isFailure) return@launch
+                if (persistence.getOrThrow()) onCommitted()
             } finally {
                 paidToolWriteInFlight = false
             }
@@ -595,26 +583,22 @@ class GameViewModel(
         val today = LocalDay.todayEpochDay()
         writesScope.launch {
             try {
-                for (attempt in 0 until 2) {
-                    try {
-                        val granted = repo.claimDailyChallenge(
-                            day = today,
-                            rewardGems = challenge.rewardGems,
-                            bonusXp = challenge.bonusXp,
-                        )
-                        if (granted) {
-                            dailyCompletedToday = true
-                            return@launch
-                        }
+                val claim = retryIoOnce {
+                    repo.claimDailyChallenge(
+                        day = today,
+                        rewardGems = challenge.rewardGems,
+                        bonusXp = challenge.bonusXp,
+                    )
+                }
+                if (claim.isFailure) return@launch
+                if (claim.getOrThrow()) {
+                    dailyCompletedToday = true
+                    return@launch
+                }
 
-                        val persisted = runCatching { repo.progress.first() }.getOrNull()
-                        if (persisted?.dailyChallengeDay == today && persisted.dailyChallengeDone) {
-                            dailyCompletedToday = true
-                        }
-                        return@launch
-                    } catch (_: IOException) {
-                        if (attempt == 1) return@launch
-                    }
+                val persisted = runCatching { repo.progress.first() }.getOrNull()
+                if (persisted?.dailyChallengeDay == today && persisted.dailyChallengeDone) {
+                    dailyCompletedToday = true
                 }
             } finally {
                 dailyClaimInFlight = false
