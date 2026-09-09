@@ -74,14 +74,11 @@ class WholeAppNavigationSmokeTest {
         composeRule.onNodeWithText("КОНТРАКТЫ").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Назад").performClick()
 
-        composeRule.onNodeWithContentDescription("Мастерская. Ядро · LV 1 · серия 0")
+        // Profile used to exist only as an orphaned route. The unlocked Home entry is now the
+        // normal player-facing path into permanent statistics and then Achievements.
+        composeRule.onNodeWithContentDescription("Профиль")
             .performScrollTo()
             .performClick()
-        composeRule.onNodeWithText("Мастерская").assertIsDisplayed()
-
-        // This is intentionally required by the game-readiness acceptance gate. Before the profile
-        // navigation fix this assertion exposes that Profile exists as a route but is unreachable.
-        composeRule.onNodeWithContentDescription("Профиль").performClick()
         composeRule.onNodeWithText("ПРОФИЛЬ").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Достижения. Открыто 0")
             .performScrollTo()
@@ -90,9 +87,16 @@ class WholeAppNavigationSmokeTest {
         composeRule.onNodeWithContentDescription("Назад").performClick()
         composeRule.onNodeWithContentDescription("Назад").performClick()
 
+        composeRule.onNodeWithContentDescription("Мастерская. Ядро · LV 1 · серия 0")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("Мастерская").assertIsDisplayed()
         pressBack()
+
         composeRule.onNodeWithText("STEAMFORGE").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Настройки").performClick()
+        composeRule.onNodeWithContentDescription("Настройки")
+            .performScrollTo()
+            .performClick()
         composeRule.onNodeWithText("НАСТРОЙКИ").assertIsDisplayed()
     }
 }
