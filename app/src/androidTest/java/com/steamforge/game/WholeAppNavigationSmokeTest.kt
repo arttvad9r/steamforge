@@ -84,7 +84,7 @@ class WholeAppNavigationSmokeTest {
         composeRule.onNodeWithContentDescription("Достижения. Открыто 0")
             .performScrollTo()
             .performClick()
-        composeRule.onNodeWithText("ДОСТИЖЕНИЯ").assertIsDisplayed()
+        composeRule.onNodeWithText("КОЛЛЕКЦИЯ").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Назад").performClick()
         composeRule.onNodeWithContentDescription("Назад").performClick()
 
@@ -98,6 +98,6 @@ class WholeAppNavigationSmokeTest {
         composeRule.onNodeWithContentDescription("Настройки")
             .performScrollTo()
             .performClick()
-        composeRule.onNodeWithText("НАСТРОЙКИ").assertIsDisplayed()
+        composeRule.onNodeWithText("Настройки").assertIsDisplayed()
     }
 }
