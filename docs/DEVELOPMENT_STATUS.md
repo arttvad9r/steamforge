@@ -48,7 +48,8 @@ Merged gameplay passes:
 - #158 — larger gameplay column/board on expanded portrait/tablet layouts;
 - #179 — movement/merge/spawn turn sequencing and feedback timing baseline;
 - #181 — calmer terminal-save presentation over the final board state;
-- #200 — machined tile bevel lighting refined without changing the established palette; high-tier contrast coverage now includes 4096/8192 and High Tier screenshot capture rejects visually blank artifacts.
+- #200 — machined tile bevel lighting refined without changing the established palette; high-tier contrast coverage now includes 4096/8192 and High Tier screenshot capture rejects visually blank artifacts;
+- #201 — 512/1024 no longer use a filled teal center disc; 2048+ retain only a thin restrained core ring so the numeral and machined material remain primary.
 
 Merged app/meta passes:
 
@@ -120,13 +121,18 @@ Automated coverage includes:
 - offline startup/gameplay/autosave/recreation;
 - low-storage save failure/recovery;
 - terminal finish retry/idempotency;
+- persisted finished-result dismissal keeps Restart/Exit behind a durable `clearFinishedGame` and preserves the final result on repeated I/O failure (#198);
 - Daily Challenge claim retry/idempotency across transient and ambiguous I/O failures (#190);
 - Settings, Contracts and Workshop visible meta writes preserve the last durable state instead of crashing on DataStore-style I/O failures (#192, #194);
+- paid Undo/Wrench persistence atomically couples the Gems debit with the resulting active-game state and reuses one operation id across an ambiguous retry;
+- a shared `retryIoOnce` helper now removes duplicated retry-once loops only from the idempotent finished-result dismissal, paid-tool and Daily-claim paths; terminal finish and ordinary autosave keep their separate semantics (#203);
 - obsolete Contracts-specific save/finish repository API variants removed after normal transactions absorbed that accounting (#189);
 - obsolete direct contract-claim repository API and its unused `GameSummary` conversion helper removed after compile/test validation (#195);
 - gesture touchSlop / one-command-per-gesture;
 - high-tier tile checks through 8192, including visual-content validation of the screenshot artifact (#200);
 - normal production-navigation traversal across the currently exposed permanent meta routes (#199);
+- Accessibility UI Smoke at system `font_scale=1.3` verifies Home/Game touch geometry and runs the production unlocked-meta route through Blueprints, Contracts, Profile/Achievements, Workshop and Settings (#204);
+- Accessibility UI Smoke launches `MainActivity` directly through ActivityManager instead of depending on `monkey`/Pixel Launcher, avoiding a known emulator-startup false negative (#205);
 - expanded/portrait/compact-landscape geometry;
 - hosted frame-timing diagnostics.
 
@@ -162,7 +168,7 @@ Weekly remains hidden from normal navigation. Further identity/deployment/client
 
 Known but not immediately dominant:
 
-- `GameViewModel` still owns broad session/persistence/progression orchestration;
+- `GameViewModel` still owns broad session/persistence/progression orchestration; the retry-once duplication for three idempotent write paths has been extracted without changing behavior (#203);
 - shared `GameEngine` lives historically under `:weekly-core`;
 - Preferences DataStore may become insufficient if reward/history/event data grows substantially.
 
