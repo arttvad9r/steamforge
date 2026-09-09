@@ -5,6 +5,7 @@ on:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
       - 'app/src/main/java/com/steamforge/game/ui/achievements/**'
       - 'app/src/main/java/com/steamforge/game/ui/blueprints/**'
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
@@ -13,6 +14,7 @@ on:
       - 'app/src/main/java/com/steamforge/game/ui/settings/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/WholeAppNavigationSmokeTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/achievements/AchievementsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/blueprints/BlueprintsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
@@ -23,6 +25,7 @@ on:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
       - 'app/src/main/java/com/steamforge/game/ui/achievements/**'
       - 'app/src/main/java/com/steamforge/game/ui/blueprints/**'
       - 'app/src/main/java/com/steamforge/game/ui/contracts/**'
@@ -31,6 +34,7 @@ on:
       - 'app/src/main/java/com/steamforge/game/ui/settings/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/androidTest/java/com/steamforge/game/ContractsVisualTest.kt'
+      - 'app/src/androidTest/java/com/steamforge/game/WholeAppNavigationSmokeTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/achievements/AchievementsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/blueprints/BlueprintsVisualTest.kt'
       - 'app/src/androidTest/java/com/steamforge/game/ui/home/HomeUnlockedVisualTest.kt'
@@ -168,6 +172,12 @@ jobs:
             | tee settings-visual-instrumentation.txt
           grep -F 'OK (1 test)' settings-visual-instrumentation.txt
 
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.WholeAppNavigationSmokeTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee whole-app-navigation-instrumentation.txt
+          grep -F 'OK (1 test)' whole-app-navigation-instrumentation.txt
+
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
           adb exec-out run-as com.steamforge.game cat cache/blueprints-catalog.png > blueprints-catalog.png
           adb exec-out run-as com.steamforge.game cat cache/profile-ledger.png > profile-ledger.png
@@ -209,6 +219,7 @@ jobs:
             profile-visual-instrumentation.txt
             achievements-visual-instrumentation.txt
             settings-visual-instrumentation.txt
+            whole-app-navigation-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -232,3 +243,5 @@ jobs:
           cat achievements-visual-instrumentation.txt || true
           echo '=== Settings instrumentation ==='
           cat settings-visual-instrumentation.txt || true
+          echo '=== Whole-app navigation instrumentation ==='
+          cat whole-app-navigation-instrumentation.txt || true
