@@ -69,6 +69,7 @@ fun HomeScreen(
     onDaily: () -> Unit,
     onCollection: () -> Unit,
     onSettings: () -> Unit,
+    onProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -80,6 +81,7 @@ fun HomeScreen(
         onDaily = onDaily,
         onCollection = onCollection,
         onSettings = onSettings,
+        onProfile = onProfile,
         modifier = modifier,
     )
 }
@@ -93,6 +95,7 @@ internal fun HomeContent(
     onDaily: () -> Unit,
     onCollection: () -> Unit,
     onSettings: () -> Unit,
+    onProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val compactHeader = LocalConfiguration.current.screenWidthDp < 390
@@ -137,12 +140,24 @@ internal fun HomeContent(
                         textAlign = TextAlign.Center,
                     )
                 }
-                BrassRoundButton(
-                    symbol = "⚙",
-                    description = "Настройки",
-                    onClick = onSettings,
+                Column(
                     modifier = Modifier.align(Alignment.CenterEnd),
-                )
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (visibility.showStatusRail) {
+                        BrassRoundButton(
+                            symbol = "S",
+                            description = "Профиль",
+                            onClick = onProfile,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    BrassRoundButton(
+                        symbol = "⚙",
+                        description = "Настройки",
+                        onClick = onSettings,
+                    )
+                }
             }
 
             if (visibility.showStatusRail) {
