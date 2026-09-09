@@ -62,6 +62,23 @@ class FinishedResultDismissalIoTest {
         }
     }
 
+    private class AmbiguousClearRepo(
+        private val delegate: FakeDataRepo,
+    ) : DataRepo by delegate {
+        var clearAttempts = 0
+
+        val currentFinished: FinishedGameRecord?
+            get() = delegate.currentFinished
+
+        override suspend fun clearFinishedGame() {
+            clearAttempts++
+            delegate.clearFinishedGame()
+            if (clearAttempts == 1) {
+                throw IOException("commit completed before acknowledgement")
+            }
+        }
+    }
+
     @Test
     fun `restart waits for durable dismissal and failed clear remains retryable`() = runTest(dispatcher) {
         val delegate = FakeDataRepo(initialFinished = finishedRecord())
@@ -122,6 +139,24 @@ class FinishedResultDismissalIoTest {
 
         model.consumeExitAfterPersistenceReady()
         assertFalse(model.ui.value.exitAfterPersistenceReady)
+    }
+
+    @Test
+    fun `ambiguous committed clear retries idempotently and still emits exit handoff`() = runTest(dispatcher) {
+        val delegate = FakeDataRepo(initialFinished = finishedRecord())
+        val repo = AmbiguousClearRepo(delegate)
+        val model = GameViewModel(repo = repo, seedProvider = { 99L })
+        advanceUntilIdle()
+
+        model.exit()
+        advanceUntilIdle()
+
+        assertEquals(2, repo.clearAttempts)
+        assertNull(repo.currentFinished)
+        assertTrue(model.ui.value.finished)
+        assertFalse(model.ui.value.finishPersistenceInProgress)
+        assertFalse(model.ui.value.finishPersistenceFailed)
+        assertTrue(model.ui.value.exitAfterPersistenceReady)
     }
 
     private fun finishedRecord(): FinishedGameRecord {
