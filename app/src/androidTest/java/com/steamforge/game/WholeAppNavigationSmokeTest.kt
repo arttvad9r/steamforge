@@ -1,8 +1,10 @@
 package com.steamforge.game
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -74,9 +76,9 @@ class WholeAppNavigationSmokeTest {
         composeRule.onNodeWithText("КОНТРАКТЫ").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Назад").performClick()
 
-        // Profile used to exist only as an orphaned route. The unlocked Home entry is now the
+        // Profile used to exist only as an orphaned route. The unlocked Home status rail is now the
         // normal player-facing path into permanent statistics and then Achievements.
-        composeRule.onNodeWithContentDescription("Профиль")
+        composeRule.onNode(hasContentDescription("Профиль", substring = true))
             .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("ПРОФИЛЬ").assertIsDisplayed()
