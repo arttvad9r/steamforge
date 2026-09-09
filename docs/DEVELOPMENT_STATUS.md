@@ -47,7 +47,8 @@ Merged gameplay passes:
 - #157 — reduced gameplay chrome and clutter;
 - #158 — larger gameplay column/board on expanded portrait/tablet layouts;
 - #179 — movement/merge/spawn turn sequencing and feedback timing baseline;
-- #181 — calmer terminal-save presentation over the final board state.
+- #181 — calmer terminal-save presentation over the final board state;
+- #200 — machined tile bevel lighting refined without changing the established palette; high-tier contrast coverage now includes 4096/8192 and High Tier screenshot capture rejects visually blank artifacts.
 
 Merged app/meta passes:
 
@@ -61,6 +62,7 @@ Merged app/meta passes:
 - #184 — Home respects the animation setting and stays static when animations are disabled.
 - #188 — Settings has dedicated production visual-regression coverage, including blank-capture rejection.
 - #193 — Meta Visual screenshots use validated Activity-decor capture after Compose redraw/system-framebuffer capture proved unreliable; exported production PNGs were manually checked.
+- #199 — permanent Profile is reachable from the unlocked Home status rail without adding extra Home chrome; emulator coverage now traverses normal production navigation across Blueprints, Contracts, Profile, Achievements, Workshop and Settings.
 
 Still unfinished / requires acceptance:
 
@@ -123,7 +125,8 @@ Automated coverage includes:
 - obsolete Contracts-specific save/finish repository API variants removed after normal transactions absorbed that accounting (#189);
 - obsolete direct contract-claim repository API and its unused `GameSummary` conversion helper removed after compile/test validation (#195);
 - gesture touchSlop / one-command-per-gesture;
-- high-tier tile checks;
+- high-tier tile checks through 8192, including visual-content validation of the screenshot artifact (#200);
+- normal production-navigation traversal across the currently exposed permanent meta routes (#199);
 - expanded/portrait/compact-landscape geometry;
 - hosted frame-timing diagnostics.
 
