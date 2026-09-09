@@ -66,6 +66,11 @@ internal fun terminalPersistenceDialogVisible(
     delayElapsed: Boolean,
 ): Boolean = failed || (inProgress && delayElapsed)
 
+internal fun canNavigateAfterGameExit(ui: GameUiState): Boolean =
+    !ui.finishPersistenceInProgress &&
+        !ui.finishPersistenceFailed &&
+        !ui.exitAfterPersistenceReady
+
 @Composable
 fun PersistenceGuardedGameScreen(
     vm: GameViewModel,
@@ -98,6 +103,13 @@ fun PersistenceGuardedGameScreen(
         }
     }
 
+    LaunchedEffect(ui.exitAfterPersistenceReady) {
+        if (ui.exitAfterPersistenceReady) {
+            vm.consumeExitAfterPersistenceReady()
+            onExit()
+        }
+    }
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compactLandscape = maxWidth > maxHeight && maxHeight < 600.dp
 
@@ -105,7 +117,7 @@ fun PersistenceGuardedGameScreen(
             vm = vm,
             sfx = sfx,
             onExit = {
-                if (!terminalWritePending) onExit()
+                if (canNavigateAfterGameExit(vm.ui.value)) onExit()
             },
             modifier = modifier,
         )
@@ -132,16 +144,26 @@ fun PersistenceGuardedGameScreen(
         )
     ) {
         SteamDecisionDialog(
-            title = if (ui.finishPersistenceFailed) "РЕЗУЛЬТАТ НЕ СОХРАНЁН" else "СОХРАНЯЕМ РЕЗУЛЬТАТ",
+            title = when {
+                ui.finished && ui.finishPersistenceFailed -> "РЕЗУЛЬТАТ НЕ ЗАКРЫТ"
+                ui.finished -> "ЗАКРЫВАЕМ РЕЗУЛЬТАТ"
+                ui.finishPersistenceFailed -> "РЕЗУЛЬТАТ НЕ СОХРАНЁН"
+                else -> "СОХРАНЯЕМ РЕЗУЛЬТАТ"
+            },
             onDismissRequest = { },
             body = {
                 Column {
                     Text(
-                        text = if (ui.finishPersistenceFailed) {
-                            "Хранилище устройства не приняло финальную запись. Награда ещё не начислена. " +
-                                "Освободите немного места и повторите сохранение — будет использован тот же результат без двойного начисления."
-                        } else {
-                            "Фиксируем результат и награду одной атомарной записью."
+                        text = when {
+                            ui.finished && ui.finishPersistenceFailed ->
+                                "Хранилище не подтвердило закрытие сохранённого результата. Старый результат оставлен без изменений. " +
+                                    "Освободите немного места и повторите — выход или новая партия выполнятся только после подтверждённой записи."
+                            ui.finished ->
+                                "Подтверждаем закрытие сохранённого результата перед выходом или новой партией."
+                            ui.finishPersistenceFailed ->
+                                "Хранилище устройства не приняло финальную запись. Награда ещё не начислена. " +
+                                    "Освободите немного места и повторите сохранение — будет использован тот же результат без двойного начисления."
+                            else -> "Фиксируем результат и награду одной атомарной записью."
                         },
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.bodyMedium,
@@ -161,14 +183,14 @@ fun PersistenceGuardedGameScreen(
             actions = {
                 if (ui.finishPersistenceFailed) {
                     SteamButton(
-                        text = "ПОВТОРИТЬ СОХРАНЕНИЕ",
+                        text = if (ui.finished) "ПОВТОРИТЬ" else "ПОВТОРИТЬ СОХРАНЕНИЕ",
                         onClick = vm::retryFinishPersistence,
                         modifier = Modifier.fillMaxWidth(),
                         style = SteamButtonStyle.Teal,
                     )
                 } else {
                     Text(
-                        "СОХРАНЯЕМ…",
+                        if (ui.finished) "ЗАКРЫВАЕМ…" else "СОХРАНЯЕМ…",
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.labelLarge,
                         color = TealGlow,
