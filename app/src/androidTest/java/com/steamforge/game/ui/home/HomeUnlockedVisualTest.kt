@@ -1,6 +1,8 @@
 package com.steamforge.game.ui.home
 
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -62,9 +64,10 @@ class HomeUnlockedVisualTest {
             "Испытание дня. Новая задача на сегодня",
         ).fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Коллекция").fetchSemanticsNode()
-        composeRule.onNodeWithContentDescription("Профиль").fetchSemanticsNode()
+        val profile = composeRule.onNode(hasContentDescription("Профиль", substring = true))
+        profile.fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Коллекция").performClick()
-        composeRule.onNodeWithContentDescription("Профиль").performClick()
+        profile.performClick()
         composeRule.waitForIdle()
         assertTrue("Collection control did not invoke collection navigation", collectionOpened[0])
         assertTrue("Profile control did not invoke profile navigation", profileOpened[0])
