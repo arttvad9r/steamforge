@@ -15,7 +15,7 @@ trap cleanup EXIT
 
 launch_app() {
   adb shell am force-stop "$PACKAGE"
-  adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null
+  adb shell am start -W -n "$PACKAGE/.MainActivity" >/dev/null
   sleep 2
 }
 
