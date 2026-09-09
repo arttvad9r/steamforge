@@ -60,6 +60,7 @@ Merged app/meta passes:
 - #183 — dedicated Blueprints catalog for the persisted Steam Engine collection;
 - #184 — Home respects the animation setting and stays static when animations are disabled.
 - #188 — Settings has dedicated production visual-regression coverage, including blank-capture rejection.
+- #193 — Meta Visual screenshots use validated Activity-decor capture after Compose redraw/system-framebuffer capture proved unreliable; exported production PNGs were manually checked.
 
 Still unfinished / requires acceptance:
 
@@ -118,7 +119,9 @@ Automated coverage includes:
 - low-storage save failure/recovery;
 - terminal finish retry/idempotency;
 - Daily Challenge claim retry/idempotency across transient and ambiguous I/O failures (#190);
+- Settings, Contracts and Workshop visible meta writes preserve the last durable state instead of crashing on DataStore-style I/O failures (#192, #194);
 - obsolete Contracts-specific save/finish repository API variants removed after normal transactions absorbed that accounting (#189);
+- obsolete direct contract-claim repository API and its unused `GameSummary` conversion helper removed after compile/test validation (#195);
 - gesture touchSlop / one-command-per-gesture;
 - high-tier tile checks;
 - expanded/portrait/compact-landscape geometry;

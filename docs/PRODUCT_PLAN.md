@@ -58,6 +58,9 @@ Already implemented/current:
 - Settings has dedicated production visual-regression coverage with blank-capture rejection (#188);
 - historical Contracts-specific save/finish persistence APIs were removed after normal transactions absorbed that accounting (#189);
 - Daily Challenge reward claims retry transient I/O while preserving idempotency across ambiguous commit outcomes (#190);
+- Settings, Contracts and Workshop visible meta writes tolerate DataStore-style I/O failures while keeping durable progress authoritative (#192, #194);
+- Meta Visual production screenshot capture is stabilized through validated Activity-decor bitmaps after Compose/system capture failures were reproduced (#193);
+- obsolete direct contract-claim repository API and its unused summary conversion helper were removed after compile/test validation (#195);
 - advertising SDK/runtime completely removed;
 - AppMetrica/user analytics SDK/runtime completely removed;
 - analytics/ad consent and Settings surfaces removed;
@@ -230,7 +233,7 @@ GameViewModel
 └─ UI state + user intents
 ```
 
-No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier. Prefer small behavior-preserving extractions that remove demonstrated duplication or risk. Historical Contracts-specific save/finish repository API variants were removed in #189 after their behavior moved into the normal transactions.
+No big-bang rewrite. Keep manual DI unless actual complexity justifies something heavier. Prefer small behavior-preserving extractions that remove demonstrated duplication or risk. Historical Contracts-specific save/finish repository API variants were removed in #189 after their behavior moved into the normal transactions. The later unused direct contract-claim API and summary conversion helper were removed in #195 after compile/test validation confirmed no remaining consumers.
 
 ### Phase 6 — Reward layer consolidation
 
