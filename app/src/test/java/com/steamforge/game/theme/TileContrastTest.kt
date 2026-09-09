@@ -9,7 +9,7 @@ class TileContrastTest {
 
     @Test
     fun `gameplay tile numbers keep at least three to one contrast`() {
-        for (level in 1..11) {
+        for (level in 1..13) {
             val colors = tileColors(level)
             val ratio = contrastRatio(colors.content, colors.background)
             assertTrue(

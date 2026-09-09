@@ -50,7 +50,7 @@ private fun captureResumedActivityWindow(): Bitmap {
     return requireNotNull(screenshot) { "Visual capture did not produce a bitmap" }
 }
 
-private fun assertScreenshotHasVisualContent(bitmap: Bitmap, label: String) {
+internal fun assertScreenshotHasVisualContent(bitmap: Bitmap, label: String) {
     assertTrue("$label screenshot width is too small: ${bitmap.width}", bitmap.width >= 720)
     assertTrue("$label screenshot height is too small: ${bitmap.height}", bitmap.height >= 1_280)
 

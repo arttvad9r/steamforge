@@ -55,31 +55,35 @@ fun tileColors(level: Int): TileColors {
 
 /**
  * Restrained machined-metal bevel. The center stays broad and calm; progressively rarer materials
- * gain slightly stronger edge separation, not extra ornament. This keeps 2048+ special while the
- * number remains the primary tile content.
+ * gain slightly stronger edge separation, not extra ornament. The highlight is mixed toward white
+ * rather than multiplying RGB so dark steel/copper still catches a visible, neutral workshop light.
  */
 fun tileBevel(level: Int): Brush {
     val material = tileColors(level).background
-    val highlight = when {
-        level >= 12 -> 1.18f
-        level >= 11 -> 1.16f
-        level >= 9 -> 1.13f
-        else -> 1.10f
+    val topLift = when {
+        level >= 12 -> 0.16f
+        level >= 11 -> 0.15f
+        level >= 9 -> 0.13f
+        else -> 0.10f
     }
+    val shoulderLift = when {
+        level >= 11 -> 0.055f
+        level >= 9 -> 0.045f
+        else -> 0.035f
+    }
+    val lowerMid = if (level >= 9) 0.81f else 0.84f
     val lowerEdge = when {
-        level >= 12 -> 0.68f
-        level >= 11 -> 0.70f
-        level >= 9 -> 0.72f
-        else -> 0.76f
+        level >= 12 -> 0.64f
+        level >= 11 -> 0.67f
+        level >= 9 -> 0.70f
+        else -> 0.74f
     }
     return Brush.verticalGradient(
-        listOf(
-            material.lighten(highlight),
-            material.lighten(if (level >= 11) 1.055f else 1.035f),
-            material,
-            material.darken(if (level >= 9) 0.82f else 0.85f),
-            material.darken(lowerEdge),
-        ),
+        0.00f to material.lift(topLift),
+        0.15f to material.lift(shoulderLift),
+        0.48f to material,
+        0.78f to material.darken(lowerMid),
+        1.00f to material.darken(lowerEdge),
     )
 }
 
@@ -91,10 +95,12 @@ private fun Color.darken(factor: Float): Color =
         alpha,
     )
 
-private fun Color.lighten(factor: Float): Color =
-    Color(
-        (red * factor).coerceIn(0f, 1f),
-        (green * factor).coerceIn(0f, 1f),
-        (blue * factor).coerceIn(0f, 1f),
+private fun Color.lift(amount: Float): Color {
+    val safe = amount.coerceIn(0f, 1f)
+    return Color(
+        red + (1f - red) * safe,
+        green + (1f - green) * safe,
+        blue + (1f - blue) * safe,
         alpha,
     )
+}
