@@ -67,6 +67,7 @@ data class GameUiState(
     val animationsActive: Boolean = true,
     val finishPersistenceInProgress: Boolean = false,
     val finishPersistenceFailed: Boolean = false,
+    val exitAfterPersistenceReady: Boolean = false,
 )
 
 class GameViewModel(
@@ -104,6 +105,8 @@ class GameViewModel(
     private var discardFinishedRecord = false
     private var pendingFinish: PendingFinish? = null
     private var finishWriteInFlight = false
+    private var pendingFinishedResultDismissal: FinishedResultDismissalAction? = null
+    private var finishedResultDismissalWriteInFlight = false
     private var weeklyRecorder: WeeklyRunRecorder? = null
 
     private val _ui = MutableStateFlow(
@@ -136,6 +139,11 @@ class GameViewModel(
         val summary: GameSummary,
         val day: Long,
     )
+
+    private enum class FinishedResultDismissalAction {
+        RESTART,
+        EXIT,
+    }
 
     init {
         viewModelScope.launch {
@@ -391,25 +399,33 @@ class GameViewModel(
 
     fun restart() {
         val s = _ui.value
-        if (paidToolWriteInFlight || (finishStarted && !s.finished)) return
+        if (
+            paidToolWriteInFlight ||
+            s.finishPersistenceInProgress ||
+            s.finishPersistenceFailed ||
+            (finishStarted && !s.finished)
+        ) return
         if (s.finished && policy.restoreFinishedResult) {
-            writesScope.launch { repo.clearFinishedGame() }
+            startFinishedResultDismissal(FinishedResultDismissalAction.RESTART)
+            return
         }
         newGameInternal()
     }
 
     /**
      * Выход не является завершением партии и не выдаёт XP. Только NORMAL-партия сохраняется для
-     * продолжения; DAILY/WEEKLY закрываются без active-save. Если persisted finish уже фиксируется,
-     * результат удалится после транзакции только для режимов, которые таким результатом владеют.
+     * продолжения; DAILY/WEEKLY закрываются без active-save. Persisted finish закрывается durable
+     * до навигации, чтобы не воскреснуть после process recreation при ошибке хранилища.
      */
     fun exit() {
-        if (paidToolWriteInFlight || _ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
-        if (_ui.value.finished || finishStarted) {
+        val s = _ui.value
+        if (paidToolWriteInFlight || s.finishPersistenceInProgress || s.finishPersistenceFailed) return
+        if (s.finished && policy.restoreFinishedResult) {
+            startFinishedResultDismissal(FinishedResultDismissalAction.EXIT)
+            return
+        }
+        if (s.finished || finishStarted) {
             discardFinishedRecord = true
-            if (_ui.value.finished && policy.restoreFinishedResult) {
-                writesScope.launch { repo.clearFinishedGame() }
-            }
         } else if (policy.persistActiveRun) {
             persistGame()
         }
@@ -424,6 +440,8 @@ class GameViewModel(
         discardFinishedRecord = false
         pendingFinish = null
         finishWriteInFlight = false
+        pendingFinishedResultDismissal = null
+        finishedResultDismissalWriteInFlight = false
         sessionSeed = when (runMode) {
             GameRunMode.NORMAL -> seedProvider()
             GameRunMode.DAILY -> daily?.seed
@@ -455,9 +473,77 @@ class GameViewModel(
                 highMergesSession = 0,
                 finishPersistenceInProgress = false,
                 finishPersistenceFailed = false,
+                exitAfterPersistenceReady = false,
             )
         }
         persistGame()
+    }
+
+    fun consumeExitAfterPersistenceReady() {
+        _ui.update { it.copy(exitAfterPersistenceReady = false) }
+    }
+
+    private fun startFinishedResultDismissal(action: FinishedResultDismissalAction) {
+        if (finishedResultDismissalWriteInFlight) return
+        pendingFinishedResultDismissal = action
+        _ui.update {
+            it.copy(
+                finishPersistenceInProgress = true,
+                finishPersistenceFailed = false,
+                exitAfterPersistenceReady = false,
+            )
+        }
+        persistFinishedResultDismissal()
+    }
+
+    private fun persistFinishedResultDismissal() {
+        val action = pendingFinishedResultDismissal ?: return
+        if (finishedResultDismissalWriteInFlight) return
+        finishedResultDismissalWriteInFlight = true
+        _ui.update {
+            it.copy(
+                finishPersistenceInProgress = true,
+                finishPersistenceFailed = false,
+                exitAfterPersistenceReady = false,
+            )
+        }
+
+        writesScope.launch {
+            try {
+                for (attempt in 0 until 2) {
+                    try {
+                        repo.clearFinishedGame()
+                        pendingFinishedResultDismissal = null
+                        when (action) {
+                            FinishedResultDismissalAction.RESTART -> newGameInternal()
+                            FinishedResultDismissalAction.EXIT -> {
+                                _ui.update {
+                                    it.copy(
+                                        finishPersistenceInProgress = false,
+                                        finishPersistenceFailed = false,
+                                        exitAfterPersistenceReady = true,
+                                    )
+                                }
+                            }
+                        }
+                        return@launch
+                    } catch (_: IOException) {
+                        if (attempt == 1) {
+                            _ui.update {
+                                it.copy(
+                                    finishPersistenceInProgress = false,
+                                    finishPersistenceFailed = true,
+                                    exitAfterPersistenceReady = false,
+                                )
+                            }
+                            return@launch
+                        }
+                    }
+                }
+            } finally {
+                finishedResultDismissalWriteInFlight = false
+            }
+        }
     }
 
     private fun persistPaidTool(
@@ -602,7 +688,12 @@ class GameViewModel(
     }
 
     fun retryFinishPersistence() {
-        if (pendingFinish == null || finishWriteInFlight || !_ui.value.finishPersistenceFailed) return
+        if (!_ui.value.finishPersistenceFailed) return
+        if (pendingFinishedResultDismissal != null) {
+            if (!finishedResultDismissalWriteInFlight) persistFinishedResultDismissal()
+            return
+        }
+        if (pendingFinish == null || finishWriteInFlight) return
         persistPendingFinish()
     }
 
