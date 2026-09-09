@@ -66,7 +66,7 @@ class WholeAppNavigationSmokeTest {
         }
 
         composeRule.onNodeWithContentDescription("Коллекция").performClick()
-        composeRule.onNodeWithText("ЧЕРТЕЖИ").assertIsDisplayed()
+        composeRule.onNodeWithText("Чертежи").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Назад").performClick()
 
         composeRule.onNodeWithContentDescription("Контракты. 3 задания сегодня. Награды за игру")
