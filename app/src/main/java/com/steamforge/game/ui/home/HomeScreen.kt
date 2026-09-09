@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,6 +43,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,6 +75,7 @@ fun HomeScreen(
     onDaily: () -> Unit,
     onCollection: () -> Unit,
     onSettings: () -> Unit,
+    onProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -80,6 +87,7 @@ fun HomeScreen(
         onDaily = onDaily,
         onCollection = onCollection,
         onSettings = onSettings,
+        onProfile = onProfile,
         modifier = modifier,
     )
 }
@@ -93,6 +101,7 @@ internal fun HomeContent(
     onDaily: () -> Unit,
     onCollection: () -> Unit,
     onSettings: () -> Unit,
+    onProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val compactHeader = LocalConfiguration.current.screenWidthDp < 390
@@ -151,6 +160,7 @@ internal fun HomeContent(
                     bestScore = ui.bestScore,
                     workshopLevel = ui.workshopLevel,
                     gems = ui.gems,
+                    onProfile = onProfile,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -318,10 +328,18 @@ private fun HomeStatusRail(
     bestScore: Int,
     workshopLevel: Int,
     gems: Int,
+    onProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onProfile)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Профиль. Рекорд $bestScore, мастерская уровень $workshopLevel, гемы $gems"
+            }
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {

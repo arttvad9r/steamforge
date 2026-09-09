@@ -79,6 +79,7 @@ fun MainNavigation(container: AppContainer, modifier: Modifier = Modifier) {
                     onDaily = { backStack.add(Game(GameRunMode.DAILY)) },
                     onCollection = { backStack.add(Blueprints) },
                     onSettings = { backStack.add(Settings) },
+                    onProfile = { backStack.add(Profile) },
                 )
             }
             entry<Workshop> {
