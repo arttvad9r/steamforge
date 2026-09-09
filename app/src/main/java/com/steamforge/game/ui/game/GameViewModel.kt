@@ -97,6 +97,7 @@ class GameViewModel(
     )
     private var dailyCompletedToday = false
     private var dailyClaimInFlight = false
+    private var paidToolWriteInFlight = false
 
     private val writesScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var finishStarted = false
@@ -216,7 +217,7 @@ class GameViewModel(
 
     fun onMove(move: Move) {
         val s = _ui.value
-        if (s.finished || s.removingMode || finishStarted) return
+        if (s.finished || s.removingMode || finishStarted || paidToolWriteInFlight) return
         val snapshot = if (policy.allowUndo) {
             UndoSnapshot(
                 state = s.state,
@@ -286,24 +287,17 @@ class GameViewModel(
         if (!policy.allowUndo) return
         val s = _ui.value
         val snap = undoSnapshot ?: return
-        if (s.finished || s.removingMode || finishStarted) return
+        if (s.finished || s.removingMode || finishStarted || paidToolWriteInFlight) return
         val paidUndo = s.freeUndosLeft <= 0
-        if (!paidUndo) {
-            _ui.update { it.copy(freeUndosLeft = it.freeUndosLeft - 1) }
-        } else if (s.gems >= cfg.undoGemsCost) {
-            writesScope.launch {
-                repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.undoGemsCost).coerceAtLeast(0)) }
-            }
-        } else {
-            return
-        }
-        rng = ReplayableRandom(sessionSeed ?: 0L, snap.rngDraws)
-        _ui.update {
-            it.copy(
+        if (paidUndo && s.gems < cfg.undoGemsCost) return
+
+        val applyUndoState: (GameUiState) -> GameUiState = { current ->
+            current.copy(
                 state = snap.state,
-                gems = if (paidUndo) (it.gems - cfg.undoGemsCost).coerceAtLeast(0) else it.gems,
+                gems = if (paidUndo) (s.gems - cfg.undoGemsCost).coerceAtLeast(0) else current.gems,
                 pressure = snap.pressure,
                 overdriveRemaining = snap.overdriveRemaining,
+                freeUndosLeft = if (paidUndo) current.freeUndosLeft else (current.freeUndosLeft - 1).coerceAtLeast(0),
                 lastResult = null,
                 previousTiles = emptyList(),
                 canUndo = false,
@@ -314,6 +308,28 @@ class GameViewModel(
                 highMergesSession = snap.highMergesSession,
             )
         }
+
+        if (paidUndo) {
+            val nextUi = applyUndoState(s)
+            val activeGame = if (policy.persistActiveRun) {
+                buildSavedGameSnapshot(nextUi, sessionSeed, snap.rngDraws)
+            } else {
+                null
+            }
+            persistPaidTool(
+                expectedGems = s.gems,
+                gemCost = cfg.undoGemsCost,
+                activeGame = activeGame,
+            ) {
+                rng = ReplayableRandom(sessionSeed ?: 0L, snap.rngDraws)
+                _ui.update(applyUndoState)
+                undoSnapshot = null
+            }
+            return
+        }
+
+        rng = ReplayableRandom(sessionSeed ?: 0L, snap.rngDraws)
+        _ui.update(applyUndoState)
         undoSnapshot = null
         persistGame()
     }
@@ -321,7 +337,7 @@ class GameViewModel(
     fun toggleRemovingMode() {
         if (!policy.allowWrench) return
         val s = _ui.value
-        if (finishStarted || s.finished) return
+        if (paidToolWriteInFlight || finishStarted || s.finished) return
         if (s.removingMode) {
             _ui.update { it.copy(removingMode = false) }
             return
@@ -333,7 +349,8 @@ class GameViewModel(
     fun canRemoveTile(tile: Tile): Boolean {
         if (!policy.allowWrench) return false
         val s = _ui.value
-        return !finishStarted &&
+        return !paidToolWriteInFlight &&
+            !finishStarted &&
             !s.finished &&
             s.removingMode &&
             tile.level in 1..cfg.wrenchMaxTileLevel &&
@@ -343,28 +360,38 @@ class GameViewModel(
     fun removeTile(tile: Tile) {
         if (!policy.allowWrench) return
         val s = _ui.value
-        if (finishStarted || s.finished || !s.removingMode) return
+        if (paidToolWriteInFlight || finishStarted || s.finished || !s.removingMode) return
         if (!canRemoveTile(tile)) return
         val tiles = s.state.tiles.filterNot { it.id == tile.id }
         if (tiles.size == s.state.tiles.size) return
-        writesScope.launch {
-            repo.updateProgress { p -> p.copy(gems = (p.gems - cfg.wrenchGemsCost).coerceAtLeast(0)) }
-        }
-        _ui.update {
-            it.copy(
+
+        val applyRemoval: (GameUiState) -> GameUiState = { current ->
+            current.copy(
                 state = s.state.copy(tiles = tiles, status = GameStatus.PLAYING),
-                gems = (it.gems - cfg.wrenchGemsCost).coerceAtLeast(0),
+                gems = (s.gems - cfg.wrenchGemsCost).coerceAtLeast(0),
                 removingMode = false,
                 canUndo = false,
             )
         }
-        undoSnapshot = null
-        persistGame()
+        val nextUi = applyRemoval(s)
+        val activeGame = if (policy.persistActiveRun) {
+            buildSavedGameSnapshot(nextUi, sessionSeed, rng.draws)
+        } else {
+            null
+        }
+        persistPaidTool(
+            expectedGems = s.gems,
+            gemCost = cfg.wrenchGemsCost,
+            activeGame = activeGame,
+        ) {
+            _ui.update(applyRemoval)
+            undoSnapshot = null
+        }
     }
 
     fun restart() {
         val s = _ui.value
-        if (finishStarted && !s.finished) return
+        if (paidToolWriteInFlight || (finishStarted && !s.finished)) return
         if (s.finished && policy.restoreFinishedResult) {
             writesScope.launch { repo.clearFinishedGame() }
         }
@@ -377,7 +404,7 @@ class GameViewModel(
      * результат удалится после транзакции только для режимов, которые таким результатом владеют.
      */
     fun exit() {
-        if (_ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
+        if (paidToolWriteInFlight || _ui.value.finishPersistenceInProgress || _ui.value.finishPersistenceFailed) return
         if (_ui.value.finished || finishStarted) {
             discardFinishedRecord = true
             if (_ui.value.finished && policy.restoreFinishedResult) {
@@ -431,6 +458,40 @@ class GameViewModel(
             )
         }
         persistGame()
+    }
+
+    private fun persistPaidTool(
+        expectedGems: Int,
+        gemCost: Int,
+        activeGame: SavedGame?,
+        onCommitted: () -> Unit,
+    ) {
+        if (paidToolWriteInFlight) return
+        paidToolWriteInFlight = true
+        val operationId = UUID.randomUUID().toString()
+        writesScope.launch {
+            try {
+                for (attempt in 0 until 2) {
+                    try {
+                        if (
+                            repo.applyPaidTool(
+                                operationId = operationId,
+                                expectedGems = expectedGems,
+                                gemCost = gemCost,
+                                activeGame = activeGame,
+                            )
+                        ) {
+                            onCommitted()
+                        }
+                        return@launch
+                    } catch (_: IOException) {
+                        if (attempt == 1) return@launch
+                    }
+                }
+            } finally {
+                paidToolWriteInFlight = false
+            }
+        }
     }
 
     private fun checkDailyGoal(state: GameState) {

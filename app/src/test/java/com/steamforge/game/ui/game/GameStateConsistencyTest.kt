@@ -198,10 +198,17 @@ class GameStateConsistencyTest {
         assertTrue(model.ui.value.removingMode)
         model.removeTile(first)
         model.removeTile(second)
+
+        // The first paid removal is now persistence-atomic. The rapid second click is ignored
+        // while that write is in flight; UI commits only after durable success.
+        advanceUntilIdle()
         assertFalse(model.ui.value.removingMode)
         assertEquals(1, model.ui.value.state.tiles.size)
         assertEquals(10, model.ui.value.gems)
+        assertEquals(10, repo.currentProgress.gems)
 
+        // A stale click after the committed removal remains a no-op and cannot spend twice.
+        model.removeTile(second)
         advanceUntilIdle()
         assertEquals(1, model.ui.value.state.tiles.size)
         assertEquals(10, repo.currentProgress.gems)

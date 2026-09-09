@@ -14,6 +14,7 @@ class FakeDataRepo(
     private val progressFlow = MutableStateFlow(initialProgress)
     private val gameFlow = MutableStateFlow(initialGame)
     private val finishedFlow = MutableStateFlow(initialFinished)
+    private var lastPaidToolOperationId: String? = null
 
     override val progress: Flow<PlayerProgress> = progressFlow
     override val savedGame: Flow<SavedGame?> = gameFlow
@@ -41,6 +42,22 @@ class FakeDataRepo(
 
     override suspend fun updateProgress(block: (PlayerProgress) -> PlayerProgress) {
         currentProgress = block(currentProgress)
+    }
+
+    override suspend fun applyPaidTool(
+        operationId: String,
+        expectedGems: Int,
+        gemCost: Int,
+        activeGame: SavedGame?,
+    ): Boolean {
+        if (operationId.isBlank() || gemCost <= 0 || expectedGems < gemCost) return false
+        if (lastPaidToolOperationId == operationId) return true
+        if (currentProgress.gems != expectedGems) return false
+
+        if (activeGame != null) currentGame = activeGame
+        currentProgress = currentProgress.copy(gems = expectedGems - gemCost)
+        lastPaidToolOperationId = operationId
+        return true
     }
 
     override suspend fun applyGameFinish(
