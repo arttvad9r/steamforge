@@ -5,16 +5,20 @@ on:
     branches:
       - master
     paths:
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
       - 'app/src/main/java/com/steamforge/game/ui/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/main/java/com/steamforge/game/navigation/**'
+      - 'app/src/androidTest/java/com/steamforge/game/WholeAppNavigationSmokeTest.kt'
       - 'tools/check-accessibility-ui.sh'
       - '.github/workflows/accessibility-ui-smoke.yml'
   pull_request:
     paths:
+      - 'app/src/main/java/com/steamforge/game/Navigation.kt'
       - 'app/src/main/java/com/steamforge/game/ui/**'
       - 'app/src/main/java/com/steamforge/game/theme/**'
       - 'app/src/main/java/com/steamforge/game/navigation/**'
+      - 'app/src/androidTest/java/com/steamforge/game/WholeAppNavigationSmokeTest.kt'
       - 'tools/check-accessibility-ui.sh'
       - '.github/workflows/accessibility-ui-smoke.yml'
   workflow_dispatch:
@@ -55,10 +59,10 @@ jobs:
             'build-tools;36.0.0' \
             'system-images;android-36;google_apis;x86_64'
 
-      - name: Validate smoke script and build debug APK
+      - name: Validate smoke script and build debug/instrumentation APKs
         run: |
           bash -n tools/check-accessibility-ui.sh
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
 
       - name: Create and boot emulator
         run: |
@@ -102,11 +106,42 @@ jobs:
           adb shell settings put global transition_animation_scale 0.5
           adb shell settings put global animator_duration_scale 0.5
 
-      - name: Install Steamforge
-        run: adb install -r app/build/outputs/apk/debug/app-debug.apk
+      - name: Install Steamforge and instrumentation
+        run: |
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
       - name: Verify large-font targets and safe bounds
         run: bash tools/check-accessibility-ui.sh
+
+      - name: Verify unlocked meta semantics at large font
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            adb shell settings put system font_scale 1.0 >/dev/null 2>&1 || true
+            adb shell wm size reset >/dev/null 2>&1 || true
+            adb shell wm density reset >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          adb shell wm size 1080x2400
+          adb shell wm density 420
+          adb shell settings put system font_scale 1.3
+          actual_scale="$(adb shell settings get system font_scale | tr -d '\r')"
+          python3 - "$actual_scale" <<'PY'
+          import math
+          import sys
+          actual = float(sys.argv[1])
+          assert math.isclose(actual, 1.3, rel_tol=0, abs_tol=0.01), actual
+          PY
+
+          adb shell am force-stop com.steamforge.game
+          adb shell am instrument -w -r \
+            -e class com.steamforge.game.WholeAppNavigationSmokeTest \
+            com.steamforge.game.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee meta-large-font-instrumentation.txt
+          grep -F 'OK (1 test)' meta-large-font-instrumentation.txt
 
       - name: Upload accessibility diagnostics
         if: always()
@@ -115,6 +150,7 @@ jobs:
           name: steamforge-accessibility-ui
           path: |
             ci-accessibility-ui/
+            meta-large-font-instrumentation.txt
             emulator.log
           if-no-files-found: warn
           retention-days: 3
@@ -131,5 +167,7 @@ jobs:
           adb shell wm density || true
           echo '=== font scale ==='
           adb shell settings get system font_scale || true
+          echo '=== large-font meta instrumentation ==='
+          cat meta-large-font-instrumentation.txt || true
           echo '=== activity ==='
           adb shell dumpsys activity activities | head -200 || true
