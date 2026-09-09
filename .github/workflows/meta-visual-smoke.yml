@@ -179,11 +179,13 @@ jobs:
           grep -F 'OK (1 test)' whole-app-navigation-instrumentation.txt
 
           adb exec-out run-as com.steamforge.game cat cache/contracts-task-list.png > contracts-task-list.png
+          adb exec-out run-as com.steamforge.game cat cache/home-unlocked.png > home-unlocked.png
           adb exec-out run-as com.steamforge.game cat cache/blueprints-catalog.png > blueprints-catalog.png
           adb exec-out run-as com.steamforge.game cat cache/profile-ledger.png > profile-ledger.png
           adb exec-out run-as com.steamforge.game cat cache/achievements-registry.png > achievements-registry.png
           adb exec-out run-as com.steamforge.game cat cache/settings-controls.png > settings-controls.png
           test -s contracts-task-list.png
+          test -s home-unlocked.png
           test -s blueprints-catalog.png
           test -s profile-ledger.png
           test -s achievements-registry.png
@@ -192,6 +194,7 @@ jobs:
           from pathlib import Path
           for name in (
               'contracts-task-list.png',
+              'home-unlocked.png',
               'blueprints-catalog.png',
               'profile-ledger.png',
               'achievements-registry.png',
@@ -209,6 +212,7 @@ jobs:
           name: steamforge-meta-visual
           path: |
             contracts-task-list.png
+            home-unlocked.png
             blueprints-catalog.png
             profile-ledger.png
             achievements-registry.png
