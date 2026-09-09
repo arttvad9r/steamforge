@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -140,24 +145,12 @@ internal fun HomeContent(
                         textAlign = TextAlign.Center,
                     )
                 }
-                Column(
+                BrassRoundButton(
+                    symbol = "⚙",
+                    description = "Настройки",
+                    onClick = onSettings,
                     modifier = Modifier.align(Alignment.CenterEnd),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (visibility.showStatusRail) {
-                        BrassRoundButton(
-                            symbol = "S",
-                            description = "Профиль",
-                            onClick = onProfile,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    BrassRoundButton(
-                        symbol = "⚙",
-                        description = "Настройки",
-                        onClick = onSettings,
-                    )
-                }
+                )
             }
 
             if (visibility.showStatusRail) {
@@ -166,6 +159,7 @@ internal fun HomeContent(
                     bestScore = ui.bestScore,
                     workshopLevel = ui.workshopLevel,
                     gems = ui.gems,
+                    onProfile = onProfile,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -333,10 +327,17 @@ private fun HomeStatusRail(
     bestScore: Int,
     workshopLevel: Int,
     gems: Int,
+    onProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+        modifier = modifier
+            .clickable(onClick = onProfile)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Профиль"
+            }
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
