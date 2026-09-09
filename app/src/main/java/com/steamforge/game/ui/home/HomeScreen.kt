@@ -335,7 +335,7 @@ private fun HomeStatusRail(
             .clickable(onClick = onProfile)
             .semantics {
                 role = Role.Button
-                contentDescription = "Профиль"
+                contentDescription = "Профиль. Рекорд $bestScore, мастерская уровень $workshopLevel, гемы $gems"
             }
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
