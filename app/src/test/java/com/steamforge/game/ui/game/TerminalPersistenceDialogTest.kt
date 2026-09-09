@@ -49,4 +49,36 @@ class TerminalPersistenceDialogTest {
             ),
         )
     }
+
+    @Test
+    fun `ordinary completed exit may navigate immediately`() {
+        assertTrue(canNavigateAfterGameExit(GameUiState()))
+    }
+
+    @Test
+    fun `exit cannot navigate while persistence is in progress`() {
+        assertFalse(
+            canNavigateAfterGameExit(
+                GameUiState(finishPersistenceInProgress = true),
+            ),
+        )
+    }
+
+    @Test
+    fun `exit cannot navigate while persistence retry is required`() {
+        assertFalse(
+            canNavigateAfterGameExit(
+                GameUiState(finishPersistenceFailed = true),
+            ),
+        )
+    }
+
+    @Test
+    fun `exit handoff is consumed by wrapper before direct navigation is allowed`() {
+        assertFalse(
+            canNavigateAfterGameExit(
+                GameUiState(exitAfterPersistenceReady = true),
+            ),
+        )
+    }
 }
