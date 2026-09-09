@@ -21,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.steamforge.game.core.GameState
 import com.steamforge.game.core.GameStatus
 import com.steamforge.game.core.Tile
+import com.steamforge.game.testing.assertScreenshotHasVisualContent
 import com.steamforge.game.theme.Background
 import com.steamforge.game.theme.SteamforgeTheme
 import com.steamforge.game.ui.game.BoardView
@@ -71,9 +72,10 @@ class HighTierBoardReadabilityTest {
             InstrumentationRegistry.getInstrumentation().targetContext.cacheDir,
             SCREENSHOT_FILE,
         )
+        val screenshot = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        assertScreenshotHasVisualContent(screenshot, "High-tier board")
         FileOutputStream(output).use { stream ->
-            val written = composeRule.onRoot().captureToImage().asAndroidBitmap()
-                .compress(Bitmap.CompressFormat.PNG, 100, stream)
+            val written = screenshot.compress(Bitmap.CompressFormat.PNG, 100, stream)
             assertTrue("High-tier screenshot compression failed", written)
         }
         assertTrue("High-tier screenshot was not written", output.length() > 0L)
