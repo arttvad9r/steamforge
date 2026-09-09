@@ -14,6 +14,17 @@ interface DataRepo {
     suspend fun updateProgress(block: (PlayerProgress) -> PlayerProgress)
 
     /**
+     * Атомарно списывает Gems за платный gameplay-tool и, когда режим хранит active run,
+     * сохраняет resulting snapshot. operationId делает немедленный retry идемпотентным.
+     */
+    suspend fun applyPaidTool(
+        operationId: String,
+        expectedGems: Int,
+        gemCost: Int,
+        activeGame: SavedGame?,
+    ): Boolean
+
+    /**
      * Атомарное завершение партии: награды считаются от свежего прогресса,
      * запись результата (с эффектами) и обновлённый прогресс пишутся одной транзакцией.
      */

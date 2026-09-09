@@ -59,6 +59,7 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
         val dailyChallengeDone = booleanPreferencesKey("daily_challenge_done")
         val dailyRewardDay = longPreferencesKey("daily_reward_day")
         val dailyRewardStreak = intPreferencesKey("daily_reward_streak")
+        val paidToolReceipt = stringPreferencesKey("paid_tool_receipt")
 
         val contractDay = longPreferencesKey("contract_day")
         val contractScore = intPreferencesKey("contract_score")
@@ -97,22 +98,27 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
     }
 
     override suspend fun saveGame(state: SavedGame) {
-        context.dataStore.edit { prefs ->
-            val day = LocalDay.todayEpochDay()
-            val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
-            val runSeed = state.seed
-            prefs[Keys.game] = GameSaveCodec.encode(state)
-            if (runSeed == null) return@edit
+        context.dataStore.edit { prefs -> writeSavedGame(prefs, state) }
+    }
 
-            val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
-            val updated = DailyContracts.recordLiveSnapshot(
-                progress = base,
-                day = day,
-                runSeed = runSeed,
-                snapshot = contractSnapshot(base, state, previousSaved),
-            )
-            writeProgress(prefs, updated)
-        }
+    private fun writeSavedGame(
+        prefs: androidx.datastore.preferences.core.MutablePreferences,
+        state: SavedGame,
+    ) {
+        val day = LocalDay.todayEpochDay()
+        val previousSaved = prefs[Keys.game]?.let(GameSaveCodec::decode)
+        val runSeed = state.seed
+        prefs[Keys.game] = GameSaveCodec.encode(state)
+        if (runSeed == null) return
+
+        val base = contractBaseForDay(mapProgress(prefs), day, previousSaved)
+        val updated = DailyContracts.recordLiveSnapshot(
+            progress = base,
+            day = day,
+            runSeed = runSeed,
+            snapshot = contractSnapshot(base, state, previousSaved),
+        )
+        writeProgress(prefs, updated)
     }
 
     override suspend fun clearGame() {
@@ -121,6 +127,33 @@ class SteamforgeRepository(private val context: Context) : DataRepo {
 
     override suspend fun updateProgress(block: (PlayerProgress) -> PlayerProgress) {
         context.dataStore.edit { prefs -> writeProgress(prefs, block(mapProgress(prefs))) }
+    }
+
+    override suspend fun applyPaidTool(
+        operationId: String,
+        expectedGems: Int,
+        gemCost: Int,
+        activeGame: SavedGame?,
+    ): Boolean {
+        if (operationId.isBlank() || gemCost <= 0 || expectedGems < gemCost) return false
+
+        var applied = false
+        context.dataStore.edit { prefs ->
+            if (prefs[Keys.paidToolReceipt] == operationId) {
+                applied = true
+                return@edit
+            }
+
+            val progress = mapProgress(prefs)
+            if (progress.gems != expectedGems) return@edit
+
+            if (activeGame != null) writeSavedGame(prefs, activeGame)
+            val latest = mapProgress(prefs)
+            writeProgress(prefs, latest.copy(gems = expectedGems - gemCost))
+            prefs[Keys.paidToolReceipt] = operationId
+            applied = true
+        }
+        return applied
     }
 
     override suspend fun applyGameFinish(
