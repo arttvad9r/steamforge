@@ -5,6 +5,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.steamforge.game.testing.captureVisualScreenshot
 import com.steamforge.game.theme.SteamforgeTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -20,6 +21,7 @@ class HomeUnlockedVisualTest {
     @Test
     fun unlockedHomeRendersPrimaryPlayAndSecondaryNavigationDeck() {
         val collectionOpened = booleanArrayOf(false)
+        val profileOpened = booleanArrayOf(false)
         composeRule.setContent {
             SteamforgeTheme {
                 HomeContent(
@@ -46,6 +48,7 @@ class HomeUnlockedVisualTest {
                     onDaily = {},
                     onCollection = { collectionOpened[0] = true },
                     onSettings = {},
+                    onProfile = { profileOpened[0] = true },
                 )
             }
         }
@@ -59,8 +62,20 @@ class HomeUnlockedVisualTest {
             "Испытание дня. Новая задача на сегодня",
         ).fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Коллекция").fetchSemanticsNode()
+        composeRule.onNodeWithContentDescription("Профиль").fetchSemanticsNode()
         composeRule.onNodeWithContentDescription("Коллекция").performClick()
+        composeRule.onNodeWithContentDescription("Профиль").performClick()
         composeRule.waitForIdle()
         assertTrue("Collection control did not invoke collection navigation", collectionOpened[0])
+        assertTrue("Profile control did not invoke profile navigation", profileOpened[0])
+
+        captureVisualScreenshot(
+            fileName = SCREENSHOT_FILE,
+            label = "Unlocked Home",
+        )
+    }
+
+    private companion object {
+        const val SCREENSHOT_FILE = "home-unlocked.png"
     }
 }
